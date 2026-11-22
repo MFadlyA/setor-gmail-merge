@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "main": ".open-next/worker.js",
-  "name": "setor-gmail-winter",
+  "name": "setor-gmail-merge",
   "compatibility_date": "2026-10-05",
   "compatibility_flags": [
     "nodejs_compat",
@@ -14,7 +14,7 @@
   "services": [
     {
       "binding": "WORKER_SELF_REFERENCE",
-      "service": "setor-gmail-winter"
+      "service": "setor-gmail-merge"
     }
   ],
   "images": {
