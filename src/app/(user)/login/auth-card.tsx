@@ -642,10 +642,7 @@ export function AuthCard({
               onFallbackClick={handleGoogle}
               isLoading={isLoading}
             />
-            <p className="mt-2 text-center text-[11px] text-zinc-400">
-              <span className="text-emerald-400 font-medium">Khusus Administrator:</span> Masuk menggunakan Akun Google untuk mengakses Dashboard Admin.
-            </p>
-            <Divider label="atau masuk dengan email" />
+            <Divider label="atau" />
           </div>
 
           {mode === "login" ? (
