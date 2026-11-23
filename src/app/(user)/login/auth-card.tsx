@@ -240,34 +240,12 @@ export function AuthCard({
   const handleGoogle = React.useCallback(async () => {
     setIsLoading(true);
     try {
-      if (supabase) {
-        const { error } = await supabase.auth.signInWithOAuth({
-          provider: "google",
-          options: {
-            redirectTo: `${window.location.origin}/auth/callback`,
-            queryParams: {
-              prompt: "select_account",
-            },
-          },
-        });
-        if (error) {
-          toast.error("Gagal Masuk dengan Google", {
-            description: error.message,
-          });
-          setIsLoading(false);
-          return;
-        }
-        return;
-      }
-      toast.error("Konfigurasi Supabase belum siap", {
-        description: "Pastikan NEXT_PUBLIC_SUPABASE_URL dan NEXT_PUBLIC_SUPABASE_ANON_KEY sudah terisi.",
-      });
+      window.location.href = "/api/auth/google";
     } catch (err: unknown) {
-      console.error("Supabase Google OAuth error:", err);
+      console.error("Google OAuth redirect error:", err);
       toast.error("Gagal Masuk dengan Google", {
         description: err instanceof Error ? err.message : "Terjadi kendala saat menghubungi Google OAuth.",
       });
-    } finally {
       setIsLoading(false);
     }
   }, []);
