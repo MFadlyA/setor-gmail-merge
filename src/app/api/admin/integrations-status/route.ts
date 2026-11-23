@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { supabaseAdmin, getSupabaseAdminConfig } from "@/lib/supabase/admin";
 import { requireAdminAuth } from "@/lib/security/auth-guard";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +13,8 @@ export async function GET(req: NextRequest) {
   // 1. Check Supabase DB
   const checkSupabase = async () => {
     const t0 = Date.now();
+    const { supabaseUrl, hasServiceRoleKey } = getSupabaseAdminConfig();
+    const projectRef = supabaseUrl.replace(/^https?:\/\//, "").split(".")[0] || "unknown";
     try {
       const { error } = await supabaseAdmin
         .from("profiles")
@@ -24,20 +26,23 @@ export async function GET(req: NextRequest) {
           status: "Error",
           latency,
           error: error.message,
-          project: "kdjoeeehyahdgwgsfyal",
+          project: projectRef,
+          hasServiceRoleKey,
         };
       }
       return {
-        status: "Live",
+        status: hasServiceRoleKey ? "Live" : "Degraded (No Service Role Key)",
         latency,
-        project: "kdjoeeehyahdgwgsfyal",
+        project: projectRef,
+        hasServiceRoleKey,
       };
     } catch (e: any) {
       return {
         status: "Error",
         latency: Date.now() - t0,
         error: e?.message || "Connection failed",
-        project: "kdjoeeehyahdgwgsfyal",
+        project: projectRef,
+        hasServiceRoleKey,
       };
     }
   };
