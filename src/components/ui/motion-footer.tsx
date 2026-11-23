@@ -4,7 +4,7 @@ import * as React from "react";
 import { useEffect, useRef } from "react";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { cn, formatIDR } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { type SiteConfig, DEFAULT_SITE_CONFIG } from "@/lib/supabase";
 import {
   LogIn,
@@ -16,7 +16,6 @@ import {
   Clock,
   Wrench,
   PlayCircle,
-  Sparkles,
   ArrowRight,
 } from "lucide-react";
 
@@ -299,8 +298,6 @@ const LIVE_FEED_ITEMS = [
   { amount: "Rp 67.500 Cair", detail: "OVO · 1 menit lalu" },
 ];
 
-const SIMULATOR_PRESETS = [5, 10, 20, 50];
-
 export interface CinematicFooterProps {
   singlePage?: boolean;
   directReveal?: boolean;
@@ -333,14 +330,15 @@ export function CinematicFooter({
   const heroLeftRef = useRef<HTMLDivElement>(null);
   const heroRightRef = useRef<HTMLDivElement>(null);
 
-  const [simCount, setSimCount] = React.useState<number>(10);
   const [feedIdx, setFeedIdx] = React.useState<number>(0);
-
-  const pricePerGmail = cfg.price_per_gmail || 4500;
-  const minWithdraw = cfg.min_withdrawal || 5000;
 
   const handleLogin = onPill1Click || onOpenLogin;
   const handleRegister = onPill2Click || onOpenRegister;
+
+  const isLegacySubheadline =
+    !cfg.hero_subheadline ||
+    cfg.hero_subheadline.trim() ===
+      "Buat akun Gmail dan dapatkan saldo. Pencairan instan via E-wallet dan Bank.";
 
   // Rotate live payout feed card smoothly
   useEffect(() => {
@@ -436,14 +434,20 @@ export function CinematicFooter({
             ref={heroLeftRef}
             className="lg:col-span-6 flex flex-col items-center lg:items-start text-center lg:text-left"
           >
-            {/* Top Micro-Badge */}
-            <div className="inline-flex items-center gap-2.5 rounded-full border border-sky-400/30 bg-sky-950/50 px-4 py-1.5 backdrop-blur-md mb-5 shadow-[0_0_24px_-4px_rgba(56,189,248,0.3)]">
-              <span className="relative flex size-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-400 opacity-75" />
-                <span className="relative inline-flex size-2 rounded-full bg-sky-400" />
-              </span>
-              <span className="text-xs font-bold text-sky-200 tracking-wide">
-                {cfg.platform_badge || "Platform Setor Gmail Terpercaya 2026"}
+            {/* Top Micro-Badges */}
+            <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2.5 mb-5">
+              <div className="inline-flex items-center gap-2.5 rounded-full border border-sky-400/30 bg-sky-950/50 px-4 py-1.5 backdrop-blur-md shadow-[0_0_24px_-4px_rgba(56,189,248,0.3)]">
+                <span className="relative flex size-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-400 opacity-75" />
+                  <span className="relative inline-flex size-2 rounded-full bg-sky-400" />
+                </span>
+                <span className="text-xs font-bold text-sky-200 tracking-wide">
+                  {cfg.platform_badge || "Platform Setor Gmail Terpercaya 2026"}
+                </span>
+              </div>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3.5 py-1.5 text-xs font-semibold text-zinc-300 backdrop-blur-md">
+                <ShieldCheck className="size-3.5 text-emerald-400" />
+                SSL &amp; Anti-Fraud
               </span>
             </div>
 
@@ -461,26 +465,17 @@ export function CinematicFooter({
             </h1>
 
             {/* Subtitle */}
-            <p className="text-sm sm:text-base text-zinc-300/90 max-w-lg mb-5 leading-relaxed">
-              {cfg.hero_subheadline ||
-                "Buat akun Gmail dan dapatkan saldo. Pencairan instan via E-wallet dan Bank."}
+            <p className="text-sm sm:text-base text-zinc-300/90 max-w-lg mb-7 leading-relaxed whitespace-pre-line">
+              {isLegacySubheadline ? (
+                <>
+                  Setor akun Gmail dan dapatkan saldo.
+                  <br />
+                  Pencairan instan via E-wallet dan Bank
+                </>
+              ) : (
+                cfg.hero_subheadline
+              )}
             </p>
-
-            {/* Quick Value Chips so visitors immediately understand */}
-            <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2 mb-7">
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-3 py-1 text-xs font-bold text-emerald-300">
-                <Sparkles className="size-3.5 text-emerald-400" />
-                {formatIDR(pricePerGmail)} / Akun
-              </span>
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-500/25 bg-sky-500/10 px-3 py-1 text-xs font-bold text-sky-300">
-                <Zap className="size-3.5 text-sky-400" />
-                Min. Tarik {formatIDR(minWithdraw)}
-              </span>
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-zinc-300">
-                <ShieldCheck className="size-3.5 text-emerald-400" />
-                SSL &amp; Anti-Fraud
-              </span>
-            </div>
 
             {/* Action Buttons: Daftar Gratis (Primary), Login (Glass), Cara Kerja */}
             <div className="flex flex-wrap items-center justify-center lg:justify-start gap-3.5 w-full">
@@ -520,14 +515,14 @@ export function CinematicFooter({
             </div>
           </div>
 
-          {/* SISI KANAN: Interactive Showcase & Simulasi Penghasilan */}
+          {/* SISI KANAN: Interactive Showcase */}
           <div
             ref={heroRightRef}
             className="lg:col-span-6 relative flex items-center justify-center py-8 sm:py-12 pb-12 sm:pb-12"
           >
             <div className="relative w-full max-w-[390px] sm:max-w-[440px] mx-auto px-2 sm:px-0">
               {/* Center Main Card */}
-              <div className="floating-showcase-card rounded-3xl p-6 sm:p-8 pt-7 pb-7 flex flex-col items-center text-center relative z-10">
+              <div className="floating-showcase-card rounded-3xl px-6 sm:px-8 py-10 sm:py-12 flex flex-col items-center text-center relative z-10">
                 {/* Brand Emblem */}
                 <div className="relative mb-3.5">
                   <div
@@ -546,62 +541,17 @@ export function CinematicFooter({
                 <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight">
                   Setor Gmail
                 </h3>
-                <p className="mt-1 text-xs sm:text-sm text-zinc-400 max-w-xs">
-                  Generate nama · Buat akun · Langsung cair
+                <p className="mt-1.5 text-xs sm:text-sm text-zinc-400 flex flex-wrap items-center justify-center gap-1.5">
+                  <span>Generate nama</span>
+                  <span className="text-sky-400 font-bold">✦</span>
+                  <span>Buat akun</span>
+                  <span className="text-sky-400 font-bold">✦</span>
+                  <span>Langsung cair</span>
                 </p>
-
-                {/* Interactive Earnings Simulator */}
-                <div className="mt-5 w-full rounded-2xl border border-white/10 bg-black/50 p-3.5 sm:p-4 text-left">
-                  <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-zinc-400 mb-2.5">
-                    <span>Simulasi Penghasilan</span>
-                    <span className="text-sky-400 font-mono">
-                      {formatIDR(pricePerGmail)}/akun
-                    </span>
-                  </div>
-
-                  {/* Preset selector buttons */}
-                  <div className="grid grid-cols-4 gap-1.5 mb-3">
-                    {SIMULATOR_PRESETS.map((num) => {
-                      const active = simCount === num;
-                      return (
-                        <button
-                          key={num}
-                          type="button"
-                          onClick={() => setSimCount(num)}
-                          className={cn(
-                            "rounded-xl py-1.5 text-xs font-extrabold transition-all cursor-pointer",
-                            active
-                              ? "bg-gradient-to-r from-sky-400 to-blue-600 text-white shadow-md shadow-sky-500/30"
-                              : "bg-white/5 text-zinc-300 hover:bg-white/10 border border-white/5"
-                          )}
-                        >
-                          {num} Akun
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {/* Calculated Result */}
-                  <div className="flex items-center justify-between rounded-xl border border-emerald-500/25 bg-emerald-950/35 px-3.5 py-2.5">
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-300/80">
-                        Estimasi Saldo Cair
-                      </p>
-                      <p className="text-lg sm:text-xl font-black text-emerald-400 tabular-nums tracking-tight">
-                        {formatIDR(simCount * pricePerGmail)}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <span className="inline-block rounded-lg bg-emerald-500/20 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-bold text-emerald-300">
-                        DANA · GoPay · OVO
-                      </span>
-                    </div>
-                  </div>
-                </div>
 
                 {/* Badge Status */}
                 {cfg.badge_status_active !== false && (
-                  <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-amber-400/35 bg-gradient-to-r from-amber-950/80 via-amber-900/50 to-amber-950/80 px-3.5 py-1.5 text-xs font-bold text-amber-300 shadow-[0_0_20px_-4px_rgba(245,158,11,0.35)] backdrop-blur-md">
+                  <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-amber-400/35 bg-gradient-to-r from-amber-950/80 via-amber-900/50 to-amber-950/80 px-3.5 py-1.5 text-xs font-bold text-amber-300 shadow-[0_0_20px_-4px_rgba(245,158,11,0.35)] backdrop-blur-md">
                     <span className="relative flex size-2 shrink-0">
                       <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
                       <span className="relative inline-flex size-2 rounded-full bg-amber-400" />
