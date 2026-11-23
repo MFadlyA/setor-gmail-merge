@@ -1692,9 +1692,9 @@ export default function CmsPage() {
                         </span>
                       </div>
 
-                      {/* 2-Col Info Cards Persis Dashboard */}
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="rounded-xl border border-sky-400/20 bg-sky-500/[0.07] px-3 py-2">
+                      {/* Inline Stats Persis Dashboard (tanpa kolom) */}
+                      <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+                        <div>
                           <div className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-sky-300/85">
                             <Zap className="size-3 text-sky-400" />
                             <span>Harga / Gmail</span>
@@ -1703,7 +1703,8 @@ export default function CmsPage() {
                             Rp{config.price_per_gmail.toLocaleString("id-ID")}
                           </p>
                         </div>
-                        <div className="rounded-xl border border-white/10 bg-black/35 px-3 py-2">
+                        <div className="h-6 w-[1px] bg-white/10" aria-hidden="true" />
+                        <div>
                           <div className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-zinc-400">
                             <Target className="size-3 text-sky-400" />
                             <span>Min. Penarikan</span>

@@ -422,7 +422,8 @@ export async function insertUserDeposits(
   userId: string,
   emails: string[],
   categoryId = "good",
-  amountPerAccount = 4500
+  amountPerAccount = 4500,
+  note?: string
 ): Promise<{ success: boolean; insertedCount: number; error?: string }> {
   if (!isSupabaseConfigured) {
     return { success: true, insertedCount: emails.length };
@@ -485,6 +486,7 @@ export async function insertUserDeposits(
             ? clean.slice(0, atIdx).replace(/\./g, "") + clean.slice(atIdx)
             : clean;
 
+        const cleanNote = note ? sanitizeInputText(note, 200) : undefined;
         return {
           user_id: user.id,
           gmail: clean,
@@ -492,6 +494,7 @@ export async function insertUserDeposits(
           category_id: cleanCategory,
           status: "pending",
           amount: authoritativePrice,
+          ...(cleanNote ? { note: cleanNote } : {}),
         };
       })
       .filter((rec) => {

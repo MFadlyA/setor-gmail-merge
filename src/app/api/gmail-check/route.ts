@@ -1,7 +1,7 @@
 import net from "net";
 import dns from "dns/promises";
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import { checkRateLimit } from "@/lib/security";
 import {
   type GmailProbeItem,
@@ -163,24 +163,46 @@ function checkBatchSmtp(
   });
 }
 
+async function lookupDepositedEmails(normalizedEmails: string[]): Promise<Set<string>> {
+  const deposited = new Set<string>();
+  if (normalizedEmails.length === 0) return deposited;
+
+  try {
+    const { data } = await supabaseAdmin
+      .from("deposits")
+      .select("normalized_gmail, gmail")
+      .in("normalized_gmail", normalizedEmails);
+
+    for (const row of data || []) {
+      if (row.normalized_gmail) {
+        deposited.add(String(row.normalized_gmail).trim().toLowerCase());
+      }
+      if (row.gmail) {
+        const lower = String(row.gmail).trim().toLowerCase();
+        const at = lower.lastIndexOf("@");
+        if (at !== -1) {
+          deposited.add(lower.slice(0, at).replace(/\./g, "") + "@gmail.com");
+        }
+      }
+    }
+  } catch {
+    // ignore optional DB lookup error
+  }
+  return deposited;
+}
+
 async function lookupKnownLiveEmails(normalizedEmails: string[]): Promise<Set<string>> {
   const known = new Set<string>();
   if (normalizedEmails.length === 0) return known;
 
-  const supabaseUrl =
-    process.env.NEXT_PUBLIC_SUPABASE_URL || "https://kdjoeeehyahdgwgsfyal.supabase.co";
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!serviceRoleKey) return known;
-
   try {
-    const sb = createClient(supabaseUrl, serviceRoleKey);
     const [depRes, profRes] = await Promise.all([
-      sb
+      supabaseAdmin
         .from("deposits")
         .select("normalized_gmail")
         .in("normalized_gmail", normalizedEmails)
-        .in("status", ["diterima", "pending", "dicek"]),
-      sb.from("profiles").select("email").in("email", normalizedEmails),
+        .in("status", ["diterima", "pending", "dicek", "accepted"]),
+      supabaseAdmin.from("profiles").select("email").in("email", normalizedEmails),
     ]);
 
     for (const row of depRes.data || []) {
@@ -272,6 +294,11 @@ export async function POST(req: NextRequest) {
     let probedResults: GmailProbeItem[] = [];
     let usedEngine: "SMTP_PORT_25" | "HTTPS_PORT_443" | "SYNTAX_ONLY" = "SYNTAX_ONLY";
 
+    // Always check DB deposits table for previously deposited emails
+    const depositedSet = await lookupDepositedEmails(
+      validTargets.map((t) => t.normalizedEmail)
+    );
+
     if (validTargets.length > 0) {
       try {
         // Primary Mode: Single-Connection SMTP Port 25 Reuse
@@ -292,9 +319,19 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const allResults = [...invalidResults, ...probedResults].sort(
-      (a, b) => a.index - b.index
-    );
+    const normalizedByEmail = new Map<string, string>();
+    validTargets.forEach((t) => normalizedByEmail.set(t.cleanEmail.toLowerCase(), t.normalizedEmail));
+
+    const allResults = [...invalidResults, ...probedResults]
+      .sort((a, b) => a.index - b.index)
+      .map((item) => {
+        const norm = normalizedByEmail.get(item.email.toLowerCase()) || item.email.toLowerCase();
+        const alreadyDeposited = depositedSet.has(norm);
+        return {
+          ...item,
+          alreadyDeposited,
+        };
+      });
 
     const summary = {
       total: allResults.length,

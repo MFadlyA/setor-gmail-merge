@@ -18,6 +18,7 @@ import {
   Calendar,
   ShieldAlert,
   UserCheck,
+  KeyRound,
 } from "lucide-react";
 import { PageShell, Reveal } from "@/components/layout/page-shell";
 import { defaultPassword } from "@/lib/mock-data";
@@ -117,6 +118,7 @@ function generateBatch(count: number, existingPool?: Set<string>): string[] {
 export function SetorView() {
   const [emails, setEmails] = React.useState("");
   const [depositMode, setDepositMode] = React.useState<"fresh" | "old">("fresh");
+  const [oldEmailPassword, setOldEmailPassword] = React.useState("");
   const { refreshDeposits, refreshWallet, siteConfig } = useUserProfile();
   const activePassword = siteConfig?.default_password || defaultPassword;
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -268,7 +270,7 @@ export function SetorView() {
       toast.info("Belum ada Gmail yang digenerate di atas.");
       return;
     }
-    const capped = list.slice(0, 100);
+    const capped = list.slice(0, 10);
     setEmails(capped.join("\n"));
     setHasCheckedSetoran(false);
     setSetoranCheckResults([]);
@@ -327,18 +329,38 @@ export function SetorView() {
       };
     }, [emails, generatedPool]);
 
-  // Handle textarea change with max 100 lines validation notification
-  const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const val = e.target.value;
-    const currentLines = val.split("\n").filter((l) => l.trim()).length;
-
-    if (currentLines > 100) {
-      toast.error("Maksimal 100 Gmail!", {
-        description: `Anda telah memasukkan ${currentLines} Gmail. Mohon kurangi hingga maksimal 100 Gmail.`,
-      });
+  // Block Enter when already at 10 lines
+  const handleTextareaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter") {
+      const target = e.currentTarget;
+      const hasMultiLineSelection =
+        target.selectionStart !== target.selectionEnd &&
+        emails.slice(target.selectionStart, target.selectionEnd).includes("\n");
+      const currentLineCount = emails.split("\n").length;
+      if (!hasMultiLineSelection && currentLineCount >= 10) {
+        e.preventDefault();
+        toast.warning("Maksimal 10 Gmail per setoran", {
+          id: "max-10-gmail",
+          description: "Tidak bisa menekan Enter lagi karena sudah mencapai batas 10 baris.",
+        });
+      }
     }
+  };
 
-    setEmails(val);
+  // Hard cap textarea at 10 lines (including paste)
+  const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const normalized = e.target.value.replace(/\r\n/g, "\n");
+    const lines = normalized.split("\n");
+
+    if (lines.length > 10) {
+      setEmails(lines.slice(0, 10).join("\n"));
+      toast.warning("Maksimal 10 Gmail per setoran", {
+        id: "max-10-gmail",
+        description: "Jumlah baris otomatis dibatasi maksimal 10 Gmail.",
+      });
+    } else {
+      setEmails(normalized);
+    }
     setHasCheckedSetoran(false);
   };
 
@@ -360,9 +382,9 @@ export function SetorView() {
       return;
     }
 
-    if (rawLines.length > 100) {
-      toast.error("Maksimal 100 Gmail per pengecekan!", {
-        description: `Saat ini terdapat ${rawLines.length} Gmail. Maksimal 100 Gmail.`,
+    if (rawLines.length > 10) {
+      toast.error("Maksimal 10 Gmail per pengecekan!", {
+        description: `Saat ini terdapat ${rawLines.length} Gmail. Maksimal 10 Gmail.`,
       });
       return;
     }
@@ -440,21 +462,41 @@ export function SetorView() {
 
         if (res.ok) {
           const data = await res.json();
-          const apiMap = new Map<string, { status: string; message: string }>();
+          const apiMap = new Map<
+            string,
+            { status: string; message: string; alreadyDeposited?: boolean }
+          >();
           if (Array.isArray(data.results)) {
-            data.results.forEach((r: { email: string; status: string; message: string }) => {
-              apiMap.set(r.email.toLowerCase(), {
-                status: String(r.status || "").toUpperCase(),
-                message: r.message,
-              });
-            });
+            data.results.forEach(
+              (r: { email: string; status: string; message: string; alreadyDeposited?: boolean }) => {
+                apiMap.set(r.email.toLowerCase(), {
+                  status: String(r.status || "").toUpperCase(),
+                  message: r.message,
+                  alreadyDeposited: Boolean(r.alreadyDeposited),
+                });
+              }
+            );
           }
 
+          const newlyDetectedSubmitted: string[] = [];
           toQueryViaApi.forEach((q) => {
-            const apiRes = apiMap.get(q.email.toLowerCase());
+            const lowerEmail = q.email.toLowerCase();
+            const apiRes = apiMap.get(lowerEmail);
+
+            if (apiRes?.alreadyDeposited) {
+              newlyDetectedSubmitted.push(lowerEmail);
+              items.push({
+                index: q.index,
+                email: q.email,
+                status: "SUDAH DISETOR",
+                reason: "Email sudah pernah disetor sebelumnya (tidak bisa disetor ulang)",
+              });
+              return;
+            }
+
             const status: "LIVE" | "UNREGISTERED" =
               apiRes?.status === "LIVE" ? "LIVE" : "UNREGISTERED";
-            updatedStatusMap[q.email.toLowerCase()] = status;
+            updatedStatusMap[lowerEmail] = status;
             items.push({
               index: q.index,
               email: q.email,
@@ -466,6 +508,15 @@ export function SetorView() {
                   : "Belum pernah dibuat / Tersedia di Google"),
             });
           });
+
+          if (newlyDetectedSubmitted.length > 0) {
+            const mergedSubmitted = new Set([
+              ...Array.from(submittedSet),
+              ...newlyDetectedSubmitted,
+            ]);
+            setSubmittedSet(mergedSubmitted);
+            saveStoredSubmittedGmails(Array.from(mergedSubmitted));
+          }
         } else {
           toQueryViaApi.forEach((q) => {
             updatedStatusMap[q.email.toLowerCase()] = "UNREGISTERED";
@@ -560,6 +611,12 @@ export function SetorView() {
       });
       return;
     }
+    if (depositMode === "old" && !oldEmailPassword.trim()) {
+      toast.error("Password email wajib diisi!", {
+        description: "Masukkan password akun Gmail lama yang disetor sebelum mengirim setoran.",
+      });
+      return;
+    }
 
     setIsSubmitting(true);
     const totalEarnings = liveCount * pricePerGmail;
@@ -570,7 +627,15 @@ export function SetorView() {
         const user = await getCurrentAuthUser();
         if (user) {
           const categoryId = depositMode === "old" ? "bebas" : "good";
-          const res = await insertUserDeposits(user.id, liveEmailList, categoryId, pricePerGmail);
+          const noteText =
+            depositMode === "old" ? `Password: ${oldEmailPassword.trim()}` : undefined;
+          const res = await insertUserDeposits(
+            user.id,
+            liveEmailList,
+            categoryId,
+            pricePerGmail,
+            noteText
+          );
           if (!res.success) {
             toast.error("Gagal menyetor Gmail", {
               description: res.error || "Terjadi kendala saat menyimpan setoran.",
@@ -1103,10 +1168,34 @@ export function SetorView() {
               </div>
             </div>
 
+            {/* Kolom Password Email (Khusus Setor Email Lama) */}
+            {depositMode === "old" && (
+              <div className="mb-3">
+                <label
+                  htmlFor="old-email-password"
+                  className="mb-1.5 flex items-center gap-1.5 text-xs font-bold text-zinc-200"
+                >
+                  <KeyRound className="size-3.5 text-sky-400" />
+                  <span>Password Email</span>
+                  <span className="text-rose-400">*</span>
+                </label>
+                <input
+                  id="old-email-password"
+                  type="text"
+                  value={oldEmailPassword}
+                  onChange={(e) => setOldEmailPassword(e.target.value.slice(0, 120))}
+                  placeholder="Masukkan password akun Gmail lama yang disetor..."
+                  autoComplete="off"
+                  className="w-full h-10.5 rounded-xl border border-white/10 bg-black/40 px-3.5 font-mono text-xs sm:text-sm text-white placeholder:text-zinc-500 outline-none transition-all focus:border-sky-500/60 focus:bg-black/60 focus:ring-2 focus:ring-sky-500/20"
+                />
+              </div>
+            )}
+
             <textarea
               rows={9}
               value={emails}
               onChange={handleTextareaChange}
+              onKeyDown={handleTextareaKeyDown}
               placeholder={"contoh1@gmail.com\ncontoh2@gmail.com"}
               spellCheck={false}
               autoCapitalize="none"
@@ -1240,11 +1329,15 @@ export function SetorView() {
                           ({setoranCheckResults.filter((r) => r.status === "SUDAH DISETOR").length} sudah disetor)
                         </span>
                       )}
-                      {notGeneratedCount > 0 && (
+                      {depositMode === "fresh" && notGeneratedCount > 0 && (
                         <span className="text-amber-400 font-medium ml-1.5">
                           ({notGeneratedCount} diabaikan)
                         </span>
                       )}
+                    </>
+                  ) : depositMode === "old" ? (
+                    <>
+                      Terdeteksi: <strong className="font-bold text-white">{totalLines}</strong> baris Gmail siap dicek
                     </>
                   ) : (
                     <>

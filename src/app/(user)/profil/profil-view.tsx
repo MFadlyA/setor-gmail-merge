@@ -555,10 +555,6 @@ export function ProfilView() {
                     Pilihan E-Wallet Penarikan
                   </label>
                 </div>
-                <span className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-bold text-amber-300 shadow-2xs">
-                  <span className="size-1.5 rounded-full bg-amber-400" />
-                  Gopay pajak transfer {siteConfig?.tax_gopay ?? 1000}
-                </span>
               </div>
 
               {/* 2 E-Wallet Buttons: DANA & GoPay */}

@@ -16,6 +16,9 @@ import {
   Search,
   Mail,
   ArrowDownToLine,
+  Calendar,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import { StatusBadge } from "@/components/admin/ui/badge";
 import { adminFetch } from "@/lib/api-client";
@@ -46,9 +49,13 @@ export default function DashboardOverviewPage() {
     });
   };
 
-  // State untuk Tab List Setor Gmail
+  // State untuk Tab List Setor Gmail & Transaksi (Filter & Sort Tanggal)
   const [depositSearch, setDepositSearch] = useState("");
   const [depositStatusFilter, setDepositStatusFilter] = useState<"all" | "accepted" | "pending" | "rejected">("all");
+  const [depositDateFilter, setDepositDateFilter] = useState("");
+  const [depositSortOrder, setDepositSortOrder] = useState<"desc" | "asc">("desc");
+  const [txDateFilter, setTxDateFilter] = useState("");
+  const [txSortOrder, setTxSortOrder] = useState<"desc" | "asc">("desc");
   const [copiedGmail, setCopiedGmail] = useState<string | null>(null);
 
   // Withdrawal processing state
@@ -163,8 +170,17 @@ export default function DashboardOverviewPage() {
     gmailPrice: 4500,
   };
 
+  const toLocalDateStr = (iso?: string) => {
+    if (!iso) return "";
+    const d = new Date(iso);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
   const filteredDepositsList = React.useMemo(() => {
-    let list = data?.recentDeposits || [];
+    let list = [...(data?.recentDeposits || [])];
     if (depositStatusFilter !== "all") {
       list = list.filter((d: any) => {
         const s = (d.status || "").toLowerCase();
@@ -180,6 +196,9 @@ export default function DashboardOverviewPage() {
         return true;
       });
     }
+    if (depositDateFilter) {
+      list = list.filter((d: any) => toLocalDateStr(d.created_at) === depositDateFilter);
+    }
     if (depositSearch.trim()) {
       const q = depositSearch.toLowerCase();
       list = list.filter(
@@ -189,8 +208,26 @@ export default function DashboardOverviewPage() {
           (d.userEmail || "").toLowerCase().includes(q)
       );
     }
+    list.sort((a: any, b: any) => {
+      const ta = new Date(a.created_at).getTime();
+      const tb = new Date(b.created_at).getTime();
+      return depositSortOrder === "asc" ? ta - tb : tb - ta;
+    });
     return list;
-  }, [data?.recentDeposits, depositStatusFilter, depositSearch]);
+  }, [data?.recentDeposits, depositStatusFilter, depositSearch, depositDateFilter, depositSortOrder]);
+
+  const filteredTransactionsList = React.useMemo(() => {
+    let list = [...(data?.recentTransactions || [])];
+    if (txDateFilter) {
+      list = list.filter((t: any) => toLocalDateStr(t.created_at) === txDateFilter);
+    }
+    list.sort((a: any, b: any) => {
+      const ta = new Date(a.created_at).getTime();
+      const tb = new Date(b.created_at).getTime();
+      return txSortOrder === "asc" ? ta - tb : tb - ta;
+    });
+    return list;
+  }, [data?.recentTransactions, txDateFilter, txSortOrder]);
 
   return (
     <div className="space-y-4 max-w-7xl mx-auto pb-10">
@@ -584,14 +621,52 @@ export default function DashboardOverviewPage() {
                 )}
 
                 {/* Bagian Riwayat Mutasi & Transaksi */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between px-1">
+                <div className="space-y-2.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2 px-1">
                     <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-                      Riwayat Transaksi & Mutasi Saldo
+                      Riwayat Transaksi &amp; Mutasi Saldo
                     </span>
-                    <span className="text-[11px] text-zinc-500">
-                      {data?.recentTransactions?.length || 0} Transaksi Terakhir
-                    </span>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex items-center gap-1.5 bg-zinc-950/80 border border-zinc-800 rounded-xl px-2.5 py-1">
+                        <Calendar className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                        <input
+                          type="date"
+                          value={txDateFilter}
+                          onChange={(e) => setTxDateFilter(e.target.value)}
+                          className="bg-transparent text-xs text-zinc-200 focus:outline-none [color-scheme:dark] cursor-pointer"
+                          title="Filter transaksi berdasarkan tanggal"
+                        />
+                        {txDateFilter && (
+                          <button
+                            type="button"
+                            onClick={() => setTxDateFilter("")}
+                            className="p-0.5 rounded text-zinc-400 hover:text-rose-400 cursor-pointer"
+                            title="Reset filter tanggal"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setTxSortOrder((prev) => (prev === "desc" ? "asc" : "desc"))}
+                        className="inline-flex items-center gap-1.5 bg-zinc-950/80 border border-zinc-800 hover:border-emerald-500/40 rounded-xl px-2.5 py-1 text-xs font-semibold text-zinc-200 transition-colors cursor-pointer"
+                        title="Urutkan transaksi berdasarkan tanggal"
+                      >
+                        {txSortOrder === "asc" ? (
+                          <ArrowUp className="w-3.5 h-3.5 text-emerald-400" />
+                        ) : (
+                          <ArrowDown className="w-3.5 h-3.5 text-emerald-400" />
+                        )}
+                        <span>{txSortOrder === "asc" ? "Terlama" : "Terbaru"}</span>
+                      </button>
+
+                      <span className="text-[11px] text-zinc-500">
+                        {filteredTransactionsList.length} Transaksi
+                      </span>
+                    </div>
                   </div>
 
                   {isLoading ? (
@@ -600,16 +675,18 @@ export default function DashboardOverviewPage() {
                         <div key={i} className="h-12 bg-zinc-800/40 rounded-lg animate-pulse" />
                       ))}
                     </div>
-                  ) : !data?.recentTransactions || data.recentTransactions.length === 0 ? (
+                  ) : filteredTransactionsList.length === 0 ? (
                     <div className="py-10 text-center space-y-1">
                       <p className="text-xs text-zinc-400 font-medium">Belum ada riwayat transaksi</p>
                       <p className="text-[11px] text-zinc-500">
-                        Transaksi saldo dan mutasi pengguna akan otomatis tercatat di sini saat dibuat.
+                        {txDateFilter
+                          ? "Tidak ada transaksi pada tanggal yang dipilih."
+                          : "Transaksi saldo dan mutasi pengguna akan otomatis tercatat di sini saat dibuat."}
                       </p>
                     </div>
                   ) : (
                     <div className="divide-y divide-zinc-800/70">
-                      {data.recentTransactions.map((tx: any) => (
+                      {filteredTransactionsList.map((tx: any) => (
                         <div
                           key={tx.id}
                           className="py-2.5 flex items-center justify-between gap-3 hover:bg-zinc-800/30 px-2 rounded-lg transition-colors"
@@ -679,17 +756,56 @@ export default function DashboardOverviewPage() {
                   </div>
                 )}
 
-                {/* Search & Filter Header */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-1">
-                  <div className="flex items-center gap-2 flex-1 max-w-md relative">
-                    <Search className="w-4 h-4 absolute left-3 top-2.5 text-zinc-400 pointer-events-none" />
-                    <input
-                      type="text"
-                      placeholder="Cari email Gmail, nama penyetor..."
-                      value={depositSearch}
-                      onChange={(e) => setDepositSearch(e.target.value)}
-                      className="w-full bg-zinc-950/80 border border-zinc-800 rounded-xl pl-9 pr-4 py-1.5 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-sky-500/50"
-                    />
+                {/* Search, Date Filter & Sort Header */}
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 pb-1">
+                  <div className="flex flex-wrap items-center gap-2 flex-1">
+                    <div className="w-full sm:max-w-xs relative">
+                      <Search className="w-4 h-4 absolute left-3 top-2.5 text-zinc-400 pointer-events-none" />
+                      <input
+                        type="text"
+                        placeholder="Cari email Gmail, nama penyetor..."
+                        value={depositSearch}
+                        onChange={(e) => setDepositSearch(e.target.value)}
+                        className="w-full bg-zinc-950/80 border border-zinc-800 rounded-xl pl-9 pr-4 py-1.5 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-sky-500/50"
+                      />
+                    </div>
+
+                    {/* Filter Tanggal Setor */}
+                    <div className="flex items-center gap-1.5 bg-zinc-950/80 border border-zinc-800 rounded-xl px-2.5 py-1.5">
+                      <Calendar className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                      <input
+                        type="date"
+                        value={depositDateFilter}
+                        onChange={(e) => setDepositDateFilter(e.target.value)}
+                        className="bg-transparent text-xs text-zinc-200 focus:outline-none [color-scheme:dark] cursor-pointer"
+                        title="Filter setoran berdasarkan tanggal"
+                      />
+                      {depositDateFilter && (
+                        <button
+                          type="button"
+                          onClick={() => setDepositDateFilter("")}
+                          className="p-0.5 rounded text-zinc-400 hover:text-rose-400 cursor-pointer"
+                          title="Reset filter tanggal"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Sort Tanggal Setor (Terbaru / Terlama) */}
+                    <button
+                      type="button"
+                      onClick={() => setDepositSortOrder((prev) => (prev === "desc" ? "asc" : "desc"))}
+                      className="inline-flex items-center gap-1.5 bg-zinc-950/80 border border-zinc-800 hover:border-sky-500/40 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-zinc-200 transition-colors cursor-pointer"
+                      title="Urutkan setoran berdasarkan waktu setor"
+                    >
+                      {depositSortOrder === "asc" ? (
+                        <ArrowUp className="w-3.5 h-3.5 text-sky-400" />
+                      ) : (
+                        <ArrowDown className="w-3.5 h-3.5 text-sky-400" />
+                      )}
+                      <span>{depositSortOrder === "asc" ? "Terlama" : "Terbaru"}</span>
+                    </button>
                   </div>
 
                   <div className="flex items-center gap-1.5 flex-wrap">
@@ -735,7 +851,20 @@ export default function DashboardOverviewPage() {
                         <th className="py-2.5 px-3">Penyetor Akun</th>
                         <th className="py-2.5 px-3">Kategori</th>
                         <th className="py-2.5 px-3">Status Email</th>
-                        <th className="py-2.5 px-3">Waktu Setor</th>
+                        <th
+                          onClick={() => setDepositSortOrder((prev) => (prev === "desc" ? "asc" : "desc"))}
+                          className="py-2.5 px-3 cursor-pointer hover:text-zinc-200 select-none transition-colors"
+                          title="Klik untuk urutkan waktu setor"
+                        >
+                          <span className="inline-flex items-center gap-1">
+                            <span>Waktu Setor</span>
+                            {depositSortOrder === "asc" ? (
+                              <ArrowUp className="w-3 h-3 text-sky-400" />
+                            ) : (
+                              <ArrowDown className="w-3 h-3 text-sky-400" />
+                            )}
+                          </span>
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-zinc-800/60">

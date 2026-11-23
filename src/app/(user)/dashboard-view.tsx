@@ -186,23 +186,24 @@ export function DashboardView() {
                       </span>
                     </div>
 
-                    {/* Rate & Min Withdrawal info cards */}
-                    <div className="mt-5 grid grid-cols-2 gap-2.5">
-                      <div className="rounded-2xl border border-sky-400/20 bg-sky-500/[0.07] px-3.5 py-2.5">
+                    {/* Rate & Min Withdrawal inline (tanpa kolom/kotak) */}
+                    <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2">
+                      <div>
                         <div className="flex items-center gap-1.5 text-[0.65rem] font-bold uppercase tracking-wider text-sky-300/85">
                           <Zap className="size-3 text-sky-400 fill-sky-400/30 shrink-0" aria-hidden="true" />
                           <span>Harga / Gmail</span>
                         </div>
-                        <p className="mt-1 text-sm sm:text-base font-black text-white tabular-nums">
+                        <p className="mt-0.5 text-sm sm:text-base font-black text-white tabular-nums">
                           {formatIDR(pricePerGmail)}
                         </p>
                       </div>
-                      <div className="rounded-2xl border border-white/10 bg-black/35 px-3.5 py-2.5">
+                      <div className="h-7 w-[1px] bg-white/10 hidden sm:block" aria-hidden="true" />
+                      <div>
                         <div className="flex items-center gap-1.5 text-[0.65rem] font-bold uppercase tracking-wider text-zinc-400">
                           <Target className="size-3 text-sky-400 shrink-0" aria-hidden="true" />
                           <span>Min. Penarikan</span>
                         </div>
-                        <p className="mt-1 text-sm sm:text-base font-black text-white tabular-nums">
+                        <p className="mt-0.5 text-sm sm:text-base font-black text-white tabular-nums">
                           {formatIDR(minWithdrawal)}
                         </p>
                       </div>

@@ -433,10 +433,6 @@ export function TarikSaldoModal({
             <label className="text-[0.76rem] font-bold text-zinc-200">
               Pilih E-Wallet
             </label>
-            <span className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs sm:text-[0.82rem] font-bold text-amber-300 shadow-2xs">
-              <span className="size-1.5 rounded-full bg-amber-400" />
-              Gopay dikenakan pajak transfer 1000
-            </span>
           </div>
           {/* Urutan E-Wallet: DANA & GoPay */}
           <div className="grid grid-cols-2 gap-2">
