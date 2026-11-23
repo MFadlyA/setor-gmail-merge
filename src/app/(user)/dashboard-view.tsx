@@ -42,32 +42,27 @@ const quickMenuThemes: Record<
     bgGradient: string;
     shadow: string;
     hoverShadow: string;
-    caption: string;
   }
 > = {
   setor: {
     bgGradient: "bg-gradient-to-br from-sky-400 via-sky-500 to-blue-600",
     shadow: "shadow-lg shadow-sky-500/30",
     hoverShadow: "group-hover:shadow-sky-500/50",
-    caption: "Kirim Akun",
   },
   rules: {
     bgGradient: "bg-gradient-to-br from-violet-500 via-purple-500 to-fuchsia-600",
     shadow: "shadow-lg shadow-fuchsia-500/25",
     hoverShadow: "group-hover:shadow-fuchsia-500/45",
-    caption: "Aturan Wajib",
   },
   checker: {
     bgGradient: "bg-gradient-to-br from-emerald-400 via-emerald-500 to-teal-600",
     shadow: "shadow-lg shadow-emerald-500/25",
     hoverShadow: "group-hover:shadow-emerald-500/45",
-    caption: "Cek Live",
   },
   laporan: {
     bgGradient: "bg-gradient-to-br from-cyan-400 via-sky-500 to-indigo-500",
     shadow: "shadow-lg shadow-cyan-500/25",
     hoverShadow: "group-hover:shadow-cyan-500/45",
-    caption: "Bantuan CS",
   },
 };
 
@@ -136,7 +131,7 @@ export function DashboardView() {
     <PageShell>
       <div className="flex flex-col justify-center min-h-[calc(100dvh-10rem)] py-5 sm:py-8">
         <div className="w-full my-auto space-y-5 sm:space-y-6">
-          {/* Welcome & Security Strip */}
+          {/* Welcome Strip */}
           <Reveal delay={30}>
             <div className="flex flex-wrap items-center justify-between gap-2.5 px-0.5">
               <div>
@@ -147,15 +142,6 @@ export function DashboardView() {
                   </span>{" "}
                   👋
                 </h1>
-                <p className="text-[0.73rem] text-zinc-400">
-                  Siap ubah akun Gmail baru jadi saldo cair hari ini?
-                </p>
-              </div>
-
-              <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-950/40 px-3 py-1 text-[0.68rem] font-bold text-emerald-300 backdrop-blur-md">
-                <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                <ShieldCheck className="size-3.5 text-emerald-400" aria-hidden="true" />
-                <span>Proteksi Akun Aktif</span>
               </div>
             </div>
           </Reveal>
@@ -336,7 +322,6 @@ export function DashboardView() {
           <Reveal delay={140} className="mt-5">
             <SectionHeading
               title="Ringkasan Status"
-              subtitle="Pantau progres verifikasi setoran kamu secara real-time"
               icon={<ShieldCheck className="size-4 text-sky-400" aria-hidden="true" />}
             />
             <StatusSummaryGrid items={dashboardStatusItems} isLoading={isStatsLoading} />
@@ -346,7 +331,6 @@ export function DashboardView() {
           <Reveal delay={180} className="mt-6">
             <SectionHeading
               title="Menu Cepat"
-              subtitle="Pintasan fitur utama dalam 1 ketukan"
               icon={<Sparkles className="size-4 text-sky-400" aria-hidden="true" />}
             />
             <div className="mt-3.5 rounded-3xl border border-white/10 bg-[#11131c]/88 p-3.5 sm:p-5 shadow-2xl backdrop-blur-2xl">
@@ -357,7 +341,6 @@ export function DashboardView() {
                     bgGradient: "bg-gradient-to-br from-sky-400 to-blue-600",
                     shadow: "shadow-lg shadow-sky-500/25",
                     hoverShadow: "group-hover:shadow-sky-500/45",
-                    caption: "Fitur",
                   };
 
                   const inner = (
@@ -377,9 +360,6 @@ export function DashboardView() {
                       </span>
                       <span className="mt-2.5 text-center text-[0.72rem] leading-tight font-extrabold text-white transition-colors duration-200 group-hover:text-sky-300 sm:text-[0.8rem]">
                         {item.label}
-                      </span>
-                      <span className="mt-0.5 hidden sm:block text-center text-[0.65rem] font-medium text-zinc-400">
-                        {theme.caption}
                       </span>
                     </>
                   );

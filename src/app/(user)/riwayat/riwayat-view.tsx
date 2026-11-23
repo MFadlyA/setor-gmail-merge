@@ -186,7 +186,6 @@ export function RiwayatView() {
           <Reveal delay={40}>
             <SectionHeading
               title="Ringkasan Status"
-              subtitle="Pantau aktivitas setoran kamu"
               icon={<ShieldCheck className="size-4 text-sky-400" aria-hidden="true" />}
             />
 

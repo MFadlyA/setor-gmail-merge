@@ -3,10 +3,9 @@
 import * as React from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { MessageCircle, ShieldCheck, Sparkles } from "lucide-react";
+import { MessageCircle } from "lucide-react";
 import { useUserProfile } from "@/context/user-profile-context";
 import { sanitizeExternalUrl } from "@/lib/security";
-import { formatIDR } from "@/lib/utils";
 
 export function TopBar() {
   const { siteConfig } = useUserProfile();
@@ -15,7 +14,6 @@ export function TopBar() {
     "https://whatsapp.com/channel/0029VbEImqX7j6gFzKU9Qy1Y",
     ["whatsapp.com", "wa.me"]
   );
-  const rate = siteConfig?.price_per_gmail || 4500;
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-white/[0.08] bg-[#07080d]/85 backdrop-blur-xl shadow-[0_8px_32px_-12px_rgba(0,0,0,0.75)]">
@@ -61,24 +59,8 @@ export function TopBar() {
           </div>
         </Link>
 
-        {/* Right actions: Live Rate Badge (Desktop) + Security Shield + Saluran WA */}
+        {/* Right actions: Saluran WA */}
         <div className="flex items-center gap-2">
-          <Link
-            href="/setor"
-            className="hidden md:inline-flex items-center gap-1.5 rounded-full border border-sky-400/25 bg-sky-500/10 px-3 py-1 text-[0.72rem] font-bold text-sky-300 transition-all hover:border-sky-400/50 hover:bg-sky-500/15"
-          >
-            <Sparkles className="size-3 text-sky-400" aria-hidden="true" />
-            <span>Rate: {formatIDR(rate)}/Gmail</span>
-          </Link>
-
-          <span
-            title="Koneksi SSL Terenkripsi & Anti-Fraud Aktif"
-            className="hidden sm:inline-flex items-center gap-1 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1 text-[0.68rem] font-bold text-emerald-300 select-none"
-          >
-            <ShieldCheck className="size-3 text-emerald-400" aria-hidden="true" />
-            <span>SSL Aman</span>
-          </span>
-
           <a
             href={waUrl}
             target="_blank"

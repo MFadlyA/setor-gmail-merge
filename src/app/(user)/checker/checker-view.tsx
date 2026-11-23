@@ -12,8 +12,6 @@ import {
   Copy,
   Check,
   ArrowRight,
-  ArrowDownToLine,
-  Sparkles,
   RefreshCw,
   Zap,
   Globe,
@@ -24,34 +22,17 @@ import { StatusBadge } from "@/components/ui/status";
 import { EmptyState, PageShell, Reveal } from "@/components/layout/page-shell";
 import { splitLines } from "@/lib/email";
 import {
-  getStoredGeneratedGmails,
-  saveStoredGeneratedGmails,
   getStoredCheckStatusMap,
   saveStoredCheckStatusMap,
 } from "@/lib/generated-storage";
 import {
   type GmailProbeItem,
   type GmailProbeStatus,
-  generateGmailCandidates,
   validateGmailForProbe,
 } from "@/lib/gmail-check-shared";
 import { cn } from "@/lib/utils";
 
 const MAX_LINES = 10;
-const HISTORY_KEY = "setor_generated_gmails_history_v1";
-
-function appendToGeneratedHistory(emails: string[]) {
-  if (typeof window === "undefined") return;
-  try {
-    const raw = localStorage.getItem(HISTORY_KEY);
-    const prev: string[] = raw ? JSON.parse(raw) : [];
-    const merged = new Set(Array.isArray(prev) ? prev.map((e) => e.toLowerCase()) : []);
-    emails.forEach((e) => merged.add(e.toLowerCase()));
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(Array.from(merged).slice(-10000)));
-  } catch {
-    // ignore storage quota errors
-  }
-}
 
 const probeStatusMeta: Record<
   GmailProbeStatus,
@@ -68,7 +49,6 @@ export function CheckerView() {
   const [input, setInput] = React.useState("");
   const [results, setResults] = React.useState<GmailProbeItem[]>([]);
   const [isRunning, setIsRunning] = React.useState(false);
-  const [isGenerating, setIsGenerating] = React.useState(false);
   const [hasRun, setHasRun] = React.useState(false);
   const [engineUsed, setEngineUsed] = React.useState<string | null>(null);
   const [totalElapsedMs, setTotalElapsedMs] = React.useState<number | null>(null);
@@ -76,22 +56,9 @@ export function CheckerView() {
   const [copiedAvailable, setCopiedAvailable] = React.useState(false);
   const [copiedIndex, setCopiedIndex] = React.useState<number | null>(null);
   const [activeFilter, setActiveFilter] = React.useState<"ALL" | GmailProbeStatus>("ALL");
-  const [storedGenerated, setStoredGenerated] = React.useState<string[]>([]);
 
   const abortControllerRef = React.useRef<AbortController | null>(null);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
-
-  const refreshStoredGenerated = React.useCallback(() => {
-    setStoredGenerated(getStoredGeneratedGmails());
-  }, []);
-
-  React.useEffect(() => {
-    refreshStoredGenerated();
-    window.addEventListener("focus", refreshStoredGenerated);
-    return () => {
-      window.removeEventListener("focus", refreshStoredGenerated);
-    };
-  }, [refreshStoredGenerated]);
 
   React.useEffect(() => {
     return () => {
@@ -140,80 +107,6 @@ export function CheckerView() {
   }, [results, activeFilter]);
 
   /**
-   * Calls GET /api/gmail-generate (with local CSPRNG fallback if offline)
-   */
-  const fetchGeneratedBatchFromApi = async (count = 10): Promise<string[]> => {
-    try {
-      const res = await fetch(`/api/gmail-generate?count=${count}&_t=${Date.now()}`, {
-        method: "GET",
-        cache: "no-store",
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data?.emails) && data.emails.length > 0) {
-          return data.emails.slice(0, count);
-        }
-      }
-    } catch {
-      // Fallback to local CSPRNG generator if offline
-    }
-    return generateGmailCandidates(count).emails;
-  };
-
-  /**
-   * "Paste Hasil Generate (10)":
-   * - Uses stored generated emails from Setor if 10 already exist;
-   * - Otherwise fetches fresh candidates from GET /api/gmail-generate so user always gets 10 ready-to-check emails!
-   */
-  const handlePasteGeneratedTen = async (forceFresh = false) => {
-    if (isGenerating || isRunning) return;
-    setIsGenerating(true);
-
-    try {
-      const existing = forceFresh ? [] : getStoredGeneratedGmails();
-      let batch: string[] = [];
-
-      if (existing.length >= MAX_LINES) {
-        batch = existing.slice(0, MAX_LINES);
-      } else if (existing.length > 0) {
-        const needed = MAX_LINES - existing.length;
-        const extra = await fetchGeneratedBatchFromApi(needed);
-        const deduped = Array.from(
-          new Set([...existing, ...extra].map((e) => e.trim().toLowerCase()))
-        );
-        batch = deduped.slice(0, MAX_LINES);
-        saveStoredGeneratedGmails(batch);
-        appendToGeneratedHistory(batch);
-        setStoredGenerated(batch);
-      } else {
-        batch = await fetchGeneratedBatchFromApi(MAX_LINES);
-        saveStoredGeneratedGmails(batch);
-        appendToGeneratedHistory(batch);
-        setStoredGenerated(batch);
-      }
-
-      setInput(batch.join("\n"));
-      if (hasRun && !isRunning) {
-        setHasRun(false);
-        setResults([]);
-        setEngineUsed(null);
-        setTotalElapsedMs(null);
-      }
-
-      toast.success(
-        forceFresh
-          ? `${batch.length} Gmail kandidat baru berhasil digenerate & ditempel!`
-          : `${batch.length} Gmail hasil generate berhasil ditempel!`,
-        {
-          description: "Klik 'Mulai Live Checker' untuk mengecek status ketersediaan di Google.",
-        }
-      );
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  /**
    * Runs Dual-Mode Backend Checker (`POST /api/gmail-check`):
    * Engine 1: Single-Connection SMTP Port 25 Reuse
    * Engine 2: Automatic Serverless HTTPS Port 443 Probe
@@ -222,7 +115,7 @@ export function CheckerView() {
     const rawLines = splitLines(input);
     if (rawLines.length === 0) {
       toast.error("Tidak ada email untuk dicek", {
-        description: "Masukkan minimal satu alamat @gmail.com atau klik 'Paste Hasil Generate (10)'.",
+        description: "Masukkan minimal satu alamat @gmail.com untuk diperiksa.",
       });
       return;
     }
@@ -507,39 +400,9 @@ export function CheckerView() {
                     </div>
                   </div>
 
-                  {/* Action Pills: Paste Hasil Generate (10) + Refresh Generate + Clear */}
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      disabled={isGenerating || isRunning}
-                      onClick={() => handlePasteGeneratedTen(false)}
-                      className="btn-shimmer inline-flex items-center gap-1.5 rounded-xl border border-sky-400/40 bg-gradient-to-r from-sky-500/20 to-blue-600/20 hover:from-sky-500/30 hover:to-blue-600/30 px-3.5 py-2 text-xs font-extrabold text-sky-200 shadow-sm transition-all active:scale-95 cursor-pointer disabled:opacity-50"
-                      title={
-                        storedGenerated.length > 0
-                          ? `Tempel hasil generate (${storedGenerated.length} tersimpan, otomatis dilengkapi ke 10)`
-                          : "Generate & tempel 10 kandidat Gmail unik otomatis"
-                      }
-                    >
-                      {isGenerating ? (
-                        <RefreshCw className="size-3.5 animate-spin text-sky-300" />
-                      ) : (
-                        <ArrowDownToLine className="size-3.5 text-sky-300" />
-                      )}
-                      <span>Paste Hasil Generate (10)</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      disabled={isGenerating || isRunning}
-                      onClick={() => handlePasteGeneratedTen(true)}
-                      className="inline-flex items-center gap-1 rounded-xl border border-white/12 bg-white/[0.05] hover:bg-white/10 hover:border-sky-400/30 px-2.5 py-2 text-xs font-bold text-zinc-200 transition-all active:scale-95 cursor-pointer disabled:opacity-50"
-                      title="Generate 10 kandidat Gmail baru dari server (/api/gmail-generate)"
-                    >
-                      <Sparkles className="size-3.5 text-sky-400" />
-                      <span className="hidden sm:inline">Baru</span>
-                    </button>
-
-                    {input.trim().length > 0 && !isRunning && (
+                  {/* Action Pills: Clear */}
+                  {input.trim().length > 0 && !isRunning && (
+                    <div className="flex flex-wrap items-center gap-2">
                       <button
                         type="button"
                         onClick={handleReset}
@@ -548,8 +411,8 @@ export function CheckerView() {
                       >
                         <Trash2 className="size-3.5" />
                       </button>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
 
                 <textarea
@@ -558,9 +421,7 @@ export function CheckerView() {
                   spellCheck={false}
                   autoCapitalize="off"
                   autoCorrect="off"
-                  placeholder={
-                    "contoh1@gmail.com\ncontoh2@gmail.com\ncontoh3@gmail.com\n\nAtau klik tombol 'Paste Hasil Generate (10)' di kanan atas..."
-                  }
+                  placeholder={"contoh1@gmail.com\ncontoh2@gmail.com\ncontoh3@gmail.com"}
                   value={input}
                   onChange={handleTextareaChange}
                   onKeyDown={handleKeyDown}
@@ -587,10 +448,6 @@ export function CheckerView() {
                     ) : (
                       `Masukkan 1 alamat @gmail.com per baris · maksimal ${MAX_LINES} email sekali cek.`
                     )}
-                  </span>
-                  <span className="text-[0.7rem] text-zinc-500">
-                    <strong className="text-emerald-400">LIVE</strong> = Sudah terdaftar ·{" "}
-                    <strong className="text-sky-400">AVAILABLE</strong> = Belum dibuat
                   </span>
                 </div>
 
@@ -951,7 +808,7 @@ export function CheckerView() {
                 className="border-white/10 bg-[#11131c]/85"
                 icon={<Inbox className="size-5 text-sky-400" aria-hidden="true" />}
                 title="Belum ada hasil pemeriksaan"
-                description="Klik 'Paste Hasil Generate (10)' atau tempel daftar @gmail.com lalu tekan 'Mulai Live Checker'."
+                description="Tempel daftar @gmail.com lalu tekan 'Mulai Live Checker'."
               />
             </Reveal>
           )}

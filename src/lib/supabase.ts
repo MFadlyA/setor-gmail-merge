@@ -898,7 +898,7 @@ export const DEFAULT_SITE_CONFIG: SiteConfig = {
   hero_headline_2: "Gmail Jadi",
   hero_headline_3: "Penghasilan",
   hero_subheadline:
-    "Setor akun Gmail dan dapatkan saldo.\nPencairan instan via E-wallet dan Bank",
+    "Setor akun Gmail dan dapatkan saldo\nPencairan instan via E-wallet dan Bank",
   platform_badge: "Platform Setor Gmail Terpercaya 2026",
   badge_status_text: "Platform sedang dalam tahap pengembangan",
   badge_status_active: true,

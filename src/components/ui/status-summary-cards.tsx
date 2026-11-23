@@ -9,84 +9,7 @@ export interface StatusCardItem {
   title: string;
   value: number | string;
   bg: string;
-  svgType: 'circles' | 'blur2' | 'blur3' | 'blur4';
-}
-
-function renderSvg(type: 'circles' | 'blur2' | 'blur3' | 'blur4', idSuffix = '') {
-  switch (type) {
-    case 'circles':
-      return (
-        <svg
-          className="absolute right-0 top-0 h-full w-2/3 pointer-events-none"
-          viewBox="0 0 300 200"
-          fill="none"
-          style={{ zIndex: 0 }}
-          aria-hidden="true"
-        >
-          <circle cx="220" cy="100" r="90" fill="#fff" fillOpacity="0.06" />
-          <circle cx="260" cy="60" r="60" fill="#fff" fillOpacity="0.08" />
-          <circle cx="200" cy="160" r="50" fill="#fff" fillOpacity="0.05" />
-          <circle cx="270" cy="150" r="30" fill="#fff" fillOpacity="0.10" />
-        </svg>
-      );
-    case 'blur2':
-      return (
-        <svg
-          className="absolute right-0 top-0 w-44 h-44 pointer-events-none"
-          viewBox="0 0 200 200"
-          fill="none"
-          style={{ zIndex: 0 }}
-          aria-hidden="true"
-        >
-          <defs>
-            <filter id={`blur2-${idSuffix}`} x="-20%" y="-20%" width="140%" height="140%">
-              <feGaussianBlur stdDeviation="10" />
-            </filter>
-          </defs>
-          <ellipse cx="170" cy="60" rx="40" ry="18" fill="#10b981" fillOpacity="0.18" filter={`url(#blur2-${idSuffix})`} />
-          <rect x="120" y="20" width="60" height="20" rx="8" fill="#fff" fillOpacity="0.07" />
-          <circle cx="180" cy="100" r="14" fill="#fff" fillOpacity="0.12" />
-        </svg>
-      );
-    case 'blur3':
-      return (
-        <svg
-          className="absolute right-0 top-0 w-44 h-44 pointer-events-none"
-          viewBox="0 0 200 200"
-          fill="none"
-          style={{ zIndex: 0 }}
-          aria-hidden="true"
-        >
-          <defs>
-            <filter id={`blur3-${idSuffix}`} x="-20%" y="-20%" width="140%" height="140%">
-              <feGaussianBlur stdDeviation="12" />
-            </filter>
-          </defs>
-          <rect x="120" y="0" width="70" height="70" rx="35" fill="#f43f5e" fillOpacity="0.16" filter={`url(#blur3-${idSuffix})`} />
-          <ellipse cx="170" cy="80" rx="28" ry="12" fill="#fff" fillOpacity="0.08" />
-          <circle cx="150" cy="30" r="10" fill="#fff" fillOpacity="0.12" />
-        </svg>
-      );
-    case 'blur4':
-      return (
-        <svg
-          className="absolute right-0 top-0 w-44 h-44 pointer-events-none"
-          viewBox="0 0 200 200"
-          fill="none"
-          style={{ zIndex: 0 }}
-          aria-hidden="true"
-        >
-          <defs>
-            <filter id={`blur4-${idSuffix}`} x="-20%" y="-20%" width="140%" height="140%">
-              <feGaussianBlur stdDeviation="16" />
-            </filter>
-          </defs>
-          <ellipse cx="170" cy="40" rx="34" ry="20" fill="#38bdf8" fillOpacity="0.2" filter={`url(#blur4-${idSuffix})`} />
-          <rect x="140" y="60" width="40" height="18" rx="8" fill="#fff" fillOpacity="0.08" />
-          <circle cx="150" cy="30" r="14" fill="#fff" fillOpacity="0.14" />
-        </svg>
-      );
-  }
+  svgType?: 'circles' | 'blur2' | 'blur3' | 'blur4';
 }
 
 export function StatusSummaryCardItem({
@@ -147,7 +70,6 @@ export function StatusSummaryCardItem({
         aria-hidden="true"
         className={`pointer-events-none absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent ${theme.topBar} to-transparent`}
       />
-      {renderSvg(item.svgType, `${item.title}-${index}`)}
       <div className="relative z-10 flex flex-col justify-between h-full">
         <div className="flex items-center justify-between gap-2">
           <p className={`text-xs sm:text-[0.8rem] font-bold tracking-tight ${theme.title}`}>

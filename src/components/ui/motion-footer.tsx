@@ -468,7 +468,7 @@ export function CinematicFooter({
             <p className="text-sm sm:text-base text-zinc-300/90 max-w-lg mb-7 leading-relaxed whitespace-pre-line">
               {isLegacySubheadline ? (
                 <>
-                  Setor akun Gmail dan dapatkan saldo.
+                  Setor akun Gmail dan dapatkan saldo
                   <br />
                   Pencairan instan via E-wallet dan Bank
                 </>
