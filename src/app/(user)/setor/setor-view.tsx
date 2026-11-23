@@ -619,14 +619,15 @@ export function SetorView() {
       <div className="space-y-4 pt-2 sm:pt-4">
         {/* 1. Unified Section: Rules & Generate Gmail */}
         <Reveal delay={20}>
-          <div className="relative overflow-hidden rounded-3xl border border-white/12 bg-gradient-to-b from-[#151824]/92 via-[#11131c]/95 to-[#0c0d14]/95 backdrop-blur-2xl p-5 sm:p-6 shadow-2xl space-y-6">
+          <div className="relative overflow-hidden rounded-3xl border border-white/12 bg-gradient-to-b from-[#151824]/92 via-[#11131c]/95 to-[#0c0d14]/95 backdrop-blur-2xl p-4 sm:p-5 shadow-2xl space-y-4">
             {/* Specular Top Line */}
             <div
               aria-hidden="true"
               className="pointer-events-none absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-sky-400/50 to-transparent"
             />
-            {/* Pilihan Jenis Setoran: Buat Email Baru vs Setor Email Lama */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+
+            {/* Pilihan Jenis Setoran: Segmented Switch Compact */}
+            <div className="grid grid-cols-2 gap-1.5 rounded-2xl border border-white/10 bg-black/50 p-1">
               <button
                 type="button"
                 onClick={() => {
@@ -637,41 +638,25 @@ export function SetorView() {
                   }
                 }}
                 className={cn(
-                  "flex items-center justify-between gap-3 rounded-2xl border p-3.5 sm:p-4 text-left transition-all cursor-pointer",
+                  "flex flex-wrap items-center justify-center sm:justify-between gap-1.5 rounded-xl px-3 py-2 text-left transition-all cursor-pointer",
                   depositMode === "fresh"
-                    ? "border-sky-400/60 bg-sky-500/12 shadow-[0_0_24px_-8px_rgba(56,189,248,0.35)]"
-                    : "border-white/10 bg-black/40 hover:border-white/20 hover:bg-white/[0.04]"
+                    ? "bg-sky-500/15 border border-sky-400/45 text-white shadow-sm"
+                    : "border border-transparent text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]"
                 )}
               >
-                <div className="flex items-center gap-3 min-w-0">
-                  <span
-                    className={cn(
-                      "flex size-9 shrink-0 items-center justify-center rounded-xl border",
-                      depositMode === "fresh"
-                        ? "bg-sky-500/20 border-sky-400/40 text-sky-300"
-                        : "bg-white/5 border-white/10 text-zinc-400"
-                    )}
-                  >
-                    <Sparkles className="size-4" />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-xs sm:text-sm font-extrabold text-white">
-                      Buat Email Baru
-                    </p>
-                    <p className="text-[0.7rem] text-zinc-400">
-                      Email fresh / baru dibuat
-                    </p>
-                  </div>
-                </div>
+                <span className="inline-flex items-center gap-1.5 text-xs font-extrabold">
+                  <Sparkles className={cn("size-3.5 shrink-0", depositMode === "fresh" ? "text-sky-400" : "text-zinc-500")} />
+                  <span>Buat Email Baru</span>
+                </span>
                 <span
                   className={cn(
-                    "shrink-0 rounded-full border px-2.5 py-1 text-[0.7rem] font-extrabold tabular-nums",
+                    "rounded-full px-2 py-0.5 text-[0.66rem] font-extrabold tabular-nums",
                     depositMode === "fresh"
-                      ? "border-emerald-400/40 bg-emerald-500/15 text-emerald-300"
-                      : "border-white/10 bg-white/5 text-zinc-300"
+                      ? "bg-emerald-500/15 text-emerald-300 border border-emerald-400/35"
+                      : "bg-white/5 text-zinc-400"
                   )}
                 >
-                  {formatIDR(freshPrice)} / Akun
+                  {formatIDR(freshPrice)}
                 </span>
               </button>
 
@@ -685,150 +670,89 @@ export function SetorView() {
                   }
                 }}
                 className={cn(
-                  "flex items-center justify-between gap-3 rounded-2xl border p-3.5 sm:p-4 text-left transition-all cursor-pointer",
+                  "flex flex-wrap items-center justify-center sm:justify-between gap-1.5 rounded-xl px-3 py-2 text-left transition-all cursor-pointer",
                   depositMode === "old"
-                    ? "border-sky-400/60 bg-sky-500/12 shadow-[0_0_24px_-8px_rgba(56,189,248,0.35)]"
-                    : "border-white/10 bg-black/40 hover:border-white/20 hover:bg-white/[0.04]"
+                    ? "bg-sky-500/15 border border-sky-400/45 text-white shadow-sm"
+                    : "border border-transparent text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]"
                 )}
               >
-                <div className="flex items-center gap-3 min-w-0">
-                  <span
-                    className={cn(
-                      "flex size-9 shrink-0 items-center justify-center rounded-xl border",
-                      depositMode === "old"
-                        ? "bg-sky-500/20 border-sky-400/40 text-sky-300"
-                        : "bg-white/5 border-white/10 text-zinc-400"
-                    )}
-                  >
-                    <Send className="size-4" />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-xs sm:text-sm font-extrabold text-white">
-                      Setor Email Lama
-                    </p>
-                    <p className="text-[0.7rem] text-zinc-400">
-                      Setor akun Gmail yang sudah ada
-                    </p>
-                  </div>
-                </div>
+                <span className="inline-flex items-center gap-1.5 text-xs font-extrabold">
+                  <Send className={cn("size-3.5 shrink-0", depositMode === "old" ? "text-sky-400" : "text-zinc-500")} />
+                  <span>Setor Email Lama</span>
+                </span>
                 <span
                   className={cn(
-                    "shrink-0 rounded-full border px-2.5 py-1 text-[0.7rem] font-extrabold tabular-nums",
+                    "rounded-full px-2 py-0.5 text-[0.66rem] font-extrabold tabular-nums",
                     depositMode === "old"
-                      ? "border-emerald-400/40 bg-emerald-500/15 text-emerald-300"
-                      : "border-white/10 bg-white/5 text-zinc-300"
+                      ? "bg-emerald-500/15 text-emerald-300 border border-emerald-400/35"
+                      : "bg-white/5 text-zinc-400"
                   )}
                 >
-                  {formatIDR(oldEmailPrice)} / Akun
+                  {formatIDR(oldEmailPrice)}
                 </span>
               </button>
             </div>
 
-            {/* Bagian 1: Rules Setoran (2x2 Grid Cards + Collapsible Detail Aturan) */}
+            {/* Bagian 1: Rules Setoran Compact */}
             <div>
-              {/* Header Rules */}
-              <div className="flex items-center justify-between gap-3 border-b border-white/10 pb-3.5">
-                <div className="flex items-center gap-3">
-                  <span className="flex size-9 sm:size-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-400 via-sky-500 to-blue-600 text-white shadow-md shadow-sky-500/30 ring-1 ring-white/20">
-                    <ScrollText className="size-5" />
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="flex size-6.5 shrink-0 items-center justify-center rounded-lg bg-sky-500/15 text-sky-400 border border-sky-400/25">
+                    <ScrollText className="size-3.5" />
                   </span>
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="text-sm sm:text-base font-extrabold text-white tracking-tight">
-                        Rules Setoran Gmail
-                      </h3>
-                    </div>
-                    <p className="text-xs text-zinc-400">
-                      Wajib dibaca agar Gmail diterima admin saat peninjauan.
-                    </p>
-                  </div>
+                  <h3 className="text-xs sm:text-sm font-extrabold text-white tracking-tight">
+                    Rules Setoran Gmail
+                  </h3>
                 </div>
 
-                {/* Collapsible Trigger Button (Desktop) */}
                 <button
                   type="button"
                   onClick={() => setShowRulesDetail(!showRulesDetail)}
-                  className="hidden sm:inline-flex items-center gap-1.5 text-xs font-bold text-sky-400 hover:text-sky-300 transition-colors cursor-pointer py-1 px-2.5 rounded-lg hover:bg-sky-500/10"
+                  className="inline-flex items-center gap-1 text-[0.7rem] font-bold text-sky-400 hover:text-sky-300 transition-colors cursor-pointer py-1 px-2 rounded-lg hover:bg-sky-500/10"
                 >
-                  <span>{showRulesDetail ? "[-] Sembunyikan Detail" : "[+] Detail Aturan"}</span>
-                  <ChevronDown className={cn("size-3.5 transition-transform duration-200", showRulesDetail && "rotate-180")} />
+                  <span>{showRulesDetail ? "Tutup Detail" : "Detail Aturan"}</span>
+                  <ChevronDown className={cn("size-3 transition-transform duration-200", showRulesDetail && "rotate-180")} />
                 </button>
               </div>
 
-              {/* 2x2 Grid Cards Visual & Ringkas */}
-              <div className="mt-3.5 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                {/* Rule 1: Status */}
-                <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/40 p-3 hover:border-white/20 transition-all">
-                  <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                    <Sparkles className="size-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[0.68rem] font-semibold text-zinc-400 uppercase tracking-wider">Status</p>
-                    <p className="text-xs sm:text-[0.82rem] font-bold text-white truncate">
-                      {depositMode === "fresh"
-                        ? siteConfig?.rule_status || "Wajib Fresh (baru dibuat)"
-                        : "Email Lama (sudah terdaftar)"}
-                    </p>
-                  </div>
+              {/* Compact 2x2 Rule Pills */}
+              <div className="mt-2.5 grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/40 px-2.5 py-2">
+                  <Sparkles className="size-3.5 text-emerald-400 shrink-0" />
+                  <span className="text-[0.73rem] font-semibold text-zinc-200 truncate">
+                    {depositMode === "fresh"
+                      ? siteConfig?.rule_status || "Wajib Fresh (baru dibuat)"
+                      : "Email Lama (sudah terdaftar)"}
+                  </span>
                 </div>
 
-                {/* Rule 2: Nama Akun */}
-                <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/40 p-3 hover:border-white/20 transition-all">
-                  <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-sky-500/10 text-sky-400 border border-sky-500/20">
-                    <CheckCircle2 className="size-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[0.68rem] font-semibold text-zinc-400 uppercase tracking-wider">Nama Akun</p>
-                    <p className="text-xs sm:text-[0.82rem] font-bold text-white truncate">
-                      {depositMode === "fresh"
-                        ? siteConfig?.rule_nama || "Wajib sama persis hasil generate"
-                        : "Bebas (tidak perlu generate)"}
-                    </p>
-                  </div>
+                <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/40 px-2.5 py-2">
+                  <CheckCircle2 className="size-3.5 text-sky-400 shrink-0" />
+                  <span className="text-[0.73rem] font-semibold text-zinc-200 truncate">
+                    {depositMode === "fresh"
+                      ? siteConfig?.rule_nama || "Wajib sama persis hasil generate"
+                      : "Bebas (tidak perlu generate)"}
+                  </span>
                 </div>
 
-                {/* Rule 3: Usia Akun */}
-                <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/40 p-3 hover:border-white/20 transition-all">
-                  <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                    <Calendar className="size-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[0.68rem] font-semibold text-zinc-400 uppercase tracking-wider">Usia Akun</p>
-                    <p className="text-xs sm:text-[0.82rem] font-bold text-white truncate">
-                      {siteConfig?.rule_usia || "Lahir 18+ tahun"}
-                    </p>
-                  </div>
+                <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/40 px-2.5 py-2">
+                  <Calendar className="size-3.5 text-amber-400 shrink-0" />
+                  <span className="text-[0.73rem] font-semibold text-zinc-200 truncate">
+                    {siteConfig?.rule_usia || "Lahir 18+ tahun"}
+                  </span>
                 </div>
 
-                {/* Rule 4: Keamanan */}
-                <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/40 p-3 hover:border-white/20 transition-all">
-                  <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20">
-                    <ShieldAlert className="size-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[0.68rem] font-semibold text-zinc-400 uppercase tracking-wider">Keamanan</p>
-                    <p className="text-xs sm:text-[0.82rem] font-bold text-white truncate">
-                      {siteConfig?.rule_keamanan || "Tanpa No HP / Email Pemulihan"}
-                    </p>
-                  </div>
+                <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/40 px-2.5 py-2">
+                  <ShieldAlert className="size-3.5 text-rose-400 shrink-0" />
+                  <span className="text-[0.73rem] font-semibold text-zinc-200 truncate">
+                    {siteConfig?.rule_keamanan || "Tanpa No HP / Email Pemulihan"}
+                  </span>
                 </div>
               </div>
 
-              {/* Mobile trigger for Collapsible Detail Aturan */}
-              <div className="mt-2 sm:hidden flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => setShowRulesDetail(!showRulesDetail)}
-                  className="inline-flex items-center gap-1.5 text-xs font-bold text-sky-400 hover:text-sky-300 transition-colors cursor-pointer py-1 px-2 rounded-lg hover:bg-sky-500/10"
-                >
-                  <span>{showRulesDetail ? "[-] Sembunyikan Detail" : "[+] Detail Aturan"}</span>
-                  <ChevronDown className={cn("size-3.5 transition-transform duration-200", showRulesDetail && "rotate-180")} />
-                </button>
-              </div>
-
-              {/* Collapsible Content */}
+              {/* Collapsible Detail Content */}
               {showRulesDetail && (
-                <div className="mt-3 rounded-2xl border border-white/10 bg-black/50 p-3.5 text-xs text-zinc-300 space-y-2 leading-relaxed animate-fade-down">
+                <div className="mt-2 rounded-xl border border-white/10 bg-black/50 p-3 text-[0.72rem] text-zinc-300 space-y-1.5 leading-relaxed animate-fade-down">
                   {(siteConfig?.rules_detail_text && siteConfig.rules_detail_text.length > 0
                     ? siteConfig.rules_detail_text
                     : [
@@ -846,93 +770,49 @@ export function SetorView() {
 
             {/* Bagian 2: Generate Gmail (Hanya untuk mode Buat Email Baru) */}
             {depositMode === "fresh" && (
-            <div className="pt-1">
-              {/* Header */}
-              <div className="flex items-center gap-2 text-sky-400 font-bold text-base sm:text-lg">
-                <Sparkles className="size-5 text-sky-400" />
-                <h3 className="text-white">Generate Gmail</h3>
-              </div>
-              <p className="mt-1.5 text-xs sm:text-sm text-zinc-300 leading-relaxed">
-                Ambil nama Gmail dari stok yang sudah disiapkan admin, lalu daftarkan akun Gmail asli memakai nama tersebut sebelum disetorkan pada kolom di bawah.
-              </p>
+            <div className="pt-3 border-t border-white/10">
+              {/* Header + Inline Compact Stepper */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="size-4 text-sky-400" />
+                  <h3 className="text-xs sm:text-sm font-extrabold text-white">Generate Gmail</h3>
+                </div>
 
-              {/* Horizontal Stepper Timeline */}
-              <div className="mt-3.5 grid grid-cols-2 lg:grid-cols-4 gap-2.5">
-                {[
-                  {
-                    step: "01",
-                    title: "Pilih & Generate",
-                    desc: "Tentukan jumlah akun",
-                    icon: Sparkles,
-                    tone: "text-sky-400 bg-sky-500/12 border-sky-500/25",
-                    done: isMounted && generatedList.length > 0,
-                  },
-                  {
-                    step: "02",
-                    title: "Salin Data",
-                    desc: "Ambil nama & password Gmail",
-                    icon: Copy,
-                    tone: "text-emerald-400 bg-emerald-500/12 border-emerald-500/25",
-                    done: isMounted && totalLines > 0,
-                  },
-                  {
-                    step: "03",
-                    title: "Bikin Akun",
-                    desc: "Daftar Gmail asli di Google",
-                    icon: UserCheck,
-                    tone: "text-amber-400 bg-amber-500/12 border-amber-500/25",
-                    done: isMounted && totalLines > 0,
-                  },
-                  {
-                    step: "04",
-                    title: "Setor & Submit",
-                    desc: "Paste di form setor bawah",
-                    icon: Send,
-                    tone: "text-blue-400 bg-blue-500/12 border-blue-500/25",
-                    done: isMounted && hasCheckedSetoran && liveCount > 0,
-                  },
-                ].map((item) => (
-                  <div
-                    key={item.step}
-                    className={cn(
-                      "relative flex flex-col justify-between rounded-2xl border p-3 transition-all duration-300",
-                      item.done
-                        ? "border-emerald-500/30 bg-emerald-950/15"
-                        : "border-white/10 bg-black/40 hover:border-white/20"
-                    )}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className={cn("flex size-7 items-center justify-center rounded-xl border text-xs font-black", item.tone)}>
-                        <item.icon className="size-3.5" />
-                      </span>
+                <div className="flex flex-wrap items-center gap-1.5 text-[0.68rem] font-semibold text-zinc-400">
+                  {[
+                    { step: "1", label: "Generate", done: isMounted && generatedList.length > 0 },
+                    { step: "2", label: "Salin", done: isMounted && totalLines > 0 },
+                    { step: "3", label: "Bikin Akun", done: isMounted && totalLines > 0 },
+                    { step: "4", label: "Setor", done: isMounted && hasCheckedSetoran && liveCount > 0 },
+                  ].map((item, idx) => (
+                    <React.Fragment key={item.step}>
                       <span
                         className={cn(
-                          "font-mono text-[0.63rem] font-extrabold px-1.5 py-0.5 rounded-md",
+                          "inline-flex items-center gap-1 rounded-lg border px-2 py-0.5",
                           item.done
-                            ? "bg-emerald-500/15 text-emerald-300"
-                            : "text-zinc-500"
+                            ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+                            : "border-white/10 bg-black/40 text-zinc-300"
                         )}
                       >
-                        {item.done ? `✓ STEP ${item.step}` : `STEP ${item.step}`}
+                        <span className="font-mono text-[0.62rem] text-sky-400">
+                          {item.done ? "✓" : item.step}
+                        </span>
+                        <span>{item.label}</span>
                       </span>
-                    </div>
-                    <div>
-                      <p className="text-xs sm:text-[0.82rem] font-bold text-white">{item.title}</p>
-                      <p className="text-[0.7rem] text-zinc-400 mt-0.5 leading-tight">{item.desc}</p>
-                    </div>
-                  </div>
-                ))}
+                      {idx < 3 && <span className="text-zinc-600">→</span>}
+                    </React.Fragment>
+                  ))}
+                </div>
               </div>
 
               {/* Generator Box: Jumlah Presets + Password Default Box + Tombol Generate */}
-              <div className="mt-4 rounded-2xl border border-white/10 bg-black/40 p-4 sm:p-5">
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3.5 border-b border-white/10">
+              <div className="mt-2.5 rounded-2xl border border-white/10 bg-black/40 p-3 sm:p-4">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 pb-3 border-b border-white/10">
                   {/* Presets & Input Jumlah */}
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[0.7rem] font-bold text-zinc-400 uppercase tracking-wider mr-0.5">
                       Jumlah:
                     </span>
-                    {/* Presets */}
                     {[1, 3, 5, 10].map((num) => (
                       <button
                         key={num}
@@ -954,7 +834,6 @@ export function SetorView() {
                       </button>
                     ))}
 
-                    {/* Input field 1 - 10 */}
                     <div className="flex items-center gap-1 ml-0.5">
                       <input
                         type="number"
@@ -969,26 +848,25 @@ export function SetorView() {
                             setCustomCountInput(1);
                           }
                         }}
-                        className="w-14 sm:w-16 rounded-lg border border-white/10 bg-black/60 px-2 py-1 text-center font-mono text-xs font-bold text-white focus:border-sky-500/60 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:m-0 [&::-webkit-inner-spin-button]:m-0"
+                        className="w-12 rounded-lg border border-white/10 bg-black/60 px-1.5 py-1 text-center font-mono text-xs font-bold text-white focus:border-sky-500/60 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:m-0 [&::-webkit-inner-spin-button]:m-0"
                       />
-                      <span className="text-[0.72rem] text-zinc-400 font-medium">akun</span>
+                      <span className="text-[0.7rem] text-zinc-400">akun</span>
                     </div>
                   </div>
 
-                  {/* Password Default Box Kontras + Tombol Generate */}
-                  <div className="flex flex-wrap items-center gap-2.5">
-                    {/* Badge Password Default Kontras dengan 1-Klik Copy */}
-                    <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-950/40 px-2.5 sm:px-3 py-1.5 shadow-2xs">
-                      <span className="text-[0.68rem] sm:text-xs font-semibold text-emerald-300">
-                        Password Gmail:
+                  {/* Password Default Box + Tombol Generate */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-950/40 px-2.5 py-1">
+                      <span className="text-[0.68rem] font-semibold text-emerald-300">
+                        Pass:
                       </span>
-                      <span className="font-mono text-xs font-black text-white px-1.5 py-0.5 rounded-md bg-black/60 border border-emerald-500/30 tracking-wide select-all">
+                      <span className="font-mono text-xs font-black text-white px-1.5 py-0.5 rounded bg-black/60 border border-emerald-500/30 select-all">
                         {activePassword}
                       </span>
                       <button
                         type="button"
                         onClick={handleCopyPassword}
-                        className="inline-flex items-center gap-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 hover:text-white px-2 py-1 text-[0.68rem] sm:text-xs font-bold transition-all active:scale-95 cursor-pointer"
+                        className="inline-flex items-center gap-1 rounded-md bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 hover:text-white px-1.5 py-0.5 text-[0.68rem] font-bold transition-all active:scale-95 cursor-pointer"
                         title="Salin password default"
                       >
                         {copiedPassword ? (
@@ -1005,12 +883,11 @@ export function SetorView() {
                       </button>
                     </div>
 
-                    {/* Tombol Generate Gmail hilang apabila sudah ada lebih dari 0 email */}
                     {generatedList.length === 0 && (
                       <button
                         type="button"
                         onClick={() => handleGenerate(customCountInput)}
-                        className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-sky-400 via-sky-500 to-blue-600 hover:from-sky-300 hover:to-blue-500 text-white px-4 py-2 text-xs font-semibold shadow-md shadow-sky-500/25 transition-all active:scale-95 cursor-pointer whitespace-nowrap"
+                        className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-sky-400 via-sky-500 to-blue-600 hover:from-sky-300 hover:to-blue-500 text-white px-3.5 py-1.5 text-xs font-bold shadow-md shadow-sky-500/25 transition-all active:scale-95 cursor-pointer whitespace-nowrap"
                       >
                         <Sparkles className="size-3.5" />
                         <span>Generate Gmail</span>
@@ -1020,12 +897,12 @@ export function SetorView() {
                 </div>
 
               {/* Generated Gmail Box */}
-              <div className="mt-4">
-                <div className="flex items-center justify-between mb-2.5">
-                  <h4 className="text-sm font-bold text-white">
+              <div className="mt-3">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-xs font-bold text-zinc-200">
                     Generated Gmail
                   </h4>
-                  <p className="text-xs text-zinc-400 font-medium">
+                  <p className="text-[0.7rem] text-zinc-400 font-medium">
                     Total:{" "}
                     <strong suppressHydrationWarning className="text-zinc-200">
                       {isMounted ? generatedList.length : 0}
@@ -1039,18 +916,14 @@ export function SetorView() {
 
                 {/* Email rows or Empty state */}
                 {!isMounted ? (
-                  <div className="py-8 text-center text-xs text-zinc-400">
+                  <div className="py-4 text-center text-xs text-zinc-400">
                     Memuat daftar Gmail...
                   </div>
                 ) : generatedList.length === 0 ? (
-                  <div className="py-7 px-4 text-center rounded-2xl border border-white/10 bg-black/40">
-                    <Sparkles className="size-6 text-sky-400 mx-auto mb-2 opacity-70" />
-                    <p className="text-xs sm:text-sm font-semibold text-zinc-200">
-                      Belum ada Gmail yang digenerate
-                    </p>
-                    <p className="text-[0.75rem] text-zinc-400 mt-1 max-w-sm mx-auto">
-                      Pilih jumlah di atas lalu klik tombol{" "}
-                      <strong className="text-sky-400">Generate Gmail</strong> untuk membuat nama Gmail baru.
+                  <div className="py-4 px-3 text-center rounded-xl border border-white/10 bg-black/35">
+                    <p className="text-xs text-zinc-400">
+                      Belum ada Gmail — pilih jumlah di atas lalu klik{" "}
+                      <strong className="text-sky-400">Generate Gmail</strong>.
                     </p>
                   </div>
                 ) : (

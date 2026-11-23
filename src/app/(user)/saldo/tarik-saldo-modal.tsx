@@ -492,7 +492,7 @@ export function TarikSaldoModal({
                 onChange={handleNumberChange}
                 maxLength={PHONE_MAX_LENGTH}
                 className={cn(
-                  "font-mono text-sm h-10 bg-black/40 text-white border-white/10",
+                  "font-mono text-sm h-10 bg-black/40 text-white border-white/10 focus:bg-black/60 focus:border-sky-500/60 focus:ring-2 focus:ring-sky-500/20",
                   hasStartedTyping && !phoneValid && "border-rose-500 focus-visible:ring-rose-500/30"
                 )}
               />

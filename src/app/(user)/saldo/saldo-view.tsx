@@ -397,7 +397,7 @@ export function SaldoView() {
                         onChange={handlePhoneChange}
                         aria-invalid={hasStartedTyping && !phoneValid}
                         className={cn(
-                          "font-mono text-xs sm:text-sm h-10.5 rounded-xl border-white/10 bg-black/40 text-white placeholder:text-zinc-500 focus:border-sky-500/50",
+                          "font-mono text-xs sm:text-sm h-10.5 rounded-xl border-white/10 bg-black/40 text-white placeholder:text-zinc-500 focus:border-sky-500/50 focus:bg-black/60 focus:ring-2 focus:ring-sky-500/20",
                           hasStartedTyping && !phoneValid && "border-rose-400 focus-visible:ring-rose-400/20"
                         )}
                       />

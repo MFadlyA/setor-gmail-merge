@@ -258,30 +258,9 @@ export function DashboardView() {
                   <p className="mt-3 text-lg leading-tight font-black sm:text-xl text-white tracking-tight">
                     Siap Setor Gmail?
                   </p>
-                  <p className="mt-1 text-[0.78rem] leading-relaxed text-zinc-300">
+                  <p className="mt-1.5 text-[0.78rem] leading-relaxed text-zinc-300">
                     Generate Gmail dan setor sekarang. Proses cepat, saldo langsung masuk setelah Gmail diterima.
                   </p>
-
-                  {/* Visual 3-Step Micro Guide so users immediately understand */}
-                  <div className="mt-3.5 grid grid-cols-3 gap-2">
-                    {[
-                      { num: "01", label: "Generate Gmail" },
-                      { num: "02", label: "Daftarkan Gmail" },
-                      { num: "03", label: "Setor & Cair" },
-                    ].map((st) => (
-                      <div
-                        key={st.num}
-                        className="rounded-xl border border-white/10 bg-black/35 px-2.5 py-2 text-left transition-colors group-hover:border-sky-400/20"
-                      >
-                        <span className="block font-mono text-[0.62rem] font-black text-sky-400">
-                          STEP {st.num}
-                        </span>
-                        <span className="mt-0.5 block truncate text-[0.68rem] font-bold text-zinc-200">
-                          {st.label}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
                 </div>
 
                 <span className="btn-shimmer relative flex w-full items-center justify-between gap-3 rounded-2xl bg-gradient-to-r from-sky-400 via-sky-500 to-blue-600 px-4 py-3 text-[0.86rem] font-extrabold text-white shadow-lg shadow-sky-500/35 transition-all duration-300 group-hover:from-sky-300 group-hover:to-blue-500">
