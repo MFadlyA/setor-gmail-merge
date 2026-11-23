@@ -28,6 +28,23 @@ export function readServerEnv(key: string): string | undefined {
   return undefined;
 }
 
+export function getCfEnvDiagnostics() {
+  const keyFilter = /SUPA|ADMIN|TELE|NEXT|SERVICE|SECRET/i;
+  const cfEnv = getCfEnvObject();
+  const cfEnvKeys = cfEnv
+    ? Object.keys(cfEnv)
+        .filter((k) => keyFilter.test(k))
+        .map((k) => `${k}(${typeof cfEnv[k]})`)
+    : [];
+  const processEnvKeys = Object.keys(process.env || {}).filter((k) => keyFilter.test(k));
+
+  return {
+    cfContextAvailable: Boolean(cfEnv),
+    cfEnvKeys,
+    processEnvKeys,
+  };
+}
+
 export function getSupabaseAdminConfig() {
   const supabaseUrl =
     readServerEnv("SUPABASE_URL") ||
