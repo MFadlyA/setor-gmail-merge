@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { supabaseAdmin, fetchAllRows } from "@/lib/supabase/admin";
 import { getAdminEmails } from "@/lib/auth-helpers";
 import { requireAdminAuth } from "@/lib/security/auth-guard";
 
@@ -41,26 +41,42 @@ export async function GET(req: NextRequest) {
       { data: deposits, error: depErr },
       { data: categories },
     ] = await Promise.all([
-      supabaseAdmin
-        .from("profiles")
-        .select("id, name, email, role, avatar_url, dana_number, created_at")
-        .order("created_at", { ascending: false }),
-      supabaseAdmin
-        .from("wallets")
-        .select("user_id, balance, total_withdrawn, total_earned"),
+      fetchAllRows((from, to) =>
+        supabaseAdmin
+          .from("profiles")
+          .select("id, name, email, role, avatar_url, dana_number, created_at")
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: true })
+          .range(from, to)
+      ),
+      fetchAllRows((from, to) =>
+        supabaseAdmin
+          .from("wallets")
+          .select("user_id, balance, total_withdrawn, total_earned")
+          .order("user_id", { ascending: true })
+          .range(from, to)
+      ),
       supabaseAdmin
         .from("transactions")
         .select("id, user_id, type, amount, title, description, status, created_at", { count: "exact" })
         .order("created_at", { ascending: false })
         .limit(200),
-      supabaseAdmin
-        .from("withdrawals")
-        .select("id, user_id, amount, method, status, created_at, account_name, account_number")
-        .order("created_at", { ascending: false }),
-      supabaseAdmin
-        .from("deposits")
-        .select("id, user_id, gmail, normalized_gmail, category_id, status, amount, note, checked_at, created_at")
-        .order("created_at", { ascending: false }),
+      fetchAllRows((from, to) =>
+        supabaseAdmin
+          .from("withdrawals")
+          .select("id, user_id, amount, method, status, created_at, account_name, account_number")
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: true })
+          .range(from, to)
+      ),
+      fetchAllRows((from, to) =>
+        supabaseAdmin
+          .from("deposits")
+          .select("id, user_id, gmail, normalized_gmail, category_id, status, amount, note, checked_at, created_at")
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: true })
+          .range(from, to)
+      ),
       supabaseAdmin
         .from("setor_categories")
         .select("*"),

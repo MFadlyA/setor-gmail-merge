@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { supabaseAdmin, fetchAllRows } from "@/lib/supabase/admin";
 import { requireAdminAuth } from "@/lib/security/auth-guard";
 import { sanitizeString, sanitizeNumber } from "@/lib/security/sanitize";
 import { logAuditEvent } from "@/lib/security/audit-logger";
@@ -14,35 +14,47 @@ export async function GET(req: NextRequest) {
     const filterStatus = searchParams.get("status") || "all";
     const search = searchParams.get("search")?.toLowerCase().trim() || "";
 
-    // Build queries
-    const profilesPromise = supabaseAdmin
-      .from("profiles")
-      .select("id, name, email, dana_number");
+    // Build queries (paginated to bypass 1000-row PostgREST cap)
+    const profilesPromise = fetchAllRows((from, to) =>
+      supabaseAdmin
+        .from("profiles")
+        .select("id, name, email, dana_number")
+        .order("id", { ascending: true })
+        .range(from, to)
+    );
 
-    let txPromise: any = Promise.resolve({ data: [] });
+    let txPromise: Promise<{ data: any[]; error?: any }> = Promise.resolve({ data: [] });
     if (filterType === "all" || filterType === "transaction" || filterType === "deposit" || filterType === "adjustment") {
-      let q = supabaseAdmin
-        .from("transactions")
-        .select("*")
-        .order("created_at", { ascending: false });
+      txPromise = fetchAllRows((from, to) => {
+        let q = supabaseAdmin
+          .from("transactions")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: true })
+          .range(from, to);
 
-      if (filterStatus !== "all") {
-        q = q.eq("status", filterStatus);
-      }
-      txPromise = q;
+        if (filterStatus !== "all") {
+          q = q.eq("status", filterStatus);
+        }
+        return q;
+      });
     }
 
-    let wdPromise: any = Promise.resolve({ data: [] });
+    let wdPromise: Promise<{ data: any[]; error?: any }> = Promise.resolve({ data: [] });
     if (filterType === "all" || filterType === "withdrawal") {
-      let q = supabaseAdmin
-        .from("withdrawals")
-        .select("*")
-        .order("created_at", { ascending: false });
+      wdPromise = fetchAllRows((from, to) => {
+        let q = supabaseAdmin
+          .from("withdrawals")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: true })
+          .range(from, to);
 
-      if (filterStatus !== "all") {
-        q = q.eq("status", filterStatus);
-      }
-      wdPromise = q;
+        if (filterStatus !== "all") {
+          q = q.eq("status", filterStatus);
+        }
+        return q;
+      });
     }
 
     // Parallel fetch

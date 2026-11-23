@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { supabaseAdmin, fetchAllRows } from "@/lib/supabase/admin";
 import { requireAdminAuth } from "@/lib/security/auth-guard";
 import { sanitizeString } from "@/lib/security/sanitize";
 import { logAuditEvent } from "@/lib/security/audit-logger";
@@ -14,28 +14,35 @@ export async function GET(req: NextRequest) {
     const filterCategory = searchParams.get("category") || "all";
     const search = searchParams.get("search")?.toLowerCase().trim() || "";
 
-    // Build deposits query
-    let depQuery = supabaseAdmin
-      .from("deposits")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    if (filterStatus !== "all") {
-      depQuery = depQuery.eq("status", filterStatus);
-    }
-    if (filterCategory !== "all") {
-      depQuery = depQuery.eq("category_id", filterCategory);
-    }
-
-    // Parallel fetch profiles, categories, and deposits
+    // Parallel fetch all profiles, categories, and deposits
     const [
       { data: profiles },
       { data: categories },
       { data: depositsData, error: depError },
     ] = await Promise.all([
-      supabaseAdmin.from("profiles").select("id, name, email, dana_number"),
+      fetchAllRows((from, to) =>
+        supabaseAdmin
+          .from("profiles")
+          .select("id, name, email, dana_number")
+          .order("id", { ascending: true })
+          .range(from, to)
+      ),
       supabaseAdmin.from("setor_categories").select("*"),
-      depQuery,
+      fetchAllRows((from, to) => {
+        let q = supabaseAdmin
+          .from("deposits")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: true })
+          .range(from, to);
+        if (filterStatus !== "all") {
+          q = q.eq("status", filterStatus);
+        }
+        if (filterCategory !== "all") {
+          q = q.eq("category_id", filterCategory);
+        }
+        return q;
+      }),
     ]);
 
     if (depError) throw depError;

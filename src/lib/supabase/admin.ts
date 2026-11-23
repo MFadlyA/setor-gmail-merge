@@ -94,3 +94,48 @@ export const supabaseAdmin = new Proxy({} as SupabaseClient, {
     return value;
   },
 });
+
+/**
+ * Fetches all rows from a Supabase table by paginating in chunks of 1000
+ * to bypass PostgREST's default 1000-row response cap.
+ */
+export async function fetchAllRows<T = any>(
+  buildQuery: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: any }>,
+  pageSize = 1000,
+  maxRows = 50000
+): Promise<{ data: T[]; error: any }> {
+  const all: T[] = [];
+  let from = 0;
+
+  while (from < maxRows) {
+    const { data, error } = await buildQuery(from, from + pageSize - 1);
+    if (error) {
+      return { data: all, error };
+    }
+    if (!data || data.length === 0) {
+      break;
+    }
+    all.push(...data);
+    if (data.length < pageSize) {
+      break;
+    }
+    from += pageSize;
+  }
+
+  return { data: all, error: null };
+}
+
+/**
+ * Fetches all Supabase Auth users across pages (1000 per page).
+ */
+export async function listAllAuthUsers(maxPages = 50): Promise<any[]> {
+  const allUsers: any[] = [];
+  for (let page = 1; page <= maxPages; page++) {
+    const res = await supabaseAdmin.auth.admin.listUsers({ page, perPage: 1000 });
+    const batch = res?.data?.users || [];
+    if (batch.length === 0) break;
+    allUsers.push(...batch);
+    if (batch.length < 1000) break;
+  }
+  return allUsers;
+}

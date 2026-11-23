@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { supabaseAdmin, fetchAllRows, listAllAuthUsers } from "@/lib/supabase/admin";
 import { requireAdminAuth } from "@/lib/security/auth-guard";
 import { sanitizeString, sanitizeNumber } from "@/lib/security/sanitize";
 import { logAuditEvent } from "@/lib/security/audit-logger";
@@ -13,40 +13,51 @@ export async function GET(req: NextRequest) {
     const search = searchParams.get("search")?.toLowerCase().trim() || "";
     const roleFilter = searchParams.get("role") || "";
 
-    // 1. Fetch profiles
-    let query = supabaseAdmin
-      .from("profiles")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    if (roleFilter && roleFilter !== "all") {
-      query = query.eq("role", roleFilter);
-    }
-
-    // Parallel fetch: profiles, wallets, saved_ewallets, deposits, authUsers
+    // Parallel fetch all pages: profiles, wallets, saved_ewallets, deposits, authUsers
     const [
       { data: profiles, error: pErr },
       { data: wallets },
       { data: ewallets },
       { data: deposits },
-      authUsersRes,
+      authUsersList,
     ] = await Promise.all([
-      query,
-      supabaseAdmin
-        .from("wallets")
-        .select("id, user_id, balance, total_earned, total_withdrawn, minimum_withdrawal"),
-      supabaseAdmin
-        .from("saved_ewallets")
-        .select("id, user_id, method, account_number, account_name, is_default"),
-      supabaseAdmin
-        .from("deposits")
-        .select("user_id, status"),
-      supabaseAdmin.auth.admin
-        .listUsers({ perPage: 1000 })
-        .catch((e) => {
-          console.warn("Could not list auth users for ban/avatar check:", e);
-          return { data: null };
-        }),
+      fetchAllRows((from, to) => {
+        let q = supabaseAdmin
+          .from("profiles")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: true })
+          .range(from, to);
+        if (roleFilter && roleFilter !== "all") {
+          q = q.eq("role", roleFilter);
+        }
+        return q;
+      }),
+      fetchAllRows((from, to) =>
+        supabaseAdmin
+          .from("wallets")
+          .select("id, user_id, balance, total_earned, total_withdrawn, minimum_withdrawal")
+          .order("id", { ascending: true })
+          .range(from, to)
+      ),
+      fetchAllRows((from, to) =>
+        supabaseAdmin
+          .from("saved_ewallets")
+          .select("id, user_id, method, account_number, account_name, is_default")
+          .order("id", { ascending: true })
+          .range(from, to)
+      ),
+      fetchAllRows((from, to) =>
+        supabaseAdmin
+          .from("deposits")
+          .select("user_id, status")
+          .order("id", { ascending: true })
+          .range(from, to)
+      ),
+      listAllAuthUsers().catch((e) => {
+        console.warn("Could not list auth users for ban/avatar check:", e);
+        return [] as any[];
+      }),
     ]);
 
     if (pErr) throw pErr;
@@ -64,13 +75,11 @@ export async function GET(req: NextRequest) {
 
     const authUserMap: Record<string, any> = {};
     const bannedMap: Record<string, boolean> = {};
-    if (authUsersRes?.data?.users) {
-      authUsersRes.data.users.forEach((u: any) => {
-        authUserMap[u.id] = u;
-        const isBanned = !!(u.banned_until && new Date(u.banned_until) > new Date());
-        bannedMap[u.id] = isBanned;
-      });
-    }
+    authUsersList.forEach((u: any) => {
+      authUserMap[u.id] = u;
+      const isBanned = !!(u.banned_until && new Date(u.banned_until) > new Date());
+      bannedMap[u.id] = isBanned;
+    });
 
     // 5. Build deposits count map per user (total, diterima, dicek, ditolak)
     const depositStatsMap: Record<
