@@ -1,9 +1,9 @@
 import { NextRequest } from "next/server";
 
 const ALLOWED_ORIGINS = [
-  "https://merge.abiw.online",
-  "https://admin.setorgmail.com",
   "https://setorgmail.com",
+  "https://www.setorgmail.com",
+  "https://admin.setorgmail.com",
   "http://localhost:3000",
   "http://127.0.0.1:3000",
 ];

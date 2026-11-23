@@ -25,8 +25,8 @@ export function getAdminAppOrigin(): string {
     return siteUrl;
   }
 
-  // 3. Ultimate fallback: production admin domain
-  return "https://admin.setorgmail.com";
+  // 3. Ultimate fallback: production domain
+  return "https://setorgmail.com";
 }
 
 /**

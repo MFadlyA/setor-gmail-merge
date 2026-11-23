@@ -98,11 +98,11 @@ export async function GET(req: NextRequest) {
 
   // 3. Check Cloudflare Edge
   const checkCloudflare = async () => {
-    const host = req.headers.get("host") || "admin.setorgmail.com";
+    const host = req.headers.get("host") || "setorgmail.com";
     return {
       status: "Live",
       latency: Math.max(1, Date.now() - startTime),
-      host: host.includes("localhost") ? "admin.setorgmail.com" : host,
+      host: host.includes("localhost") ? "setorgmail.com" : host,
     };
   };
 

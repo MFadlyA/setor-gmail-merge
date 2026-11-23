@@ -22,7 +22,7 @@ export function Header() {
   }>({
     supabase: { status: "Live", latency: 25, project: "kdjoeeehyahdgwgsfyal" },
     telegram: { status: "Live", latency: 85, username: "@setorgmail_bot" },
-    cloudflare: { status: "Live", latency: 5, host: "admin.setorgmail.com" },
+    cloudflare: { status: "Live", latency: 5, host: "setorgmail.com" },
   });
 
   useEffect(() => {
@@ -64,7 +64,7 @@ export function Header() {
                 Admin
               </span>
             </span>
-            <span className="text-[10px] text-zinc-400">admin.setorgmail.com</span>
+            <span className="text-[10px] text-zinc-400">setorgmail.com</span>
           </div>
         </Link>
 
