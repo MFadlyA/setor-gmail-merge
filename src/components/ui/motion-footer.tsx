@@ -630,7 +630,28 @@ export function CinematicFooter({
       </div>
 
       {/* 3. Bottom Bar */}
-      <div className="relative z-20 w-full pb-7 px-6 md:px-12 flex justify-center sm:justify-end items-center">
+      <div className="relative z-20 w-full pb-7 px-6 md:px-12 flex flex-wrap justify-center sm:justify-end items-center gap-2.5">
+        <div className="footer-glass-pill px-4 py-2 rounded-full flex items-center gap-2 cursor-default border-white/10 shadow-lg">
+          <svg
+            className="size-4 shrink-0"
+            viewBox="0 0 64 32"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M44.3 25.4H14.5c-4.3 0-7.8-3.4-7.8-7.7 0-3.8 2.8-7 6.5-7.6C14.7 5.7 19 2.6 24 2.6c5.8 0 10.6 4.4 11.2 10 .9-.4 1.9-.6 3-.6 3.7 0 6.7 2.8 7 6.4 3 .5 5.3 3.1 5.3 6.2 0 .3 0 .5-.1.8H44.3z"
+              fill="#F38020"
+            />
+            <path
+              d="M47.4 18.6c-.4 0-.9.1-1.3.2-.5-3.3-3.4-5.8-6.8-5.8-1 0-2 .2-2.8.6-.4.2-.7.6-.6 1.1l.4 2.6c.1.7.7 1.2 1.4 1.2h10.8c2.2 0 4 1.7 4.2 3.9h3.9c.1-.3.1-.6.1-.9 0-3.5-2.8-6.3-6.3-6.3-1.1 0-2.1.3-3 .8v2.6z"
+              fill="#FAAE40"
+            />
+          </svg>
+          <span className="text-zinc-200 text-xs font-bold tracking-wide">
+            Cloudflare
+          </span>
+        </div>
+
         <div className="footer-glass-pill px-5 py-2 rounded-full flex items-center gap-1.5 cursor-default border-white/10 shadow-lg">
           <span className="text-zinc-400 text-[10px] md:text-xs font-semibold uppercase tracking-wider">
             Crafted by

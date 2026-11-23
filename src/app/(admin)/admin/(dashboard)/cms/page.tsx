@@ -1483,18 +1483,38 @@ export default function CmsPage() {
                       </div>
                     </div>
 
-                    {/* Bottom Watermark + Crafted by Winter */}
-                    <div className="relative px-4 pb-3 pt-1 flex items-end justify-between">
+                    {/* Bottom Watermark + Cloudflare + Crafted by Winter */}
+                    <div className="relative px-4 pb-3 pt-1 flex items-end justify-between gap-2">
                       <span className="text-2xl sm:text-3xl font-black tracking-tighter text-white/[0.06] select-none leading-none">
                         SETOR GMAIL
                       </span>
-                      <div className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 flex items-center gap-1">
-                        <span className="text-[8px] font-semibold uppercase tracking-wider text-zinc-400">
-                          Crafted by
-                        </span>
-                        <span className="text-[9px] font-black bg-gradient-to-r from-sky-300 to-blue-400 bg-clip-text text-transparent">
-                          Winter
-                        </span>
+                      <div className="flex items-center gap-1.5">
+                        <div className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 flex items-center gap-1.5">
+                          <svg
+                            className="size-3 shrink-0"
+                            viewBox="0 0 64 32"
+                            fill="none"
+                            aria-hidden="true"
+                          >
+                            <path
+                              d="M44.3 25.4H14.5c-4.3 0-7.8-3.4-7.8-7.7 0-3.8 2.8-7 6.5-7.6C14.7 5.7 19 2.6 24 2.6c5.8 0 10.6 4.4 11.2 10 .9-.4 1.9-.6 3-.6 3.7 0 6.7 2.8 7 6.4 3 .5 5.3 3.1 5.3 6.2 0 .3 0 .5-.1.8H44.3z"
+                              fill="#F38020"
+                            />
+                            <path
+                              d="M47.4 18.6c-.4 0-.9.1-1.3.2-.5-3.3-3.4-5.8-6.8-5.8-1 0-2 .2-2.8.6-.4.2-.7.6-.6 1.1l.4 2.6c.1.7.7 1.2 1.4 1.2h10.8c2.2 0 4 1.7 4.2 3.9h3.9c.1-.3.1-.6.1-.9 0-3.5-2.8-6.3-6.3-6.3-1.1 0-2.1.3-3 .8v2.6z"
+                              fill="#FAAE40"
+                            />
+                          </svg>
+                          <span className="text-[9px] font-bold text-zinc-200">Cloudflare</span>
+                        </div>
+                        <div className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 flex items-center gap-1">
+                          <span className="text-[8px] font-semibold uppercase tracking-wider text-zinc-400">
+                            Crafted by
+                          </span>
+                          <span className="text-[9px] font-black bg-gradient-to-r from-sky-300 to-blue-400 bg-clip-text text-transparent">
+                            Winter
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </div>
