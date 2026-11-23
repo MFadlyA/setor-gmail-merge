@@ -116,6 +116,7 @@ function generateBatch(count: number, existingPool?: Set<string>): string[] {
 
 export function SetorView() {
   const [emails, setEmails] = React.useState("");
+  const [depositMode, setDepositMode] = React.useState<"fresh" | "old">("fresh");
   const { refreshDeposits, refreshWallet, siteConfig } = useUserProfile();
   const activePassword = siteConfig?.default_password || defaultPassword;
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -406,20 +407,22 @@ export function SetorView() {
         return;
       }
 
-      const isGenerated = allGeneratedSet.has(lower);
+      if (depositMode === "fresh") {
+        const isGenerated = allGeneratedSet.has(lower);
 
-      if (!isGenerated) {
-        // BUKAN HASIL GENERATE: ABAIKAN dan beri status
-        items.push({
-          index: idx + 1,
-          email: line,
-          status: "DIABAIKAN",
-          reason: "Bukan hasil Generate Gmail (Diabaikan)",
-        });
-        return;
+        if (!isGenerated) {
+          // BUKAN HASIL GENERATE: ABAIKAN dan beri status
+          items.push({
+            index: idx + 1,
+            email: line,
+            status: "DIABAIKAN",
+            reason: "Bukan hasil Generate Gmail (Diabaikan)",
+          });
+          return;
+        }
       }
 
-      // HASIL GENERATE BELUM DISETOR: Masuk antrian cek status ke API
+      // Masuk antrian cek status ke API
       toQueryViaApi.push({ email: line, index: idx + 1 });
     });
 
@@ -512,7 +515,12 @@ export function SetorView() {
   }, [setoranCheckResults]);
 
   const liveCount = liveResults.length;
-  const pricePerGmail = siteConfig?.price_per_gmail || 4500;
+  const freshPrice = siteConfig?.price_per_gmail || 1500;
+  const oldEmailPrice =
+    siteConfig?.price_bebas && siteConfig.price_bebas !== 2500
+      ? siteConfig.price_bebas
+      : 1000;
+  const pricePerGmail = depositMode === "fresh" ? freshPrice : oldEmailPrice;
   const calculatedEarnings = liveCount * pricePerGmail;
 
   const lastHoverToastTime = React.useRef(0);
@@ -561,7 +569,8 @@ export function SetorView() {
       try {
         const user = await getCurrentAuthUser();
         if (user) {
-          const res = await insertUserDeposits(user.id, liveEmailList, "good", pricePerGmail);
+          const categoryId = depositMode === "old" ? "bebas" : "good";
+          const res = await insertUserDeposits(user.id, liveEmailList, categoryId, pricePerGmail);
           if (!res.success) {
             toast.error("Gagal menyetor Gmail", {
               description: res.error || "Terjadi kendala saat menyimpan setoran.",
@@ -616,6 +625,105 @@ export function SetorView() {
               aria-hidden="true"
               className="pointer-events-none absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-sky-400/50 to-transparent"
             />
+            {/* Pilihan Jenis Setoran: Buat Email Baru vs Setor Email Lama */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  if (depositMode !== "fresh") {
+                    setDepositMode("fresh");
+                    setHasCheckedSetoran(false);
+                    setSetoranCheckResults([]);
+                  }
+                }}
+                className={cn(
+                  "flex items-center justify-between gap-3 rounded-2xl border p-3.5 sm:p-4 text-left transition-all cursor-pointer",
+                  depositMode === "fresh"
+                    ? "border-sky-400/60 bg-sky-500/12 shadow-[0_0_24px_-8px_rgba(56,189,248,0.35)]"
+                    : "border-white/10 bg-black/40 hover:border-white/20 hover:bg-white/[0.04]"
+                )}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <span
+                    className={cn(
+                      "flex size-9 shrink-0 items-center justify-center rounded-xl border",
+                      depositMode === "fresh"
+                        ? "bg-sky-500/20 border-sky-400/40 text-sky-300"
+                        : "bg-white/5 border-white/10 text-zinc-400"
+                    )}
+                  >
+                    <Sparkles className="size-4" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-xs sm:text-sm font-extrabold text-white">
+                      Buat Email Baru
+                    </p>
+                    <p className="text-[0.7rem] text-zinc-400">
+                      Email fresh / baru dibuat
+                    </p>
+                  </div>
+                </div>
+                <span
+                  className={cn(
+                    "shrink-0 rounded-full border px-2.5 py-1 text-[0.7rem] font-extrabold tabular-nums",
+                    depositMode === "fresh"
+                      ? "border-emerald-400/40 bg-emerald-500/15 text-emerald-300"
+                      : "border-white/10 bg-white/5 text-zinc-300"
+                  )}
+                >
+                  {formatIDR(freshPrice)} / Akun
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (depositMode !== "old") {
+                    setDepositMode("old");
+                    setHasCheckedSetoran(false);
+                    setSetoranCheckResults([]);
+                  }
+                }}
+                className={cn(
+                  "flex items-center justify-between gap-3 rounded-2xl border p-3.5 sm:p-4 text-left transition-all cursor-pointer",
+                  depositMode === "old"
+                    ? "border-sky-400/60 bg-sky-500/12 shadow-[0_0_24px_-8px_rgba(56,189,248,0.35)]"
+                    : "border-white/10 bg-black/40 hover:border-white/20 hover:bg-white/[0.04]"
+                )}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <span
+                    className={cn(
+                      "flex size-9 shrink-0 items-center justify-center rounded-xl border",
+                      depositMode === "old"
+                        ? "bg-sky-500/20 border-sky-400/40 text-sky-300"
+                        : "bg-white/5 border-white/10 text-zinc-400"
+                    )}
+                  >
+                    <Send className="size-4" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-xs sm:text-sm font-extrabold text-white">
+                      Setor Email Lama
+                    </p>
+                    <p className="text-[0.7rem] text-zinc-400">
+                      Setor akun Gmail yang sudah ada
+                    </p>
+                  </div>
+                </div>
+                <span
+                  className={cn(
+                    "shrink-0 rounded-full border px-2.5 py-1 text-[0.7rem] font-extrabold tabular-nums",
+                    depositMode === "old"
+                      ? "border-emerald-400/40 bg-emerald-500/15 text-emerald-300"
+                      : "border-white/10 bg-white/5 text-zinc-300"
+                  )}
+                >
+                  {formatIDR(oldEmailPrice)} / Akun
+                </span>
+              </button>
+            </div>
+
             {/* Bagian 1: Rules Setoran (2x2 Grid Cards + Collapsible Detail Aturan) */}
             <div>
               {/* Header Rules */}
@@ -629,9 +737,6 @@ export function SetorView() {
                       <h3 className="text-sm sm:text-base font-extrabold text-white tracking-tight">
                         Rules Setoran Gmail
                       </h3>
-                      <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[0.65rem] font-extrabold text-emerald-300">
-                        {formatIDR(pricePerGmail)} / Akun
-                      </span>
                     </div>
                     <p className="text-xs text-zinc-400">
                       Wajib dibaca agar Gmail diterima admin saat peninjauan.
@@ -660,7 +765,9 @@ export function SetorView() {
                   <div className="min-w-0">
                     <p className="text-[0.68rem] font-semibold text-zinc-400 uppercase tracking-wider">Status</p>
                     <p className="text-xs sm:text-[0.82rem] font-bold text-white truncate">
-                      {siteConfig?.rule_status || "Wajib Fresh (baru dibuat)"}
+                      {depositMode === "fresh"
+                        ? siteConfig?.rule_status || "Wajib Fresh (baru dibuat)"
+                        : "Email Lama (sudah terdaftar)"}
                     </p>
                   </div>
                 </div>
@@ -673,7 +780,9 @@ export function SetorView() {
                   <div className="min-w-0">
                     <p className="text-[0.68rem] font-semibold text-zinc-400 uppercase tracking-wider">Nama Akun</p>
                     <p className="text-xs sm:text-[0.82rem] font-bold text-white truncate">
-                      {siteConfig?.rule_nama || "Wajib sama persis hasil generate"}
+                      {depositMode === "fresh"
+                        ? siteConfig?.rule_nama || "Wajib sama persis hasil generate"
+                        : "Bebas (tidak perlu generate)"}
                     </p>
                   </div>
                 </div>
@@ -735,7 +844,8 @@ export function SetorView() {
               )}
             </div>
 
-            {/* Bagian 2: Generate Gmail (Horizontal Stepper + Unified Password & Control Box) */}
+            {/* Bagian 2: Generate Gmail (Hanya untuk mode Buat Email Baru) */}
+            {depositMode === "fresh" && (
             <div className="pt-1">
               {/* Header */}
               <div className="flex items-center gap-2 text-sky-400 font-bold text-base sm:text-lg">
@@ -746,7 +856,7 @@ export function SetorView() {
                 Ambil nama Gmail dari stok yang sudah disiapkan admin, lalu daftarkan akun Gmail asli memakai nama tersebut sebelum disetorkan pada kolom di bawah.
               </p>
 
-              {/* Horizontal Stepper Timeline (Context-Aware Active Step) */}
+              {/* Horizontal Stepper Timeline */}
               <div className="mt-3.5 grid grid-cols-2 lg:grid-cols-4 gap-2.5">
                 {[
                   {
@@ -755,7 +865,6 @@ export function SetorView() {
                     desc: "Tentukan jumlah akun",
                     icon: Sparkles,
                     tone: "text-sky-400 bg-sky-500/12 border-sky-500/25",
-                    active: isMounted && generatedList.length === 0,
                     done: isMounted && generatedList.length > 0,
                   },
                   {
@@ -764,7 +873,6 @@ export function SetorView() {
                     desc: "Ambil nama & password Gmail",
                     icon: Copy,
                     tone: "text-emerald-400 bg-emerald-500/12 border-emerald-500/25",
-                    active: isMounted && generatedList.length > 0 && totalLines === 0,
                     done: isMounted && totalLines > 0,
                   },
                   {
@@ -773,7 +881,6 @@ export function SetorView() {
                     desc: "Daftar Gmail asli di Google",
                     icon: UserCheck,
                     tone: "text-amber-400 bg-amber-500/12 border-amber-500/25",
-                    active: isMounted && generatedList.length > 0 && totalLines === 0,
                     done: isMounted && totalLines > 0,
                   },
                   {
@@ -782,7 +889,6 @@ export function SetorView() {
                     desc: "Paste di form setor bawah",
                     icon: Send,
                     tone: "text-blue-400 bg-blue-500/12 border-blue-500/25",
-                    active: isMounted && totalLines > 0,
                     done: isMounted && hasCheckedSetoran && liveCount > 0,
                   },
                 ].map((item) => (
@@ -790,9 +896,7 @@ export function SetorView() {
                     key={item.step}
                     className={cn(
                       "relative flex flex-col justify-between rounded-2xl border p-3 transition-all duration-300",
-                      item.active
-                        ? "border-sky-400/50 bg-sky-950/25 shadow-[0_0_24px_-6px_rgba(56,189,248,0.3)]"
-                        : item.done
+                      item.done
                         ? "border-emerald-500/30 bg-emerald-950/15"
                         : "border-white/10 bg-black/40 hover:border-white/20"
                     )}
@@ -804,9 +908,7 @@ export function SetorView() {
                       <span
                         className={cn(
                           "font-mono text-[0.63rem] font-extrabold px-1.5 py-0.5 rounded-md",
-                          item.active
-                            ? "bg-sky-500/20 text-sky-300 border border-sky-400/30"
-                            : item.done
+                          item.done
                             ? "bg-emerald-500/15 text-emerald-300"
                             : "text-zinc-500"
                         )}
@@ -1073,6 +1175,7 @@ export function SetorView() {
               </div>
             </div>
           </div>
+            )}
         </div>
       </Reveal>
 
@@ -1102,7 +1205,7 @@ export function SetorView() {
 
               <div className="flex items-center gap-2">
                 {/* Tombol Paste Hasil Generate */}
-                {generatedList.length > 0 && (
+                {depositMode === "fresh" && generatedList.length > 0 && (
                   <button
                     type="button"
                     onClick={handlePasteGenerated}

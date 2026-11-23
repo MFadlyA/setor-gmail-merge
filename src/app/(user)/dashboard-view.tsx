@@ -12,7 +12,7 @@ import {
   ChevronRight,
   Send,
   Sparkles,
-  CheckCircle2,
+  Target,
   Zap,
   type LucideIcon,
 } from "lucide-react";
@@ -88,8 +88,6 @@ export function DashboardView() {
 
   const pricePerGmail = siteConfig?.price_per_gmail || 4500;
   const minWithdrawal = siteConfig?.min_withdrawal || wallet.minimumWithdrawal || 5000;
-  const withdrawProgress = Math.min(100, Math.round((wallet.balance / Math.max(1, minWithdrawal)) * 100));
-  const isReadyToWithdraw = wallet.balance >= minWithdrawal;
 
   const firstName = React.useMemo(() => {
     const raw = (userProfile?.name || "").trim();
@@ -188,45 +186,16 @@ export function DashboardView() {
                       </span>
                     </div>
 
-                    {/* Rate & E-Wallet badges */}
+                    {/* Rate & Min Withdrawal badges */}
                     <div className="mt-3.5 flex flex-wrap items-center gap-2">
                       <div className="inline-flex items-center gap-1.5 rounded-full bg-sky-500/12 border border-sky-400/30 px-3 py-1 text-[0.73rem] font-bold text-sky-300">
                         <Zap className="size-3.5 text-sky-400 fill-sky-400/30" />
                         <span>Harga / Gmail: {formatIDR(pricePerGmail)}</span>
                       </div>
-                      <div className="inline-flex items-center rounded-full bg-white/[0.04] border border-white/10 px-2.5 py-1 text-[0.68rem] font-semibold text-zinc-300">
-                        DANA · GoPay · OVO · ShopeePay
-                      </div>
-                    </div>
-
-                    {/* Withdrawal readiness progress bar */}
-                    <div className="mt-4 rounded-2xl border border-white/[0.07] bg-black/35 px-3.5 py-2.5">
-                      <div className="flex items-center justify-between text-[0.68rem] font-semibold">
-                        <span className={cn(isReadyToWithdraw ? "text-emerald-300 font-bold" : "text-zinc-400")}>
-                          {isReadyToWithdraw ? (
-                            <span className="inline-flex items-center gap-1">
-                              <CheckCircle2 className="size-3.5 text-emerald-400" />
-                              Saldo siap dicairkan kapan saja!
-                            </span>
-                          ) : (
-                            `Min. penarikan ${formatIDR(minWithdrawal)}`
-                          )}
-                        </span>
-                        <span className="font-mono font-bold text-sky-300 tabular-nums">
-                          {withdrawProgress}%
-                        </span>
-                      </div>
-                      <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
-                        <div
-                          className={cn(
-                            "h-full rounded-full transition-all duration-700 ease-out",
-                            isReadyToWithdraw
-                              ? "bg-gradient-to-r from-emerald-400 to-teal-400 shadow-[0_0_10px_rgba(52,211,153,0.6)]"
-                              : "bg-gradient-to-r from-sky-400 to-blue-500"
-                          )}
-                          style={{ width: `${Math.max(6, withdrawProgress)}%` }}
-                        />
-                      </div>
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-500/20 bg-sky-500/10 px-3 py-1 text-[0.73rem] font-semibold text-sky-400">
+                        <Target className="size-3.5 text-sky-400" aria-hidden="true" />
+                        Minimal Penarikan: {formatIDR(minWithdrawal)}
+                      </span>
                     </div>
                   </div>
 
@@ -274,9 +243,6 @@ export function DashboardView() {
                       <Sparkles className="size-3 text-sky-400" aria-hidden="true" />
                       Aksi Cepat
                     </span>
-                    <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[0.68rem] font-extrabold text-emerald-300">
-                      +{formatIDR(pricePerGmail)} / Akun
-                    </span>
                   </div>
 
                   <p className="mt-3 text-lg leading-tight font-black sm:text-xl text-white tracking-tight">
@@ -289,8 +255,8 @@ export function DashboardView() {
                   {/* Visual 3-Step Micro Guide so users immediately understand */}
                   <div className="mt-3.5 grid grid-cols-3 gap-2">
                     {[
-                      { num: "01", label: "Generate Nama" },
-                      { num: "02", label: "Daftar Google" },
+                      { num: "01", label: "Generate Gmail" },
+                      { num: "02", label: "Daftarkan Gmail" },
                       { num: "03", label: "Setor & Cair" },
                     ].map((st) => (
                       <div

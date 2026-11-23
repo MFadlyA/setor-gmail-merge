@@ -876,8 +876,8 @@ export interface SiteConfig {
 }
 
 export const DEFAULT_SITE_CONFIG: SiteConfig = {
-  price_per_gmail: 4500,
-  price_bebas: 2500,
+  price_per_gmail: 1500,
+  price_bebas: 1000,
   min_withdrawal: 5000,
   tax_gopay: 1000,
   tax_ovo: 1000,

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Image from "next/image";
-import { ShieldCheck, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import { PageShell, Reveal } from "@/components/layout/page-shell";
 import { useUserProfile } from "@/context/user-profile-context";
 import { sanitizeExternalUrl } from "@/lib/security";
@@ -32,12 +32,6 @@ export function LaporanView() {
               <Sparkles className="size-3 text-sky-400" />
               Layanan Bantuan Resmi
             </span>
-            <h1 className="mt-2 text-lg sm:text-xl font-black tracking-tight text-white">
-              Pusat Laporan &amp; CS Admin
-            </h1>
-            <p className="mt-1 text-xs text-zinc-400 leading-relaxed">
-              Scan kode QR atau klik tombol di bawah untuk terhubung langsung ke Telegram Admin <strong className="text-sky-300">@{cleanUsername}</strong>.
-            </p>
           </div>
 
           {/* Kartu QR Telegram Asli HD */}
@@ -75,11 +69,6 @@ export function LaporanView() {
               Chat via Telegram (@{cleanUsername})
             </span>
           </button>
-
-          <p className="mt-3 inline-flex items-center gap-1.5 text-[0.7rem] text-zinc-400">
-            <ShieldCheck className="size-3.5 text-emerald-400 shrink-0" />
-            <span>Waspada penipuan: Admin tidak pernah meminta password akun web Anda.</span>
-          </p>
         </Reveal>
       </div>
     </PageShell>

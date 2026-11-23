@@ -497,32 +497,9 @@ export function ProfilView() {
               )}
             </div>
 
-            {/* Info Grid: 3 Kolom Sejajar (UID, EMAIL, TANGGAL GABUNG) */}
-            <div className="relative mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-              {/* Kolom 1: UID Card */}
-              <div className="flex flex-col justify-between rounded-xl border border-white/10 bg-black/40 p-3 transition-colors hover:bg-white/5 hover:border-white/20">
-                {isLoading ? (
-                  <div className="space-y-1.5 py-0.5 w-full">
-                    <Skeleton className="h-2.5 w-20" />
-                    <Skeleton className="h-4 w-full" />
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex items-center justify-between gap-1.5">
-                      <div className="flex items-center gap-1.5 text-[0.68rem] font-semibold text-zinc-400">
-                        <KeyRound className="size-3 text-sky-400" />
-                        <span>UID</span>
-                      </div>
-                      <CopyValue value={userProfile.uid} />
-                    </div>
-                    <p className="mt-1 break-all font-mono text-[11px] leading-relaxed font-semibold text-white">
-                      {userProfile.uid}
-                    </p>
-                  </>
-                )}
-              </div>
-
-              {/* Kolom 2: Email Card */}
+            {/* Info Grid: 2 Kolom Sejajar (EMAIL, TANGGAL GABUNG) */}
+            <div className="relative mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+              {/* Kolom 1: Email Card */}
               <div className="flex flex-col justify-between rounded-xl border border-white/10 bg-black/40 p-3 transition-colors hover:bg-white/5 hover:border-white/20">
                 {isLoading ? (
                   <div className="space-y-1.5 py-0.5 w-full">

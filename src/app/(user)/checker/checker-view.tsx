@@ -394,9 +394,6 @@ export function CheckerView() {
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-zinc-400 mt-0.5">
-                        Dual-Engine otomatis: SMTP Port 25 Reuse &amp; HTTPS 443 Probe
-                      </p>
                     </div>
                   </div>
 
