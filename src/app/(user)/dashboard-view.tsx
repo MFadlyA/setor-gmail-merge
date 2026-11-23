@@ -164,7 +164,7 @@ export function DashboardView() {
                   className="pointer-events-none absolute -bottom-28 -left-20 size-56 rounded-full bg-indigo-500/12 blur-3xl"
                 />
 
-                <div className="relative flex h-full flex-col justify-between p-5 sm:p-6">
+                <div className="relative flex h-full flex-col justify-between gap-5 p-5 sm:p-6">
                   <div>
                     <div className="flex items-start justify-between gap-3">
                       <div>
@@ -176,7 +176,7 @@ export function DashboardView() {
                             <Skeleton className="h-9 w-40 rounded-lg bg-zinc-800" />
                           </div>
                         ) : (
-                          <p className="mt-1.5 text-[2.1rem] leading-none font-black tracking-tight text-white tabular-nums sm:text-[2.45rem] md:text-[2.65rem] drop-shadow-[0_2px_18px_rgba(56,189,248,0.18)]">
+                          <p className="mt-2 text-[2.25rem] leading-none font-black tracking-tight text-white tabular-nums sm:text-[2.6rem] md:text-[2.85rem] drop-shadow-[0_2px_18px_rgba(56,189,248,0.18)]">
                             {formatIDR(wallet.balance)}
                           </p>
                         )}
@@ -186,20 +186,30 @@ export function DashboardView() {
                       </span>
                     </div>
 
-                    {/* Rate & Min Withdrawal badges */}
-                    <div className="mt-3.5 flex flex-wrap items-center gap-2">
-                      <div className="inline-flex items-center gap-1.5 rounded-full bg-sky-500/12 border border-sky-400/30 px-3 py-1 text-[0.73rem] font-bold text-sky-300">
-                        <Zap className="size-3.5 text-sky-400 fill-sky-400/30" />
-                        <span>Harga / Gmail: {formatIDR(pricePerGmail)}</span>
+                    {/* Rate & Min Withdrawal info cards */}
+                    <div className="mt-5 grid grid-cols-2 gap-2.5">
+                      <div className="rounded-2xl border border-sky-400/20 bg-sky-500/[0.07] px-3.5 py-2.5">
+                        <div className="flex items-center gap-1.5 text-[0.65rem] font-bold uppercase tracking-wider text-sky-300/85">
+                          <Zap className="size-3 text-sky-400 fill-sky-400/30 shrink-0" aria-hidden="true" />
+                          <span>Harga / Gmail</span>
+                        </div>
+                        <p className="mt-1 text-sm sm:text-base font-black text-white tabular-nums">
+                          {formatIDR(pricePerGmail)}
+                        </p>
                       </div>
-                      <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-500/20 bg-sky-500/10 px-3 py-1 text-[0.73rem] font-semibold text-sky-400">
-                        <Target className="size-3.5 text-sky-400" aria-hidden="true" />
-                        Minimal Penarikan: {formatIDR(minWithdrawal)}
-                      </span>
+                      <div className="rounded-2xl border border-white/10 bg-black/35 px-3.5 py-2.5">
+                        <div className="flex items-center gap-1.5 text-[0.65rem] font-bold uppercase tracking-wider text-zinc-400">
+                          <Target className="size-3 text-sky-400 shrink-0" aria-hidden="true" />
+                          <span>Min. Penarikan</span>
+                        </div>
+                        <p className="mt-1 text-sm sm:text-base font-black text-white tabular-nums">
+                          {formatIDR(minWithdrawal)}
+                        </p>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="mt-4 grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-2 gap-3">
                     <button
                       type="button"
                       onClick={() => setTarikModalOpen(true)}

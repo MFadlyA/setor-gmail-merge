@@ -397,17 +397,15 @@ export function ProfilView() {
               className="pointer-events-none absolute -top-24 left-1/2 -translate-x-1/2 size-72 rounded-full bg-sky-500/10 blur-3xl"
             />
 
-            {/* Header: Corner Kiri (Profil) & Corner Kanan (Keluar Akun) */}
-            <div className="relative flex items-center justify-between">
-              {/* Corner Kiri: Profil */}
+            {/* Header: Profil Akun + Keluar Akun */}
+            <div className="relative flex items-center justify-between gap-3 pb-5 border-b border-white/10">
               <div className="flex items-center gap-2">
                 <span className="flex size-7.5 shrink-0 items-center justify-center rounded-lg bg-sky-500/10 text-sky-400 border border-sky-500/20 shadow-xs">
                   <User className="size-3.5 stroke-[2.2]" />
                 </span>
-                <h3 className="text-sm sm:text-base font-bold text-white tracking-tight">Profil Akun</h3>
+                <h3 className="text-sm sm:text-base font-bold text-white tracking-tight">Profil &amp; Saldo Akun</h3>
               </div>
 
-              {/* Corner Kanan: Keluar Akun */}
               <button
                 type="button"
                 onClick={async () => {
@@ -433,288 +431,242 @@ export function ProfilView() {
                   });
                   window.location.href = "/login";
                 }}
-                className="inline-flex items-center gap-1.5 rounded-full border border-rose-500/30 bg-rose-500/10 px-3 py-1 text-xs font-bold text-rose-400 shadow-2xs transition-all hover:bg-rose-500/20 active:scale-95 cursor-pointer whitespace-nowrap"
+                className="inline-flex items-center gap-1.5 rounded-full border border-rose-500/30 bg-rose-500/10 px-3 py-1.5 text-xs font-bold text-rose-400 shadow-2xs transition-all hover:bg-rose-500/20 active:scale-95 cursor-pointer whitespace-nowrap"
               >
-                <LogOut className="size-3 text-rose-400" />
+                <LogOut className="size-3.5 text-rose-400" />
                 <span>Keluar Akun</span>
               </button>
             </div>
 
-            {/* Area Foto Profil & Identitas User */}
-            <div className="relative mt-2 flex flex-col items-center text-center">
-              {isLoading ? (
-                <div className="flex flex-col items-center">
-                  <Skeleton className="size-16 sm:size-18 rounded-full" />
-                  <Skeleton className="h-5 w-36 mt-2 rounded-lg" />
-                </div>
-              ) : (
-                <>
-                  {/* Avatar circle with image or initial fallback & camera button (click anywhere to upload) */}
-                  <div
-                    onClick={() => fileInputRef.current?.click()}
-                    title="Klik untuk ganti foto profil"
-                    className="relative flex size-16 sm:size-18 items-center justify-center rounded-full border-2 border-sky-400/30 bg-gradient-to-br from-sky-400 via-sky-500 to-blue-600 text-white shadow-lg shadow-sky-500/25 ring-3 ring-sky-500/20 cursor-pointer transition-transform hover:scale-105 active:scale-95"
-                  >
-                    {avatarImage ? (
-                      <img
-                        src={avatarImage}
-                        alt={userProfile.name}
-                        className="size-full rounded-full object-cover"
-                      />
-                    ) : (
-                      <span className="text-xl sm:text-2xl font-black tracking-tight text-white select-none">
-                        {firstLetter}
-                      </span>
-                    )}
-
-                    {/* Camera upload badge */}
-                    <div className="absolute bottom-0 right-0 flex size-6 items-center justify-center rounded-full border-2 border-[#121217] bg-gradient-to-r from-sky-400 to-blue-600 text-white shadow-xs">
-                      <Camera className="size-3" />
-                    </div>
-                  </div>
-
-                  {/* Nama user */}
-                  <h2 className="mt-2.5 text-base sm:text-lg font-bold tracking-tight text-white">
-                    {userProfile.name}
-                  </h2>
-
-                  {/* Badge & Shortcut Admin Panel jika login sebagai Admin */}
-                  {(userProfile.role?.toLowerCase() === "admin" || userProfile.email === "komangabiw@gmail.com") && (
-                    <div className="mt-2 flex flex-col items-center gap-1.5">
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
-                        <ShieldCheck className="size-3" />
-                        Administrator
-                      </span>
-                      <a
-                        href="/admin"
-                        className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition-all active:scale-95"
-                      >
-                        Buka Dashboard Admin &rarr;
-                      </a>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-
-            {/* Info Grid: 2 Kolom Sejajar (EMAIL, TANGGAL GABUNG) */}
-            <div className="relative mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-              {/* Kolom 1: Email Card */}
-              <div className="flex flex-col justify-between rounded-xl border border-white/10 bg-black/40 p-3 transition-colors hover:bg-white/5 hover:border-white/20">
+            {/* Bagian 1: Identitas User + Saldo Akun dalam layout ringkas & rapi */}
+            <div className="relative py-5 border-b border-white/10 flex flex-col md:flex-row md:items-center md:justify-between gap-5">
+              {/* Kiri: Avatar + Nama + Email + Tanggal Bergabung */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-4 min-w-0">
                 {isLoading ? (
-                  <div className="space-y-1.5 py-0.5 w-full">
-                    <Skeleton className="h-2.5 w-24" />
-                    <Skeleton className="h-4 w-full" />
+                  <div className="flex items-center gap-4">
+                    <Skeleton className="size-16 rounded-full shrink-0" />
+                    <div className="space-y-2">
+                      <Skeleton className="h-5 w-36 rounded-lg" />
+                      <Skeleton className="h-3.5 w-48 rounded-md" />
+                    </div>
                   </div>
                 ) : (
                   <>
-                    <div className="flex items-center gap-1.5 text-[0.68rem] font-semibold text-zinc-400">
-                      <Mail className="size-3 text-sky-400" />
-                      <span>Email</span>
+                    <div
+                      onClick={() => fileInputRef.current?.click()}
+                      title="Klik untuk ganti foto profil"
+                      className="relative flex size-16 shrink-0 items-center justify-center rounded-full border-2 border-sky-400/30 bg-gradient-to-br from-sky-400 via-sky-500 to-blue-600 text-white shadow-lg shadow-sky-500/25 ring-3 ring-sky-500/20 cursor-pointer transition-transform hover:scale-105 active:scale-95"
+                    >
+                      {avatarImage ? (
+                        <img
+                          src={avatarImage}
+                          alt={userProfile.name}
+                          className="size-full rounded-full object-cover"
+                        />
+                      ) : (
+                        <span className="text-xl font-black tracking-tight text-white select-none">
+                          {firstLetter}
+                        </span>
+                      )}
+                      <div className="absolute bottom-0 right-0 flex size-5.5 items-center justify-center rounded-full border-2 border-[#121217] bg-gradient-to-r from-sky-400 to-blue-600 text-white shadow-xs">
+                        <Camera className="size-2.5" />
+                      </div>
                     </div>
-                    <p className="mt-1 break-all text-[11px] sm:text-xs leading-relaxed font-semibold text-white">
-                      {userProfile.email}
-                    </p>
+
+                    <div className="min-w-0 space-y-1.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h2 className="text-base sm:text-lg font-extrabold tracking-tight text-white truncate">
+                          {userProfile.name}
+                        </h2>
+                        {(userProfile.role?.toLowerCase() === "admin" || userProfile.email === "komangabiw@gmail.com") && (
+                          <>
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+                              <ShieldCheck className="size-3" />
+                              Admin
+                            </span>
+                            <a
+                              href="/admin"
+                              className="inline-flex items-center gap-1 px-2.5 py-0.5 text-[11px] font-semibold rounded-full bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition-all active:scale-95"
+                            >
+                              Dashboard Admin &rarr;
+                            </a>
+                          </>
+                        )}
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-zinc-400">
+                        <span className="inline-flex items-center gap-1.5 min-w-0">
+                          <Mail className="size-3.5 text-sky-400 shrink-0" />
+                          <span className="truncate text-zinc-200 font-medium">{userProfile.email}</span>
+                        </span>
+                        <span className="inline-flex items-center gap-1.5 shrink-0">
+                          <Calendar className="size-3.5 text-sky-400 shrink-0" />
+                          <span>Gabung {userProfile.joinedAt || "-"}</span>
+                        </span>
+                      </div>
+                    </div>
                   </>
                 )}
               </div>
 
-              {/* Kolom 3: Tanggal Bergabung */}
-              <div className="flex flex-col justify-between rounded-xl border border-white/10 bg-black/40 p-3 transition-colors hover:bg-white/5 hover:border-white/20">
-                {isLoading ? (
-                  <div className="space-y-1.5 py-0.5 w-full">
-                    <Skeleton className="h-2.5 w-24" />
-                    <Skeleton className="h-4 w-3/4" />
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex items-center gap-1.5 text-[0.68rem] font-semibold text-zinc-400">
-                      <Calendar className="size-3 text-sky-400" />
-                      <span>Tanggal Bergabung</span>
-                    </div>
-                    <p className="mt-1 text-[11px] sm:text-xs leading-relaxed font-semibold text-white">
-                      {userProfile.joinedAt || "-"}
-                    </p>
-                  </>
-                )}
-              </div>
-            </div>
-          </section>
-        </Reveal>
-
-        {/* Card 2: Saldo & Pengaturan E-Wallet (Dipindahkan ke Bawah Profil Akun) */}
-        <Reveal delay={80}>
-          <Card className="relative overflow-hidden border border-white/10 bg-[#121217]/85 shadow-2xl backdrop-blur-xl rounded-3xl">
-            <div
-              aria-hidden="true"
-              className="pointer-events-none absolute -top-24 -right-16 size-72 rounded-full bg-sky-500/10 blur-3xl"
-            />
-
-            <div className="relative p-5 sm:p-6 md:p-7">
-              {/* Baris Atas: Saldo Saat Ini & Tombol Tarik Saldo */}
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-white/10 pb-5">
+              {/* Kanan: Saldo Akun & Tombol Tarik Saldo */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between md:justify-end gap-3.5 rounded-2xl border border-white/10 bg-black/40 px-4 py-3.5 shrink-0">
                 <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="flex size-6 items-center justify-center rounded-lg bg-sky-500/10 text-sky-400 border border-sky-500/20">
-                      <Wallet className="size-3.5" aria-hidden="true" />
-                    </span>
-                    <p className="text-[0.72rem] font-bold tracking-wider text-zinc-400 uppercase">
+                  <div className="flex items-center gap-1.5">
+                    <Wallet className="size-3.5 text-sky-400" aria-hidden="true" />
+                    <p className="text-[0.66rem] font-bold tracking-wider text-zinc-400 uppercase">
                       Saldo Akun
                     </p>
                   </div>
-                  <div className="mt-1 flex flex-wrap items-baseline gap-3">
+                  <div className="mt-1 flex flex-wrap items-center gap-2.5">
                     {isWalletLoading ? (
-                      <div className="py-1">
-                        <Skeleton className="h-9 w-44 rounded-xl" />
-                      </div>
+                      <Skeleton className="h-7 w-28 rounded-lg" />
                     ) : (
-                      <span className="text-[2.2rem] sm:text-[2.6rem] font-black tracking-tight text-white tabular-nums leading-none">
+                      <span className="text-2xl sm:text-[1.75rem] font-black tracking-tight text-white tabular-nums leading-none">
                         {formatIDR(wallet.balance)}
                       </span>
                     )}
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-500/20 bg-sky-500/10 px-2.5 py-0.5 text-xs font-semibold text-sky-400">
+                    <span className="inline-flex items-center gap-1 rounded-full border border-sky-500/20 bg-sky-500/10 px-2 py-0.5 text-[0.68rem] font-semibold text-sky-400">
                       <Target className="size-3 text-sky-400" aria-hidden="true" />
-                      Minimal Penarikan: {formatIDR(siteConfig?.min_withdrawal || wallet.minimumWithdrawal || 5000)}
+                      Min. {formatIDR(siteConfig?.min_withdrawal || wallet.minimumWithdrawal || 5000)}
                     </span>
                   </div>
                 </div>
 
-                <div>
-                  <Button
-                    size="lg"
-                    className="shadow-lg shadow-sky-500/25 bg-gradient-to-r from-sky-400 via-sky-500 to-blue-600 hover:from-sky-300 hover:to-blue-500 text-white font-bold rounded-2xl px-6 py-2.5 cursor-pointer active:scale-95"
-                    onClick={() => setIsWithdrawModalOpen(true)}
-                    leftIcon={<ArrowUpRight className="size-4" aria-hidden="true" />}
-                  >
-                    Tarik Saldo
-                  </Button>
+                <Button
+                  size="md"
+                  className="shadow-lg shadow-sky-500/25 bg-gradient-to-r from-sky-400 via-sky-500 to-blue-600 hover:from-sky-300 hover:to-blue-500 text-white font-bold rounded-xl px-5 py-2.5 cursor-pointer active:scale-95 shrink-0"
+                  onClick={() => setIsWithdrawModalOpen(true)}
+                  leftIcon={<ArrowUpRight className="size-4" aria-hidden="true" />}
+                >
+                  Tarik Saldo
+                </Button>
+              </div>
+            </div>
+
+            {/* Bagian 2: Pilihan E-Wallet & Form Input Nomor */}
+            <form onSubmit={handleSave} className="relative pt-5 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="flex size-6 items-center justify-center rounded-lg bg-sky-500/10 text-sky-400 border border-sky-500/20">
+                    <Smartphone className="size-3.5" aria-hidden="true" />
+                  </span>
+                  <label className="text-xs sm:text-sm font-bold text-white">
+                    Pilihan E-Wallet Penarikan
+                  </label>
                 </div>
+                <span className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-bold text-amber-300 shadow-2xs">
+                  <span className="size-1.5 rounded-full bg-amber-400" />
+                  Gopay pajak transfer {siteConfig?.tax_gopay ?? 1000}
+                </span>
               </div>
 
-              {/* Baris Bawah: Pilihan E-Wallet & Form Input Nomor */}
-              <form onSubmit={handleSave} className="mt-5 space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="flex size-6 items-center justify-center rounded-lg bg-sky-500/10 text-sky-400 border border-sky-500/20">
-                      <Smartphone className="size-3.5" aria-hidden="true" />
-                    </span>
-                    <label className="text-xs sm:text-sm font-bold text-white">
-                      Pilihan E-Wallet Penarikan
-                    </label>
-                  </div>
-                  <span className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs sm:text-[0.82rem] font-bold text-amber-300 shadow-2xs">
-                    <span className="size-1.5 rounded-full bg-amber-400" />
-                    Gopay pajak transfer {siteConfig?.tax_gopay ?? 1000}
-                  </span>
-                </div>
+              {/* 2 E-Wallet Buttons: DANA & GoPay */}
+              <div className="grid grid-cols-2 gap-2.5">
+                {EWALLET_ORDER.map((methodKey) => {
+                  const item = EWALLET_CONFIGS[methodKey];
+                  const isSelected = selectedMethod === methodKey;
 
-                {/* 2 E-Wallet Buttons: DANA & GoPay */}
-                <div className="grid grid-cols-2 gap-2.5">
-                  {EWALLET_ORDER.map((methodKey) => {
-                    const item = EWALLET_CONFIGS[methodKey];
-                    const isSelected = selectedMethod === methodKey;
-
-                    return (
-                      <button
-                        key={methodKey}
-                        type="button"
-                        onClick={() => setSelectedMethod(methodKey)}
-                        className={cn(
-                          "flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl border text-xs sm:text-sm transition-all cursor-pointer active:scale-98",
-                          isSelected
-                            ? item.activeClass
-                            : item.inactiveClass
-                        )}
-                      >
-                        <span>{item.name}</span>
-                        {isSelected && (
-                          <CheckCircle2 className="size-3.5 ml-0.5 text-white" />
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Input Nomor E-Wallet & Tombol Simpan */}
-                <div className="pt-1">
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
-                    <div className="flex items-center gap-2 flex-1">
-                      <div
-                        className="flex items-center justify-center size-10.5 bg-black/30 border border-white/10 rounded-xl shrink-0 select-none shadow-2xs"
-                        title="Indonesia"
-                      >
-                        <IndonesiaFlag className="w-5.5 h-3.5" />
-                      </div>
-                      <div className="relative flex-1">
-                        <Input
-                          id="profil-ewallet-number"
-                          type="tel"
-                          inputMode="numeric"
-                          pattern="[0-9]*"
-                          autoComplete="tel"
-                          maxLength={PHONE_MAX_LENGTH}
-                          placeholder={config.placeholder}
-                          value={currentNumber}
-                          onChange={handlePhoneChange}
-                          aria-invalid={hasStartedTyping && !phoneValid}
-                          className={cn(
-                            "font-mono text-xs sm:text-sm h-10.5 rounded-xl border-white/10 bg-black/40 text-white placeholder:text-zinc-500 focus:border-sky-500/50",
-                            hasStartedTyping && !phoneValid && "border-rose-400 focus-visible:ring-rose-400/20"
-                          )}
-                        />
-                      </div>
-                    </div>
-
-                    <Button
-                      type="submit"
-                      variant={isSaved ? "primary" : "secondary"}
-                      size="md"
-                      isLoading={isSaving}
-                      leftIcon={
-                        isSaved ? (
-                          <CircleCheck className="size-4 text-white" aria-hidden="true" />
-                        ) : (
-                          <Save className="size-4" aria-hidden="true" />
-                        )
-                      }
+                  return (
+                    <button
+                      key={methodKey}
+                      type="button"
+                      onClick={() => setSelectedMethod(methodKey)}
                       className={cn(
-                        "shrink-0 h-10.5 font-bold rounded-xl px-5 text-xs sm:text-sm cursor-pointer transition-all",
-                        isSaved
-                          ? "bg-gradient-to-r from-sky-400 via-sky-500 to-blue-600 text-white shadow-md shadow-sky-500/25 active:scale-98 hover:from-sky-300 hover:to-blue-500"
-                          : "border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10 hover:text-white"
+                        "flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl border text-xs sm:text-sm transition-all cursor-pointer active:scale-98",
+                        isSelected
+                          ? item.activeClass
+                          : item.inactiveClass
                       )}
                     >
-                      {isSaved ? `Nomor ${config.name} Tersimpan` : `Simpan Akun ${config.name}`}
-                    </Button>
+                      <span>{item.name}</span>
+                      {isSelected && (
+                        <CheckCircle2 className="size-3.5 ml-0.5 text-white" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Input Nomor E-Wallet & Tombol Simpan */}
+              <div className="pt-0.5">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+                  <div className="flex items-center gap-2 flex-1">
+                    <div
+                      className="flex items-center justify-center size-10.5 bg-black/30 border border-white/10 rounded-xl shrink-0 select-none shadow-2xs"
+                      title="Indonesia"
+                    >
+                      <IndonesiaFlag className="w-5.5 h-3.5" />
+                    </div>
+                    <div className="relative flex-1">
+                      <Input
+                        id="profil-ewallet-number"
+                        type="tel"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        autoComplete="tel"
+                        maxLength={PHONE_MAX_LENGTH}
+                        placeholder={config.placeholder}
+                        value={currentNumber}
+                        onChange={handlePhoneChange}
+                        aria-invalid={hasStartedTyping && !phoneValid}
+                        className={cn(
+                          "font-mono text-xs sm:text-sm h-10.5 rounded-xl border-white/10 bg-black/40 text-white placeholder:text-zinc-500 focus:border-sky-500/50",
+                          hasStartedTyping && !phoneValid && "border-rose-400 focus-visible:ring-rose-400/20"
+                        )}
+                      />
+                    </div>
                   </div>
 
-                  {/* Notifikasi Real-time Validasi Format Nomor */}
-                  {isPrefixInvalid && (
-                    <p className="mt-1.5 text-[0.72rem] text-rose-400 font-semibold flex items-center gap-1.5">
-                      <AlertCircle className="size-3.5 shrink-0" />
-                      Angka depan harus diawali 08
-                    </p>
-                  )}
-                  {isTooShort && (
-                    <p className="mt-1.5 text-[0.72rem] text-amber-400 font-semibold flex items-center gap-1.5">
-                      <AlertTriangle className="size-3.5 shrink-0" />
-                      Nomor kurang dari 10 digit (saat ini {currentNumber.length} digit, minimal 10 digit)
-                    </p>
-                  )}
-                  {phoneValid && (
-                    <p className="mt-1.5 text-[0.68rem] text-emerald-400 font-semibold flex items-center gap-1">
-                      <CircleCheck className="size-3" /> {isSaved ? `Nomor akun ${config.name} valid dan tersimpan.` : `Format nomor ${config.name} valid (${currentNumber.length} digit).`}
-                    </p>
-                  )}
-                  {!hasStartedTyping && (
-                    <p className="mt-1.5 text-[0.7rem] text-zinc-400">
-                      Nomor akun {config.name} harus diawali 08 dan memiliki 10–13 digit angka.
-                    </p>
-                  )}
+                  <Button
+                    type="submit"
+                    variant={isSaved ? "primary" : "secondary"}
+                    size="md"
+                    isLoading={isSaving}
+                    leftIcon={
+                      isSaved ? (
+                        <CircleCheck className="size-4 text-white" aria-hidden="true" />
+                      ) : (
+                        <Save className="size-4" aria-hidden="true" />
+                      )
+                    }
+                    className={cn(
+                      "shrink-0 h-10.5 font-bold rounded-xl px-5 text-xs sm:text-sm cursor-pointer transition-all",
+                      isSaved
+                        ? "bg-gradient-to-r from-sky-400 via-sky-500 to-blue-600 text-white shadow-md shadow-sky-500/25 active:scale-98 hover:from-sky-300 hover:to-blue-500"
+                        : "border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10 hover:text-white"
+                    )}
+                  >
+                    {isSaved ? `Nomor ${config.name} Tersimpan` : `Simpan Akun ${config.name}`}
+                  </Button>
                 </div>
-              </form>
-            </div>
-          </Card>
+
+                {/* Notifikasi Real-time Validasi Format Nomor */}
+                {isPrefixInvalid && (
+                  <p className="mt-1.5 text-[0.72rem] text-rose-400 font-semibold flex items-center gap-1.5">
+                    <AlertCircle className="size-3.5 shrink-0" />
+                    Angka depan harus diawali 08
+                  </p>
+                )}
+                {isTooShort && (
+                  <p className="mt-1.5 text-[0.72rem] text-amber-400 font-semibold flex items-center gap-1.5">
+                    <AlertTriangle className="size-3.5 shrink-0" />
+                    Nomor kurang dari 10 digit (saat ini {currentNumber.length} digit, minimal 10 digit)
+                  </p>
+                )}
+                {phoneValid && (
+                  <p className="mt-1.5 text-[0.68rem] text-emerald-400 font-semibold flex items-center gap-1">
+                    <CircleCheck className="size-3" /> {isSaved ? `Nomor akun ${config.name} valid dan tersimpan.` : `Format nomor ${config.name} valid (${currentNumber.length} digit).`}
+                  </p>
+                )}
+                {!hasStartedTyping && (
+                  <p className="mt-1.5 text-[0.7rem] text-zinc-400">
+                    Nomor akun {config.name} harus diawali 08 dan memiliki 10–13 digit angka.
+                  </p>
+                )}
+              </div>
+            </form>
+          </section>
         </Reveal>
 
         {/* Section 3: Riwayat Transaksi (Termasuk Penarikan & Bonus) */}
