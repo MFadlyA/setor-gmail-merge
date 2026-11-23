@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin, getSupabaseAdminConfig, getCfEnvDiagnostics } from "@/lib/supabase/admin";
+import { supabaseAdmin, getSupabaseAdminConfig } from "@/lib/supabase/admin";
 import { requireAdminAuth } from "@/lib/security/auth-guard";
 
 export const dynamic = "force-dynamic";
@@ -14,10 +14,9 @@ export async function GET(req: NextRequest) {
   const checkSupabase = async () => {
     const t0 = Date.now();
     const { supabaseUrl, hasServiceRoleKey } = getSupabaseAdminConfig();
-    const diagnostics = getCfEnvDiagnostics();
     const projectRef = supabaseUrl.replace(/^https?:\/\//, "").split(".")[0] || "unknown";
     try {
-      const { count, error } = await supabaseAdmin
+      const { error } = await supabaseAdmin
         .from("profiles")
         .select("id", { count: "exact", head: true });
 
@@ -29,8 +28,6 @@ export async function GET(req: NextRequest) {
           error: error.message,
           project: projectRef,
           hasServiceRoleKey,
-          profilesCount: count ?? null,
-          diagnostics,
         };
       }
       return {
@@ -38,8 +35,6 @@ export async function GET(req: NextRequest) {
         latency,
         project: projectRef,
         hasServiceRoleKey,
-        profilesCount: count ?? 0,
-        diagnostics,
       };
     } catch (e: any) {
       return {
@@ -48,7 +43,6 @@ export async function GET(req: NextRequest) {
         error: e?.message || "Connection failed",
         project: projectRef,
         hasServiceRoleKey,
-        diagnostics,
       };
     }
   };
