@@ -19,6 +19,7 @@ import {
   ShieldAlert,
   UserCheck,
   KeyRound,
+  Mail,
 } from "lucide-react";
 import { PageShell, Reveal } from "@/components/layout/page-shell";
 import { defaultPassword } from "@/lib/mock-data";
@@ -692,7 +693,17 @@ export function SetorView() {
             />
 
             {/* Pilihan Jenis Setoran: Segmented Switch Compact */}
-            <div className="grid grid-cols-2 gap-1.5 rounded-2xl border border-white/10 bg-black/50 p-1">
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="flex size-6.5 shrink-0 items-center justify-center rounded-lg bg-sky-500/15 text-sky-400 border border-sky-400/25">
+                  <Mail className="size-3.5" />
+                </span>
+                <h3 className="text-xs sm:text-sm font-extrabold text-white tracking-tight">
+                  Pilih Jenis Gmail
+                </h3>
+              </div>
+
+              <div className="grid grid-cols-2 gap-1.5 rounded-2xl border border-white/10 bg-black/50 p-1">
               <button
                 type="button"
                 onClick={() => {
@@ -756,6 +767,7 @@ export function SetorView() {
                   {formatIDR(oldEmailPrice)}
                 </span>
               </button>
+              </div>
             </div>
 
             {/* Bagian 1: Rules Setoran Compact */}
@@ -780,57 +792,83 @@ export function SetorView() {
                 </button>
               </div>
 
-              {/* Compact 2x2 Rule Pills */}
-              <div className="mt-2.5 grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/40 px-2.5 py-2">
-                  <Sparkles className="size-3.5 text-emerald-400 shrink-0" />
-                  <span className="text-[0.73rem] font-semibold text-zinc-200 truncate">
-                    {depositMode === "fresh"
-                      ? siteConfig?.rule_status || "Wajib Fresh (baru dibuat)"
-                      : "Email Lama (sudah terdaftar)"}
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/40 px-2.5 py-2">
-                  <CheckCircle2 className="size-3.5 text-sky-400 shrink-0" />
-                  <span className="text-[0.73rem] font-semibold text-zinc-200 truncate">
-                    {depositMode === "fresh"
-                      ? siteConfig?.rule_nama || "Wajib sama persis hasil generate"
-                      : "Bebas (tidak perlu generate)"}
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/40 px-2.5 py-2">
-                  <Calendar className="size-3.5 text-amber-400 shrink-0" />
-                  <span className="text-[0.73rem] font-semibold text-zinc-200 truncate">
-                    {siteConfig?.rule_usia || "Lahir 18+ tahun"}
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/40 px-2.5 py-2">
-                  <ShieldAlert className="size-3.5 text-rose-400 shrink-0" />
-                  <span className="text-[0.73rem] font-semibold text-zinc-200 truncate">
-                    {siteConfig?.rule_keamanan || "Tanpa No HP / Email Pemulihan"}
-                  </span>
-                </div>
-              </div>
-
-              {/* Collapsible Detail Content */}
-              {showRulesDetail && (
-                <div className="mt-2 rounded-xl border border-white/10 bg-black/50 p-3 text-[0.72rem] text-zinc-300 space-y-1.5 leading-relaxed animate-fade-down">
-                  {(siteConfig?.rules_detail_text && siteConfig.rules_detail_text.length > 0
+              {/* Compact 2x2 Rule Cards — rincian langsung masuk ke kotak masing-masing saat Detail Aturan dibuka */}
+              {(() => {
+                const detailTexts =
+                  siteConfig?.rules_detail_text && siteConfig.rules_detail_text.length > 0
                     ? siteConfig.rules_detail_text
                     : [
-                        "Wajib Fresh: Akun harus baru dibuat secara manual.",
-                        "Nama Akun Sama Persis: Huruf dan angka pada Gmail wajib sama dengan hasil yang di-generate.",
-                        "Usia 18+ Tahun: Atur tanggal dan tahun kelahiran akun Gmail di Google agar umur akun minimal 18 tahun (contoh: tahun 2000–2005).",
-                        "Tanpa Pemulihan: Akun dilarang menautkan nomor HP pemulihan atau email pemulihan agar peninjauan oleh admin lancar tanpa kendala OTP.",
-                      ]
-                  ).map((text, idx) => (
-                    <p key={idx}>• {text}</p>
-                  ))}
-                </div>
-              )}
+                        "Akun harus baru dibuat secara manual dan belum pernah didaftarkan ke platform/jasa lain.",
+                        "Huruf dan angka pada Gmail wajib sama persis dengan hasil yang di-generate.",
+                        "Atur tanggal dan tahun kelahiran akun Gmail di Google agar umur akun minimal 18 tahun (contoh: tahun 2000–2005).",
+                        "Akun dilarang menautkan nomor HP pemulihan atau email pemulihan agar peninjauan oleh admin lancar tanpa kendala OTP.",
+                      ];
+
+                const ruleItems = [
+                  {
+                    icon: Sparkles,
+                    iconColor: "text-emerald-400",
+                    title:
+                      depositMode === "fresh"
+                        ? siteConfig?.rule_status || "Wajib Fresh (baru dibuat)"
+                        : "Email Lama (sudah terdaftar)",
+                    detail:
+                      depositMode === "fresh"
+                        ? detailTexts[0]
+                        : "Akun Gmail lama yang sudah aktif terdaftar di Google dan masih bisa diakses dengan password yang dimasukkan.",
+                  },
+                  {
+                    icon: CheckCircle2,
+                    iconColor: "text-sky-400",
+                    title:
+                      depositMode === "fresh"
+                        ? siteConfig?.rule_nama || "Wajib sama persis hasil generate"
+                        : "Bebas (tidak perlu generate)",
+                    detail:
+                      depositMode === "fresh"
+                        ? detailTexts[1]
+                        : "Nama email bebas, tidak perlu menggunakan generator. Pastikan alamat @gmail.com ditulis dengan benar.",
+                  },
+                  {
+                    icon: Calendar,
+                    iconColor: "text-amber-400",
+                    title: siteConfig?.rule_usia || "Lahir 18+ tahun",
+                    detail: detailTexts[2],
+                  },
+                  {
+                    icon: ShieldAlert,
+                    iconColor: "text-rose-400",
+                    title: siteConfig?.rule_keamanan || "Tanpa No HP / Email Pemulihan",
+                    detail: detailTexts[3],
+                  },
+                ];
+
+                return (
+                  <div className="mt-2.5 grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                    {ruleItems.map((rule, idx) => {
+                      const RuleIcon = rule.icon;
+                      return (
+                        <div
+                          key={idx}
+                          className="rounded-xl border border-white/10 bg-black/40 px-3 py-2 transition-all"
+                        >
+                          <div className="flex items-center gap-2">
+                            <RuleIcon className={cn("size-3.5 shrink-0", rule.iconColor)} />
+                            <span className="text-[0.73rem] font-semibold text-zinc-200 truncate">
+                              {rule.title}
+                            </span>
+                          </div>
+                          {showRulesDetail && rule.detail && (
+                            <p className="mt-1.5 pl-5.5 text-[0.7rem] leading-relaxed text-zinc-400 animate-fade-down">
+                              {rule.detail}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Bagian 2: Generate Gmail (Hanya untuk mode Buat Email Baru) */}

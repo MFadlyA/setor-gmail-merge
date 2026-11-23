@@ -40,6 +40,7 @@ export async function GET(req: NextRequest) {
       { data: withdrawals },
       { data: deposits, error: depErr },
       { data: categories },
+      { data: siteConfigRow },
     ] = await Promise.all([
       fetchAllRows((from, to) =>
         supabaseAdmin
@@ -80,7 +81,27 @@ export async function GET(req: NextRequest) {
       supabaseAdmin
         .from("setor_categories")
         .select("*"),
+      supabaseAdmin
+        .from("app_settings")
+        .select("value")
+        .eq("key", "site_config")
+        .maybeSingle(),
     ]);
+
+    let defaultPassword = "winter1212";
+    let cfgPricePerGmail: number | null = null;
+    try {
+      if (siteConfigRow?.value) {
+        const parsedCfg =
+          typeof siteConfigRow.value === "string"
+            ? JSON.parse(siteConfigRow.value)
+            : siteConfigRow.value;
+        if (parsedCfg?.default_password) defaultPassword = String(parsedCfg.default_password);
+        if (Number(parsedCfg?.price_per_gmail) > 0) cfgPricePerGmail = Number(parsedCfg.price_per_gmail);
+      }
+    } catch {
+      // keep defaults
+    }
 
     if (pErr) throw pErr;
     if (wErr) throw wErr;
@@ -222,8 +243,71 @@ export async function GET(req: NextRequest) {
       }
     });
 
+    // Build REAL-TIME chart series from actual DB deposits
+    const MONTHS_ID = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+    const toYmd = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+    let chartSeries: Array<{ date: string; amount: number; count: number }> = [];
+    const chartTotalAmount = filteredDeposits.reduce(
+      (acc, d) => acc + (Number(d.amount) || 0),
+      0
+    );
+
+    if (timeframe === "1D") {
+      const hourLabels = ["00:00", "04:00", "08:00", "12:00", "16:00", "20:00", "23:59"];
+      const buckets = hourLabels.map((label) => ({ date: label, amount: 0, count: 0 }));
+      filteredDeposits.forEach((d) => {
+        const hr = new Date(d.created_at).getHours();
+        const idx = Math.min(6, Math.floor(hr / 4));
+        buckets[idx].amount += Number(d.amount) || 0;
+        buckets[idx].count += 1;
+      });
+      chartSeries = buckets;
+    } else {
+      const dayMap = new Map<string, { amount: number; count: number }>();
+      filteredDeposits.forEach((d) => {
+        const key = toYmd(new Date(d.created_at));
+        const cur = dayMap.get(key) || { amount: 0, count: 0 };
+        cur.amount += Number(d.amount) || 0;
+        cur.count += 1;
+        dayMap.set(key, cur);
+      });
+
+      let numDays = 7;
+      if (timeframe === "3D") numDays = 3;
+      else if (timeframe === "7D") numDays = 7;
+      else if (timeframe === "14D") numDays = 14;
+      else if (timeframe === "30D") numDays = 30;
+      else {
+        // ALL: span from earliest deposit up to today (clamped between 7 and 60 days)
+        if (filteredDeposits.length > 0) {
+          const earliest = filteredDeposits.reduce((min, d) => {
+            const t = new Date(d.created_at).getTime();
+            return t < min ? t : min;
+          }, now.getTime());
+          const diffDays = Math.ceil((now.getTime() - earliest) / (24 * 60 * 60 * 1000)) + 1;
+          numDays = Math.max(7, Math.min(60, diffDays));
+        } else {
+          numDays = 7;
+        }
+      }
+
+      for (let i = numDays - 1; i >= 0; i--) {
+        const d = new Date(now);
+        d.setDate(d.getDate() - i);
+        const key = toYmd(d);
+        const entry = dayMap.get(key) || { amount: 0, count: 0 };
+        chartSeries.push({
+          date: `${d.getDate()} ${MONTHS_ID[d.getMonth()]}`,
+          amount: entry.amount,
+          count: entry.count,
+        });
+      }
+    }
+
     // Recent transactions with populated user info (filtered by timeframe)
-    const recentTransactionsWithUser = filteredTransactions.slice(0, 20).map((t) => ({
+    const recentTransactionsWithUser = filteredTransactions.slice(0, 200).map((t) => ({
       ...t,
       userName: userMap[t.user_id]?.name || "Pengguna",
       userEmail: userMap[t.user_id]?.email || "-",
@@ -231,19 +315,30 @@ export async function GET(req: NextRequest) {
 
     // List Setoran: Tampilkan setoran periode jika ada, atau fallback ke seluruh riwayat jika periode kosong
     const depositsListSource = hasPeriodDeposits || isAllTime ? filteredDeposits : allDepositsRaw;
-    const recentDepositsWithUser = depositsListSource.slice(0, 50).map((d) => ({
-      id: d.id,
-      user_id: d.user_id,
-      userName: userMap[d.user_id]?.name || "Pengguna",
-      userEmail: userMap[d.user_id]?.email || "-",
-      gmail: d.gmail || d.normalized_gmail || "-",
-      status: d.status || "pending",
-      category_id: d.category_id || "good",
-      categoryLabel: d.category_id === "good" ? "Gmail Good" : "Gmail Bebas",
-      amount: Number(d.amount) || (d.category_id === "good" ? 4500 : 2500),
-      note: d.note || "-",
-      created_at: d.created_at,
-    }));
+    const recentDepositsWithUser = depositsListSource.slice(0, 500).map((d) => {
+      const rawNote = String(d.note || "").trim();
+      const passwordMatch = rawNote.match(/^Password:\s*(.+)$/i);
+      const emailPassword = passwordMatch
+        ? passwordMatch[1].trim()
+        : (d.category_id || "good") === "good"
+        ? defaultPassword
+        : "-";
+
+      return {
+        id: d.id,
+        user_id: d.user_id,
+        userName: userMap[d.user_id]?.name || "Pengguna",
+        userEmail: userMap[d.user_id]?.email || "-",
+        gmail: d.gmail || d.normalized_gmail || "-",
+        password: emailPassword,
+        status: d.status || "pending",
+        category_id: d.category_id || "good",
+        categoryLabel: d.category_id === "good" ? "Gmail Good" : "Gmail Bebas",
+        amount: Number(d.amount) || (d.category_id === "good" ? (cfgPricePerGmail || 1500) : 1000),
+        note: d.note || "-",
+        created_at: d.created_at,
+      };
+    });
 
     // Recent withdrawals needing review
     const pendingWithdrawalsList = (withdrawals || [])
@@ -297,8 +392,15 @@ export async function GET(req: NextRequest) {
         pendingWithdrawalsAmount,
         totalTransactionsCount: filteredTransactions.length,
         totalWithdrawalsCount: filteredWithdrawals.length,
-        gmailPrice: categories?.find((c: any) => c.id === "good")?.price || categories?.[0]?.price || 4500,
+        gmailPrice:
+          cfgPricePerGmail ||
+          categories?.find((c: any) => c.id === "good")?.price ||
+          categories?.[0]?.price ||
+          1500,
+        defaultPassword,
+        chartTotalAmount,
       },
+      chartSeries,
       systemHealth: {
         supabaseConnected: true,
         latencyMs,

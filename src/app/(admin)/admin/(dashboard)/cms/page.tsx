@@ -40,6 +40,7 @@ import {
   ArrowRight,
   ScrollText,
   Calendar,
+  Mail,
 } from "lucide-react";
 import { Button } from "@/components/admin/ui/button";
 import { DEFAULT_CONFIG, SiteConfig } from "@/lib/site-config";
@@ -1507,46 +1508,54 @@ export default function CmsPage() {
                     <div className="relative overflow-hidden rounded-2xl border border-white/12 bg-gradient-to-b from-[#151824]/92 via-[#11131c]/95 to-[#0c0d14]/95 p-4 shadow-2xl space-y-3.5">
                       <div className="pointer-events-none absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-sky-400/50 to-transparent" />
 
-                      {/* Segmented Switch: Buat Email Baru vs Setor Email Lama */}
-                      <div className="grid grid-cols-2 gap-1.5 rounded-xl border border-white/10 bg-black/50 p-1">
-                        <button
-                          type="button"
-                          onClick={() => setPreviewDepositMode("fresh")}
-                          className={`flex items-center justify-between gap-1 rounded-lg px-2.5 py-1.5 text-[10px] font-extrabold transition-all cursor-pointer ${
-                            previewDepositMode === "fresh"
-                              ? "bg-sky-500/15 border border-sky-400/45 text-white"
-                              : "border border-transparent text-zinc-400"
-                          }`}
-                        >
-                          <span className="inline-flex items-center gap-1 truncate">
-                            <Sparkles className="size-3 text-sky-400 shrink-0" />
-                            <span className="truncate">Buat Email Baru</span>
+                      {/* Segmented Switch: Pilih Jenis Gmail */}
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <span className="flex size-5.5 items-center justify-center rounded-md bg-sky-500/15 text-sky-400 border border-sky-400/25">
+                            <Mail className="size-3" />
                           </span>
-                          <span className="rounded-full bg-emerald-500/15 border border-emerald-400/35 px-1.5 py-0.5 text-[9px] text-emerald-300 font-mono shrink-0">
-                            Rp{config.price_per_gmail.toLocaleString("id-ID")}
-                          </span>
-                        </button>
+                          <h4 className="text-xs font-extrabold text-white">Pilih Jenis Gmail</h4>
+                        </div>
+                        <div className="grid grid-cols-2 gap-1.5 rounded-xl border border-white/10 bg-black/50 p-1">
+                          <button
+                            type="button"
+                            onClick={() => setPreviewDepositMode("fresh")}
+                            className={`flex items-center justify-between gap-1 rounded-lg px-2.5 py-1.5 text-[10px] font-extrabold transition-all cursor-pointer ${
+                              previewDepositMode === "fresh"
+                                ? "bg-sky-500/15 border border-sky-400/45 text-white"
+                                : "border border-transparent text-zinc-400"
+                            }`}
+                          >
+                            <span className="inline-flex items-center gap-1 truncate">
+                              <Sparkles className="size-3 text-sky-400 shrink-0" />
+                              <span className="truncate">Buat Email Baru</span>
+                            </span>
+                            <span className="rounded-full bg-emerald-500/15 border border-emerald-400/35 px-1.5 py-0.5 text-[9px] text-emerald-300 font-mono shrink-0">
+                              Rp{config.price_per_gmail.toLocaleString("id-ID")}
+                            </span>
+                          </button>
 
-                        <button
-                          type="button"
-                          onClick={() => setPreviewDepositMode("old")}
-                          className={`flex items-center justify-between gap-1 rounded-lg px-2.5 py-1.5 text-[10px] font-extrabold transition-all cursor-pointer ${
-                            previewDepositMode === "old"
-                              ? "bg-sky-500/15 border border-sky-400/45 text-white"
-                              : "border border-transparent text-zinc-400"
-                          }`}
-                        >
-                          <span className="inline-flex items-center gap-1 truncate">
-                            <Send className="size-3 text-sky-400 shrink-0" />
-                            <span className="truncate">Setor Email Lama</span>
-                          </span>
-                          <span className="rounded-full bg-white/5 px-1.5 py-0.5 text-[9px] text-zinc-300 font-mono shrink-0">
-                            Rp{config.price_bebas.toLocaleString("id-ID")}
-                          </span>
-                        </button>
+                          <button
+                            type="button"
+                            onClick={() => setPreviewDepositMode("old")}
+                            className={`flex items-center justify-between gap-1 rounded-lg px-2.5 py-1.5 text-[10px] font-extrabold transition-all cursor-pointer ${
+                              previewDepositMode === "old"
+                                ? "bg-sky-500/15 border border-sky-400/45 text-white"
+                                : "border border-transparent text-zinc-400"
+                            }`}
+                          >
+                            <span className="inline-flex items-center gap-1 truncate">
+                              <Send className="size-3 text-sky-400 shrink-0" />
+                              <span className="truncate">Setor Email Lama</span>
+                            </span>
+                            <span className="rounded-full bg-white/5 px-1.5 py-0.5 text-[9px] text-zinc-300 font-mono shrink-0">
+                              Rp{config.price_bebas.toLocaleString("id-ID")}
+                            </span>
+                          </button>
+                        </div>
                       </div>
 
-                      {/* Rules Setoran Gmail Compact */}
+                      {/* Rules Setoran Gmail Compact (detail masuk ke kotak masing-masing) */}
                       <div>
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-1.5">
@@ -1566,39 +1575,46 @@ export default function CmsPage() {
                         </div>
 
                         <div className="mt-2 grid grid-cols-2 gap-1.5">
-                          <div className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-black/40 px-2 py-1.5">
-                            <Sparkles className="size-3 text-emerald-400 shrink-0" />
-                            <span className="text-[10px] font-semibold text-zinc-200 truncate">
-                              {previewDepositMode === "fresh" ? config.rule_status : "Email Lama (sudah terdaftar)"}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-black/40 px-2 py-1.5">
-                            <CheckCircle2 className="size-3 text-sky-400 shrink-0" />
-                            <span className="text-[10px] font-semibold text-zinc-200 truncate">
-                              {previewDepositMode === "fresh" ? config.rule_nama : "Bebas (tidak perlu generate)"}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-black/40 px-2 py-1.5">
-                            <Calendar className="size-3 text-amber-400 shrink-0" />
-                            <span className="text-[10px] font-semibold text-zinc-200 truncate">
-                              {config.rule_usia}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-black/40 px-2 py-1.5">
-                            <ShieldAlert className="size-3 text-rose-400 shrink-0" />
-                            <span className="text-[10px] font-semibold text-zinc-200 truncate">
-                              {config.rule_keamanan}
-                            </span>
-                          </div>
+                          {[
+                            {
+                              icon: Sparkles,
+                              color: "text-emerald-400",
+                              title: previewDepositMode === "fresh" ? config.rule_status : "Email Lama (sudah terdaftar)",
+                              detail: config.rules_detail_text[0],
+                            },
+                            {
+                              icon: CheckCircle2,
+                              color: "text-sky-400",
+                              title: previewDepositMode === "fresh" ? config.rule_nama : "Bebas (tidak perlu generate)",
+                              detail: config.rules_detail_text[1],
+                            },
+                            {
+                              icon: Calendar,
+                              color: "text-amber-400",
+                              title: config.rule_usia,
+                              detail: config.rules_detail_text[2],
+                            },
+                            {
+                              icon: ShieldAlert,
+                              color: "text-rose-400",
+                              title: config.rule_keamanan,
+                              detail: config.rules_detail_text[3],
+                            },
+                          ].map((r, i) => {
+                            const IconComp = r.icon;
+                            return (
+                              <div key={i} className="rounded-xl border border-white/10 bg-black/40 px-2 py-1.5">
+                                <div className="flex items-center gap-1.5">
+                                  <IconComp className={`size-3 shrink-0 ${r.color}`} />
+                                  <span className="text-[10px] font-semibold text-zinc-200 truncate">{r.title}</span>
+                                </div>
+                                {previewShowRulesDetail && r.detail && (
+                                  <p className="mt-1 pl-4.5 text-[9px] leading-snug text-zinc-400">{r.detail}</p>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
-
-                        {previewShowRulesDetail && (
-                          <div className="mt-2 space-y-1 p-2.5 rounded-xl bg-black/50 border border-white/10 text-[10px] text-zinc-300">
-                            {config.rules_detail_text.map((text, idx) => (
-                              <p key={idx} className="leading-snug">• {text}</p>
-                            ))}
-                          </div>
-                        )}
                       </div>
 
                       {/* Generate Gmail Compact (Mode Buat Email Baru) */}

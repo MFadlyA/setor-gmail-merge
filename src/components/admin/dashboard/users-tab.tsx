@@ -55,10 +55,11 @@ export const UsersTab = React.memo(function UsersTab({
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
 
-  // Sorting & Date Filter state (Saldo, Gmail, Bergabung)
+  // Sorting & Date Range Filter state (Saldo, Gmail, Bergabung)
   const [sortField, setSortField] = useState<SortField | null>("created_at");
   const [sortOrder, setSortOrder] = useState<SortOrder | null>("desc");
-  const [dateFilter, setDateFilter] = useState<string>("");
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
 
   // Detail User Popup Modal State
   const [detailModalOpen, setDetailModalOpen] = useState(false);
@@ -80,7 +81,7 @@ export const UsersTab = React.memo(function UsersTab({
     try {
       const params = new URLSearchParams();
       if (search) params.set("search", search);
-      params.set("limit", dateFilter ? "all" : limit);
+      params.set("limit", dateFrom || dateTo ? "all" : limit);
 
       const res = await adminFetch(`/api/admin/users?${params.toString()}`);
       const json = await res.json();
@@ -106,7 +107,7 @@ export const UsersTab = React.memo(function UsersTab({
       fetchUsers();
     }, 300);
     return () => clearTimeout(timeout);
-  }, [search, limit, dateFilter]);
+  }, [search, limit, dateFrom, dateTo]);
 
   useEffect(() => {
     const handleGlobalRefresh = () => {
@@ -234,16 +235,20 @@ export const UsersTab = React.memo(function UsersTab({
   };
 
   const sortedUsers = React.useMemo(() => {
-    const base = dateFilter
-      ? users.filter((u: any) => {
-          if (!u.created_at) return false;
-          const d = new Date(u.created_at);
-          const yyyy = d.getFullYear();
-          const mm = String(d.getMonth() + 1).padStart(2, "0");
-          const dd = String(d.getDate()).padStart(2, "0");
-          return `${yyyy}-${mm}-${dd}` === dateFilter;
-        })
-      : users;
+    const base =
+      dateFrom || dateTo
+        ? users.filter((u: any) => {
+            if (!u.created_at) return false;
+            const d = new Date(u.created_at);
+            const yyyy = d.getFullYear();
+            const mm = String(d.getMonth() + 1).padStart(2, "0");
+            const dd = String(d.getDate()).padStart(2, "0");
+            const ymd = `${yyyy}-${mm}-${dd}`;
+            if (dateFrom && ymd < dateFrom) return false;
+            if (dateTo && ymd > dateTo) return false;
+            return true;
+          })
+        : users;
 
     return [...base].sort((a: any, b: any) => {
       // 1. Admin SELALU tetap di atas, tidak terpengaruh sort saldo atau bergabung!
@@ -271,14 +276,14 @@ export const UsersTab = React.memo(function UsersTab({
       // 3. Normal / default (terbaru ke terlama)
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
-  }, [users, sortField, sortOrder, dateFilter]);
+  }, [users, sortField, sortOrder, dateFrom, dateTo]);
 
   return (
     <div className="space-y-4">
-      {/* Search, Date Filter & Sort Bar */}
+      {/* Search, Date Range Filter & Sort Bar */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5">
         <div className="flex flex-wrap items-center gap-2 flex-1">
-          <div className="w-full sm:max-w-xs relative">
+          <div className="w-full sm:max-w-[240px] relative">
             <Search className="w-4 h-4 absolute left-3.5 top-2.5 text-zinc-400 pointer-events-none" />
             <input
               type="text"
@@ -289,20 +294,32 @@ export const UsersTab = React.memo(function UsersTab({
             />
           </div>
 
-          {/* Filter Tanggal Bergabung */}
+          {/* Filter Rentang Tanggal (Dari - Sampai) */}
           <div className="flex items-center gap-1.5 bg-zinc-950/80 border border-zinc-800 rounded-xl px-2.5 py-1.5">
             <Calendar className="w-3.5 h-3.5 text-sky-400 shrink-0" />
             <input
               type="date"
-              value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
               className="bg-transparent text-xs text-zinc-200 focus:outline-none [color-scheme:dark] cursor-pointer"
-              title="Filter berdasarkan tanggal bergabung"
+              title="Dari tanggal"
             />
-            {dateFilter && (
+            <span className="text-[10px] text-zinc-500 font-semibold">s/d</span>
+            <input
+              type="date"
+              value={dateTo}
+              min={dateFrom || undefined}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="bg-transparent text-xs text-zinc-200 focus:outline-none [color-scheme:dark] cursor-pointer"
+              title="Sampai tanggal"
+            />
+            {(dateFrom || dateTo) && (
               <button
                 type="button"
-                onClick={() => setDateFilter("")}
+                onClick={() => {
+                  setDateFrom("");
+                  setDateTo("");
+                }}
                 className="p-0.5 rounded text-zinc-400 hover:text-rose-400 cursor-pointer"
                 title="Reset filter tanggal"
               >

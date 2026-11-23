@@ -49,14 +49,17 @@ export default function DashboardOverviewPage() {
     });
   };
 
-  // State untuk Tab List Setor Gmail & Transaksi (Filter & Sort Tanggal)
+  // State untuk Tab List Setor Gmail & Transaksi (Filter Rentang Tanggal & Sort)
   const [depositSearch, setDepositSearch] = useState("");
   const [depositStatusFilter, setDepositStatusFilter] = useState<"all" | "accepted" | "pending" | "rejected">("all");
-  const [depositDateFilter, setDepositDateFilter] = useState("");
+  const [depositDateFrom, setDepositDateFrom] = useState("");
+  const [depositDateTo, setDepositDateTo] = useState("");
   const [depositSortOrder, setDepositSortOrder] = useState<"desc" | "asc">("desc");
-  const [txDateFilter, setTxDateFilter] = useState("");
+  const [txDateFrom, setTxDateFrom] = useState("");
+  const [txDateTo, setTxDateTo] = useState("");
   const [txSortOrder, setTxSortOrder] = useState<"desc" | "asc">("desc");
   const [copiedGmail, setCopiedGmail] = useState<string | null>(null);
+  const [copiedPasswordId, setCopiedPasswordId] = useState<string | null>(null);
 
   // Withdrawal processing state
   const [isProcessingWd, setIsProcessingWd] = useState<string | null>(null);
@@ -147,6 +150,14 @@ export default function DashboardOverviewPage() {
     }
   };
 
+  const copyPassword = (password: string, id: string) => {
+    if (navigator?.clipboard && password && password !== "-") {
+      navigator.clipboard.writeText(password);
+      setCopiedPasswordId(id);
+      setTimeout(() => setCopiedPasswordId(null), 1500);
+    }
+  };
+
   const stats = data?.stats || {
     totalUsers: 0,
     totalAdmins: 0,
@@ -196,14 +207,21 @@ export default function DashboardOverviewPage() {
         return true;
       });
     }
-    if (depositDateFilter) {
-      list = list.filter((d: any) => toLocalDateStr(d.created_at) === depositDateFilter);
+    if (depositDateFrom || depositDateTo) {
+      list = list.filter((d: any) => {
+        const ymd = toLocalDateStr(d.created_at);
+        if (!ymd) return false;
+        if (depositDateFrom && ymd < depositDateFrom) return false;
+        if (depositDateTo && ymd > depositDateTo) return false;
+        return true;
+      });
     }
     if (depositSearch.trim()) {
       const q = depositSearch.toLowerCase();
       list = list.filter(
         (d: any) =>
           (d.gmail || "").toLowerCase().includes(q) ||
+          (d.password || "").toLowerCase().includes(q) ||
           (d.userName || "").toLowerCase().includes(q) ||
           (d.userEmail || "").toLowerCase().includes(q)
       );
@@ -214,12 +232,18 @@ export default function DashboardOverviewPage() {
       return depositSortOrder === "asc" ? ta - tb : tb - ta;
     });
     return list;
-  }, [data?.recentDeposits, depositStatusFilter, depositSearch, depositDateFilter, depositSortOrder]);
+  }, [data?.recentDeposits, depositStatusFilter, depositSearch, depositDateFrom, depositDateTo, depositSortOrder]);
 
   const filteredTransactionsList = React.useMemo(() => {
     let list = [...(data?.recentTransactions || [])];
-    if (txDateFilter) {
-      list = list.filter((t: any) => toLocalDateStr(t.created_at) === txDateFilter);
+    if (txDateFrom || txDateTo) {
+      list = list.filter((t: any) => {
+        const ymd = toLocalDateStr(t.created_at);
+        if (!ymd) return false;
+        if (txDateFrom && ymd < txDateFrom) return false;
+        if (txDateTo && ymd > txDateTo) return false;
+        return true;
+      });
     }
     list.sort((a: any, b: any) => {
       const ta = new Date(a.created_at).getTime();
@@ -227,20 +251,22 @@ export default function DashboardOverviewPage() {
       return txSortOrder === "asc" ? ta - tb : tb - ta;
     });
     return list;
-  }, [data?.recentTransactions, txDateFilter, txSortOrder]);
+  }, [data?.recentTransactions, txDateFrom, txDateTo, txSortOrder]);
 
   return (
     <div className="space-y-4 max-w-7xl mx-auto pb-10">
-      {/* Revenue & Balance Flow Line Chart with Refresh Button & Timeframe (1D, 3D, 7D, 14D, 30D, All) */}
+      {/* Revenue & Balance Flow Line Chart (Real-time from DB) */}
       <LineChart9
         onRefresh={handleFullRefresh}
         isRefreshing={isRefreshing}
         timeframe={timeframe}
         onTimeframeChange={handleTimeframeChange}
         gmailDisetor={stats.totalGmailCreated}
-        hargaGmail={stats.gmailPrice || 4500}
+        hargaGmail={stats.gmailPrice || 1500}
         isBalanceHidden={isBalanceHidden}
         onToggleHideBalance={toggleHideBalance}
+        chartData={data?.chartSeries}
+        totalAmount={stats.chartTotalAmount}
       />
 
       {/* 1 Kolom Terpadu: Ekosistem & Likuiditas User (3 Section) */}
@@ -632,15 +658,27 @@ export default function DashboardOverviewPage() {
                         <Calendar className="w-3.5 h-3.5 text-sky-400 shrink-0" />
                         <input
                           type="date"
-                          value={txDateFilter}
-                          onChange={(e) => setTxDateFilter(e.target.value)}
+                          value={txDateFrom}
+                          onChange={(e) => setTxDateFrom(e.target.value)}
                           className="bg-transparent text-xs text-zinc-200 focus:outline-none [color-scheme:dark] cursor-pointer"
-                          title="Filter transaksi berdasarkan tanggal"
+                          title="Dari tanggal"
                         />
-                        {txDateFilter && (
+                        <span className="text-[10px] text-zinc-500 font-semibold">s/d</span>
+                        <input
+                          type="date"
+                          value={txDateTo}
+                          min={txDateFrom || undefined}
+                          onChange={(e) => setTxDateTo(e.target.value)}
+                          className="bg-transparent text-xs text-zinc-200 focus:outline-none [color-scheme:dark] cursor-pointer"
+                          title="Sampai tanggal"
+                        />
+                        {(txDateFrom || txDateTo) && (
                           <button
                             type="button"
-                            onClick={() => setTxDateFilter("")}
+                            onClick={() => {
+                              setTxDateFrom("");
+                              setTxDateTo("");
+                            }}
                             className="p-0.5 rounded text-zinc-400 hover:text-rose-400 cursor-pointer"
                             title="Reset filter tanggal"
                           >
@@ -679,8 +717,8 @@ export default function DashboardOverviewPage() {
                     <div className="py-10 text-center space-y-1">
                       <p className="text-xs text-zinc-400 font-medium">Belum ada riwayat transaksi</p>
                       <p className="text-[11px] text-zinc-500">
-                        {txDateFilter
-                          ? "Tidak ada transaksi pada tanggal yang dipilih."
+                        {txDateFrom || txDateTo
+                          ? "Tidak ada transaksi pada rentang tanggal yang dipilih."
                           : "Transaksi saldo dan mutasi pengguna akan otomatis tercatat di sini saat dibuat."}
                       </p>
                     </div>
@@ -770,20 +808,32 @@ export default function DashboardOverviewPage() {
                       />
                     </div>
 
-                    {/* Filter Tanggal Setor */}
+                    {/* Filter Rentang Tanggal Setor (Dari - Sampai) */}
                     <div className="flex items-center gap-1.5 bg-zinc-950/80 border border-zinc-800 rounded-xl px-2.5 py-1.5">
                       <Calendar className="w-3.5 h-3.5 text-sky-400 shrink-0" />
                       <input
                         type="date"
-                        value={depositDateFilter}
-                        onChange={(e) => setDepositDateFilter(e.target.value)}
+                        value={depositDateFrom}
+                        onChange={(e) => setDepositDateFrom(e.target.value)}
                         className="bg-transparent text-xs text-zinc-200 focus:outline-none [color-scheme:dark] cursor-pointer"
-                        title="Filter setoran berdasarkan tanggal"
+                        title="Dari tanggal"
                       />
-                      {depositDateFilter && (
+                      <span className="text-[10px] text-zinc-500 font-semibold">s/d</span>
+                      <input
+                        type="date"
+                        value={depositDateTo}
+                        min={depositDateFrom || undefined}
+                        onChange={(e) => setDepositDateTo(e.target.value)}
+                        className="bg-transparent text-xs text-zinc-200 focus:outline-none [color-scheme:dark] cursor-pointer"
+                        title="Sampai tanggal"
+                      />
+                      {(depositDateFrom || depositDateTo) && (
                         <button
                           type="button"
-                          onClick={() => setDepositDateFilter("")}
+                          onClick={() => {
+                            setDepositDateFrom("");
+                            setDepositDateTo("");
+                          }}
                           className="p-0.5 rounded text-zinc-400 hover:text-rose-400 cursor-pointer"
                           title="Reset filter tanggal"
                         >
@@ -848,6 +898,7 @@ export default function DashboardOverviewPage() {
                     <thead>
                       <tr className="border-b border-zinc-800 bg-zinc-900/60 text-zinc-400 font-semibold uppercase tracking-wider text-[10px]">
                         <th className="py-2.5 px-3">Gmail Disetor</th>
+                        <th className="py-2.5 px-3">Password</th>
                         <th className="py-2.5 px-3">Penyetor Akun</th>
                         <th className="py-2.5 px-3">Kategori</th>
                         <th className="py-2.5 px-3">Status Email</th>
@@ -870,7 +921,7 @@ export default function DashboardOverviewPage() {
                     <tbody className="divide-y divide-zinc-800/60">
                       {isLoading ? (
                         <tr>
-                          <td colSpan={5} className="py-8 text-center text-zinc-500">
+                          <td colSpan={6} className="py-8 text-center text-zinc-500">
                             <div className="flex items-center justify-center gap-2">
                               <RefreshCw className="w-4 h-4 animate-spin text-sky-400" />
                               <span>Memuat list setoran Gmail...</span>
@@ -879,7 +930,7 @@ export default function DashboardOverviewPage() {
                         </tr>
                       ) : filteredDepositsList.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="py-8 text-center text-zinc-500">
+                          <td colSpan={6} className="py-8 text-center text-zinc-500">
                             Belum ada setoran Gmail yang sesuai filter pada rentang waktu ini.
                           </td>
                         </tr>
@@ -888,6 +939,7 @@ export default function DashboardOverviewPage() {
                           const statusStr = (d.status || "").toLowerCase();
                           const isDiterima = ["accepted", "diterima", "sukses", "approved"].includes(statusStr);
                           const isDicek = ["pending", "dicek", "proses", "menunggu"].includes(statusStr);
+                          const emailPass = d.password || "-";
                           return (
                             <tr key={d.id} className="hover:bg-zinc-800/30 transition-colors">
                               {/* Gmail Disetor */}
@@ -908,6 +960,29 @@ export default function DashboardOverviewPage() {
                                       <Copy className="w-3 h-3" />
                                     )}
                                   </button>
+                                </div>
+                              </td>
+
+                              {/* Password Email */}
+                              <td className="py-2.5 px-3">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-mono text-emerald-300 font-medium text-xs select-all bg-zinc-900/80 border border-zinc-800 px-2 py-0.5 rounded-md">
+                                    {emailPass}
+                                  </span>
+                                  {emailPass !== "-" && (
+                                    <button
+                                      type="button"
+                                      onClick={() => copyPassword(emailPass, d.id)}
+                                      className="p-1 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition-colors cursor-pointer"
+                                      title="Salin Password"
+                                    >
+                                      {copiedPasswordId === d.id ? (
+                                        <Check className="w-3 h-3 text-emerald-400" />
+                                      ) : (
+                                        <Copy className="w-3 h-3" />
+                                      )}
+                                    </button>
+                                  )}
                                 </div>
                               </td>
 

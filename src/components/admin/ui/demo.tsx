@@ -4,84 +4,30 @@ import React, { useState } from 'react';
 import { Card, CardContent } from '@/components/admin/ui/card';
 import { ChartConfig, ChartContainer, ChartTooltip } from '@/components/admin/ui/line-charts-9';
 import { RefreshCw, Eye, EyeOff } from 'lucide-react';
-import { Button } from '@/components/admin/ui/button';
 import { CartesianGrid, ComposedChart, Line, ReferenceLine, XAxis, YAxis } from 'recharts';
 
-const MONTHS_ID = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
-
-// Generator data real-time dinamis sesuai kalender saat ini (new Date())
-function generateRealtimeChartData(timeframe: string, isSetor: boolean = true) {
-  const now = new Date();
-
-  if (timeframe === '1D') {
-    // Real time 24 jam hari ini dalam interval 4 jam
-    const hours = ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00', '23:59'];
-    return hours.map((h, idx) => {
-      const base = isSetor ? 1700 : 550;
-      const wave = Math.sin((idx + 1) * 0.9) * (isSetor ? 450 : 180);
-      return {
-        date: h,
-        time: h,
-        value: Math.max(300, Math.round(base + wave)),
-      };
-    });
-  }
-
-  let numDays = 7;
-  if (timeframe === '3D') numDays = 3;
-  else if (timeframe === '7D') numDays = 7;
-  else if (timeframe === '14D') numDays = 14;
-  else if (timeframe === '30D') numDays = 30;
-  else if (timeframe === 'All' || timeframe === 'ALL') numDays = 60;
-  const result = [];
-
-  // Wave organik yang mulus untuk visualisasi grafik
-  const baseCurveSetor = [1580, 1850, 2150, 2480, 2900, 2550, 2100, 2300, 2600, 2750, 2850, 2600, 2400, 2250];
-  const baseCurveTarik = [530, 620, 750, 820, 890, 780, 680, 740, 810, 850, 880, 790, 710, 650];
-  const curve = isSetor ? baseCurveSetor : baseCurveTarik;
-
-  for (let i = numDays - 1; i >= 0; i--) {
-    const d = new Date(now);
-    d.setDate(d.getDate() - i);
-    const day = d.getDate();
-    const month = MONTHS_ID[d.getMonth()];
-    const dateLabel = `${day} ${month}`; // e.g. "22 Okt" s/d "28 Okt"
-
-    const idx = (numDays - 1 - i) % curve.length;
-    const baseVal = curve[idx] || (isSetor ? 2300 : 700);
-    const variance = Math.round(Math.sin((numDays - i) * 1.1) * (isSetor ? 220 : 70));
-    const value = Math.max(isSetor ? 800 : 300, baseVal + variance);
-
-    result.push({
-      date: dateLabel,
-      time: '12:00',
-      value: value,
-    });
-  }
-
-  return result;
+export interface ChartPoint {
+  date: string;
+  amount: number;
+  count: number;
 }
 
 const chartConfig = {
-  value: {
+  amount: {
     label: 'Nominal',
     color: '#a855f7',
   },
 } satisfies ChartConfig;
 
-// Custom Tooltip
 interface TooltipProps {
   active?: boolean;
   payload?: Array<{
-    payload: {
-      date: string;
-      value: number;
-    };
+    payload: ChartPoint;
   }>;
   label?: string;
 }
 
-const CustomTooltip = ({ active, payload, isSetor, isBalanceHidden }: TooltipProps & { isSetor?: boolean; isBalanceHidden?: boolean }) => {
+const CustomTooltip = ({ active, payload, isBalanceHidden }: TooltipProps & { isBalanceHidden?: boolean }) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
     return (
@@ -89,10 +35,10 @@ const CustomTooltip = ({ active, payload, isSetor, isBalanceHidden }: TooltipPro
         <div className="text-zinc-400 mb-1">{data.date}</div>
         <div className="flex items-center gap-2">
           <div className="font-bold text-white font-mono">
-            {isBalanceHidden ? 'Rp ***' : `Rp ${(data.value * 1000).toLocaleString('id-ID')}`}
+            {isBalanceHidden ? 'Rp ***' : `Rp ${Number(data.amount || 0).toLocaleString('id-ID')}`}
           </div>
-          <div className={`text-[11px] font-semibold ${isSetor ? 'text-emerald-400' : 'text-rose-400'}`}>
-            {isBalanceHidden ? '***%' : (isSetor ? '+12.7%' : '-4.2%')}
+          <div className="text-[11px] font-semibold text-emerald-400">
+            {data.count} Akun
           </div>
         </div>
       </div>
@@ -100,6 +46,13 @@ const CustomTooltip = ({ active, payload, isSetor, isBalanceHidden }: TooltipPro
   }
   return null;
 };
+
+function formatYAxisTick(value: number, isBalanceHidden: boolean): string {
+  if (isBalanceHidden) return '***';
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}jt`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(value % 1000 === 0 ? 0 : 1)}k`;
+  return String(value);
+}
 
 export function LineChart9({
   className = '',
@@ -111,6 +64,8 @@ export function LineChart9({
   hargaGmail,
   isBalanceHidden = false,
   onToggleHideBalance,
+  chartData,
+  totalAmount,
 }: {
   className?: string;
   onRefresh?: () => void;
@@ -121,8 +76,9 @@ export function LineChart9({
   hargaGmail?: number | string;
   isBalanceHidden?: boolean;
   onToggleHideBalance?: () => void;
+  chartData?: ChartPoint[];
+  totalAmount?: number;
 }) {
-  const [selectedMetric, setSelectedMetric] = useState<'setor' | 'pengeluaran'>('setor');
   const [internalTimeframe, setInternalTimeframe] = useState<string>('All');
 
   const activeTimeframe = timeframe || internalTimeframe;
@@ -133,38 +89,23 @@ export function LineChart9({
     }
   };
 
-  const isSetor = selectedMetric === 'setor';
-
-  // Dynamic real-time data calculated from current calendar date
-  const activeData = React.useMemo(() => {
-    return generateRealtimeChartData(activeTimeframe, isSetor);
-  }, [activeTimeframe, isSetor]);
+  // Real-time data strictly from database
+  const activeData: ChartPoint[] = React.useMemo(() => {
+    if (chartData && chartData.length > 0) return chartData;
+    return [{ date: 'Hari Ini', amount: 0, count: 0 }];
+  }, [chartData]);
 
   const currentTotal = React.useMemo(() => {
-    if (isSetor) {
-      if (activeTimeframe === '1D') return 3550000;
-      if (activeTimeframe === '3D') return 10650000;
-      if (activeTimeframe === '7D') return 24847830;
-      if (activeTimeframe === '14D') return 49695000;
-      if (activeTimeframe === '30D') return 106490000;
-      return 248470000; // All
-    } else {
-      if (activeTimeframe === '1D') return 910000;
-      if (activeTimeframe === '3D') return 2750000;
-      if (activeTimeframe === '7D') return 6420000;
-      if (activeTimeframe === '14D') return 12840000;
-      if (activeTimeframe === '30D') return 27500000;
-      return 64200000; // All
-    }
-  }, [activeTimeframe, isSetor]);
-  const highVal = Math.max(...activeData.map((d) => d.value));
-  const lowVal = Math.min(...activeData.map((d) => d.value));
+    if (typeof totalAmount === 'number') return totalAmount;
+    return activeData.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+  }, [totalAmount, activeData]);
 
+  const highVal = Math.max(...activeData.map((d) => d.amount));
   const refItem = activeData[Math.floor(activeData.length / 2)];
   const refDate = refItem?.date;
 
-  const lineColor = isSetor ? '#c084fc' : '#fb7185';
-  const strokeGlow = isSetor ? 'rgba(168, 85, 247, 0.7)' : 'rgba(244, 63, 94, 0.7)';
+  const lineColor = '#c084fc';
+  const strokeGlow = 'rgba(168, 85, 247, 0.7)';
 
   return (
     <Card className={`w-full bg-zinc-900/90 border border-zinc-800 shadow-sm ${className}`}>
@@ -315,21 +256,21 @@ export function LineChart9({
               <YAxis
                 axisLine={false}
                 tickLine={false}
-                width={48}
+                width={52}
                 tick={{ fontSize: 11, fill: '#a1a1aa' }}
-                tickFormatter={(value) => (isBalanceHidden ? '***' : `${(value / 1000).toFixed(1)}k`)}
+                tickFormatter={(value) => formatYAxisTick(Number(value), isBalanceHidden)}
                 tickMargin={8}
               />
 
               <ChartTooltip
-                content={<CustomTooltip isSetor={isSetor} isBalanceHidden={isBalanceHidden} />}
+                content={<CustomTooltip isBalanceHidden={isBalanceHidden} />}
                 cursor={{ strokeDasharray: '3 3', stroke: '#71717a', strokeOpacity: 0.5 }}
               />
 
               <Line
                 key={activeTimeframe}
                 type="monotone"
-                dataKey="value"
+                dataKey="amount"
                 stroke={lineColor}
                 strokeWidth={2.5}
                 filter="url(#lineShadow)"
@@ -339,9 +280,8 @@ export function LineChart9({
                 dot={(props) => {
                   const { cx, cy, payload } = props;
                   if (
-                    payload.date === refDate ||
-                    payload.value === highVal ||
-                    payload.value === lowVal
+                    (payload.amount > 0 && payload.amount === highVal) ||
+                    payload.date === refDate
                   ) {
                     return (
                       <circle
