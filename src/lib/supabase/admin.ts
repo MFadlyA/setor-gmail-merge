@@ -6,17 +6,39 @@ let clientInstance: SupabaseClient | null = null;
 let cachedUrl = "";
 let cachedKey = "";
 
-function readCfEnv(key: string): string | undefined {
+function getCfEnvObject(): Record<string, unknown> | undefined {
   try {
     const ctx = getCloudflareContext({ async: false }) as { env?: Record<string, unknown> } | undefined;
-    const val = ctx?.env?.[key];
-    if (typeof val === "string" && val.trim().length > 0) {
-      return val.trim();
-    }
+    return ctx?.env;
   } catch {
-    // Not in Cloudflare Workers context (e.g., local next dev / build)
+    return undefined;
+  }
+}
+
+function readCfEnv(key: string): string | undefined {
+  const env = getCfEnvObject();
+  const val = env?.[key];
+  if (typeof val === "string" && val.trim().length > 0) {
+    return val.trim();
   }
   return undefined;
+}
+
+export function getCfEnvDiagnostics() {
+  const keyFilter = /SUPA|ADMIN|TELE|NEXT|SERVICE|SECRET/i;
+  const cfEnv = getCfEnvObject();
+  const cfEnvKeys = cfEnv
+    ? Object.keys(cfEnv)
+        .filter((k) => keyFilter.test(k))
+        .map((k) => `${k}(${typeof cfEnv[k]})`)
+    : [];
+  const processEnvKeys = Object.keys(process.env || {}).filter((k) => keyFilter.test(k));
+
+  return {
+    cfContextAvailable: Boolean(cfEnv),
+    cfEnvKeys,
+    processEnvKeys,
+  };
 }
 
 export function getSupabaseAdminConfig() {
@@ -29,7 +51,11 @@ export function getSupabaseAdminConfig() {
 
   const serviceRoleKey =
     readCfEnv("SUPABASE_SERVICE_ROLE_KEY") ||
+    readCfEnv("SUPABASE_SECRET_KEY") ||
+    readCfEnv("SERVICE_ROLE_KEY") ||
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_SECRET_KEY ||
+    process.env.SERVICE_ROLE_KEY ||
     "";
 
   const anonKey =
