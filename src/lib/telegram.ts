@@ -112,7 +112,7 @@ export async function notifySecurityAlert(params: {
 <b>IP Klien:</b> <code>${params.ip}</code> ${params.country ? `(${params.country})` : ""}
 <b>Akun:</b> ${params.email || params.userId || "Anonim / Tidak Terautentikasi"}
 ${params.details ? `<b>Detail:</b> <i>${params.details}</i>\n` : ""}${params.userAgent ? `<b>User-Agent:</b> <code>${params.userAgent.substring(0, 100)}</code>\n` : ""}
-<i>Admin Security Watchdog • admin.setorgmail.com</i>
+<i>Admin Security Watchdog • setorgmail.com</i>
 `.trim();
 
   return sendTelegramMessage(message);

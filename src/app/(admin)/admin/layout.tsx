@@ -4,7 +4,7 @@ import { AdminAuthProvider } from "@/context/admin-auth-context";
 
 export const metadata: Metadata = {
   title: "Admin Dashboard | Setor Gmail",
-  description: "Pusat Kontrol & Manajemen Administrator admin.setorgmail.com",
+  description: "Pusat Kontrol & Manajemen Administrator setorgmail.com",
 };
 
 export const dynamic = "force-dynamic";
