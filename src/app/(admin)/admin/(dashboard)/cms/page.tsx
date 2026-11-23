@@ -33,6 +33,13 @@ import {
   User,
   Wallet,
   Clock,
+  Target,
+  Banknote,
+  Users,
+  PlayCircle,
+  ArrowRight,
+  ScrollText,
+  Calendar,
 } from "lucide-react";
 import { Button } from "@/components/admin/ui/button";
 import { DEFAULT_CONFIG, SiteConfig } from "@/lib/site-config";
@@ -49,6 +56,7 @@ type PreviewDevice = "desktop" | "mobile";
 
 export default function CmsPage() {
   const [config, setConfig] = useState<SiteConfig>(DEFAULT_CONFIG);
+  const [savedSnapshot, setSavedSnapshot] = useState<string>(JSON.stringify(DEFAULT_CONFIG));
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
@@ -61,16 +69,22 @@ export default function CmsPage() {
   // Active form tab on the left: default Landing Page, langsung sinkron ke preview kanan
   const [activeTab, setActiveTab] = useState<CmsTab>("landing");
 
-  // Device switcher for preview
-  const [previewDevice, setPreviewDevice] = useState<PreviewDevice>("mobile");
+  // Device switcher for preview (default desktop agar langsung terlihat penuh seperti web user)
+  const [previewDevice, setPreviewDevice] = useState<PreviewDevice>("desktop");
 
   // Interactive controls within the live preview
+  const [previewDepositMode, setPreviewDepositMode] = useState<"fresh" | "old">("fresh");
   const [previewSelectedCount, setPreviewSelectedCount] = useState<number>(5);
   const [previewCopiedPassword, setPreviewCopiedPassword] = useState(false);
   const [previewShowRulesDetail, setPreviewShowRulesDetail] = useState(false);
   const [previewWithdrawMethod, setPreviewWithdrawMethod] = useState<
     "DANA" | "GOPAY" | "OVO" | "SHOPEEPAY"
   >("GOPAY");
+
+  const hasUnsavedChanges = React.useMemo(
+    () => JSON.stringify(config) !== savedSnapshot,
+    [config, savedSnapshot]
+  );
 
   // Fetch initial configuration from database
   useEffect(() => {
@@ -81,6 +95,7 @@ export default function CmsPage() {
         const json = await res.json();
         if (json.success && json.config && isMounted) {
           setConfig(json.config);
+          setSavedSnapshot(JSON.stringify(json.config));
           setNumericStrings({});
           setUpdatedAt(json.updatedAt || null);
         }
@@ -111,6 +126,7 @@ export default function CmsPage() {
       const json = await res.json();
 
       if (json.success) {
+        setSavedSnapshot(JSON.stringify(config));
         setSaveSuccess("Perubahan berhasil disimpan & disinkronkan ke web user!");
         setUpdatedAt(json.updatedAt || new Date().toISOString());
         setTimeout(() => setSaveSuccess(null), 4000);
@@ -220,6 +236,14 @@ export default function CmsPage() {
     features: "Fitur",
   };
 
+  const activeTabRoutes: Record<CmsTab, string> = {
+    landing: "https://setorgmail.com",
+    rules: "https://setorgmail.com/setor",
+    pricing: "https://setorgmail.com",
+    contacts: "https://setorgmail.com/laporan",
+    features: "https://setorgmail.com",
+  };
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh] text-zinc-400 gap-3">
@@ -230,32 +254,94 @@ export default function CmsPage() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
+      {/* Top CMS Toolbar: Status & Quick Save */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-zinc-800/90 bg-zinc-900/70 px-4 py-3 backdrop-blur-md">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">
+            <Sparkles className="size-4.5" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-sm sm:text-base font-extrabold text-white tracking-tight">
+                CMS Editor &amp; Live Preview
+              </h1>
+              {hasUnsavedChanges ? (
+                <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/35 bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-300">
+                  <span className="size-1.5 rounded-full bg-amber-400 animate-pulse" />
+                  Belum disimpan
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
+                  <CheckCircle2 className="size-3" />
+                  Tersinkron
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-zinc-400 truncate">
+              {updatedAt
+                ? `Terakhir disimpan ${new Date(updatedAt).toLocaleTimeString("id-ID", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    second: "2-digit",
+                  })} · Perubahan langsung terlihat di Live Preview`
+                : "Edit teks, harga, rules, dan lihat hasilnya secara real-time di samping"}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={handleReset}
+            disabled={saving}
+            className="text-xs text-zinc-400 hover:text-white h-9 px-3"
+          >
+            <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
+            Reset
+          </Button>
+          <Button
+            type="button"
+            onClick={() => handleSave()}
+            disabled={saving}
+            className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-4 h-9 rounded-xl shadow-lg shadow-emerald-950/40 cursor-pointer"
+          >
+            {saving ? (
+              <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+            ) : (
+              <Save className="w-3.5 h-3.5 mr-1.5" />
+            )}
+            Simpan Perubahan
+          </Button>
+        </div>
+      </div>
+
       {/* Toast Notifications */}
       {saveSuccess && (
-        <div className="flex items-center gap-2.5 p-3.5 rounded-xl border border-emerald-500/30 bg-emerald-950/40 text-emerald-300 text-xs sm:text-sm font-semibold animate-fade-down">
-          <CheckCircle2 className="size-5 text-emerald-400 shrink-0" />
+        <div className="flex items-center gap-2.5 p-3 rounded-xl border border-emerald-500/30 bg-emerald-950/40 text-emerald-300 text-xs font-semibold animate-fade-down">
+          <CheckCircle2 className="size-4 text-emerald-400 shrink-0" />
           <span>{saveSuccess}</span>
         </div>
       )}
 
       {saveError && (
-        <div className="flex items-center gap-2.5 p-3.5 rounded-xl border border-rose-500/30 bg-rose-950/40 text-rose-300 text-xs sm:text-sm font-semibold animate-fade-down">
-          <AlertCircle className="size-5 text-rose-400 shrink-0" />
+        <div className="flex items-center gap-2.5 p-3 rounded-xl border border-rose-500/30 bg-rose-950/40 text-rose-300 text-xs font-semibold animate-fade-down">
+          <AlertCircle className="size-4 text-rose-400 shrink-0" />
           <span>{saveError}</span>
         </div>
       )}
 
-      {/* Main Split Screen: Sisi Kiri (Form Controls) & Sisi Kanan (Interactive Live Preview) */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+      {/* Main Split Screen: Sisi Kiri (Form Controls) & Sisi Kanan (Sticky Interactive Live Preview) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
         {/* ========================================================= */}
         {/* SISI KIRI: FORM CONTROL CMS                               */}
         {/* ========================================================= */}
-        <div className="xl:col-span-6 2xl:col-span-7 space-y-5">
-          {/* Form Tabs Navigation - Responsive Grid, No Scrollbar / Slidebar */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-1.5 p-1.5 bg-zinc-900/60 border border-zinc-800/80 rounded-2xl">
+        <div className="lg:col-span-5 xl:col-span-5 space-y-4">
+          {/* Form Tabs Navigation - Always 1 Clean Horizontal Row */}
+          <div className="grid grid-cols-5 gap-1 p-1 bg-zinc-900/80 border border-zinc-800/90 rounded-2xl">
             {[
-              { key: "landing", label: "Landing Page", icon: Megaphone },
+              { key: "landing", label: "Landing", icon: Megaphone },
               { key: "rules", label: "Rules", icon: FileText },
               { key: "pricing", label: "Harga", icon: DollarSign },
               { key: "contacts", label: "Kontak", icon: Share2 },
@@ -268,9 +354,9 @@ export default function CmsPage() {
                   key={tab.key}
                   type="button"
                   onClick={() => setActiveTab(tab.key as CmsTab)}
-                  className={`flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 py-2 text-xs font-semibold rounded-xl transition-all cursor-pointer text-center ${
+                  className={`flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 px-1.5 py-2 text-[11px] font-semibold rounded-xl transition-all cursor-pointer text-center ${
                     isActive
-                      ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shadow-xs font-bold"
+                      ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/35 shadow-xs font-bold"
                       : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50 border border-transparent"
                   }`}
                 >
@@ -1054,57 +1140,54 @@ export default function CmsPage() {
         </div>
 
         {/* ========================================================= */}
-        {/* SISI KANAN: INTERACTIVE LIVE PREVIEW                      */}
+        {/* SISI KANAN: INTERACTIVE LIVE PREVIEW (IDENTIK WEB USER)   */}
         {/* ========================================================= */}
-        <div className="xl:col-span-6 2xl:col-span-5 xl:sticky xl:top-20 space-y-3">
-          {/* Preview Control Header: Tanpa tombol screen manual, otomatis sinkron dengan tab kiri */}
-          <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-3 backdrop-blur-md shadow-xl flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <span className="flex size-2.5 rounded-full bg-emerald-400 animate-pulse" />
+        <div className="lg:col-span-7 xl:col-span-7 lg:sticky lg:top-20 space-y-3">
+          {/* Preview Control Header */}
+          <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl px-3.5 py-2.5 backdrop-blur-md shadow-xl flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <span className="relative flex size-2.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex size-2.5 rounded-full bg-emerald-400" />
+              </span>
               <div className="leading-tight">
                 <span className="text-xs font-black text-white flex items-center gap-1.5 uppercase tracking-wider">
-                  Live Preview
+                  Live Preview Web User
                 </span>
-                <span className="text-[10px] text-zinc-400">setorgmail.com</span>
+                <span className="text-[10px] text-zinc-400">
+                  Sinkron real-time: <strong className="text-sky-300">{activeTabLabels[activeTab]}</strong>
+                </span>
               </div>
             </div>
 
-            {/* Sync Badge & Device Switcher */}
-            <div className="flex items-center gap-2">
-              <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                <span>Sinkron:</span>
-                <strong className="text-white">{activeTabLabels[activeTab]}</strong>
-              </span>
-
-              {/* Device Selector */}
-              <div className="flex items-center bg-zinc-950 border border-zinc-800 rounded-lg p-0.5">
-                <button
-                  type="button"
-                  onClick={() => setPreviewDevice("desktop")}
-                  className={`flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-bold transition-all cursor-pointer ${
-                    previewDevice === "desktop"
-                      ? "bg-emerald-600 text-white shadow-xs"
-                      : "text-zinc-400 hover:text-zinc-200"
-                  }`}
-                  title="Desktop View"
-                >
-                  <Monitor className="size-3" />
-                  <span className="hidden sm:inline">Desktop</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPreviewDevice("mobile")}
-                  className={`flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-bold transition-all cursor-pointer ${
-                    previewDevice === "mobile"
-                      ? "bg-emerald-600 text-white shadow-xs"
-                      : "text-zinc-400 hover:text-zinc-200"
-                  }`}
-                  title="Mobile Frame View"
-                >
-                  <Smartphone className="size-3" />
-                  <span className="hidden sm:inline">Mobile</span>
-                </button>
-              </div>
+            {/* Device Selector */}
+            <div className="flex items-center bg-zinc-950 border border-zinc-800 rounded-xl p-0.5">
+              <button
+                type="button"
+                onClick={() => setPreviewDevice("desktop")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                  previewDevice === "desktop"
+                    ? "bg-emerald-600 text-white shadow-xs"
+                    : "text-zinc-400 hover:text-zinc-200"
+                }`}
+                title="Desktop View"
+              >
+                <Monitor className="size-3.5" />
+                <span>Desktop</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setPreviewDevice("mobile")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                  previewDevice === "mobile"
+                    ? "bg-emerald-600 text-white shadow-xs"
+                    : "text-zinc-400 hover:text-zinc-200"
+                }`}
+                title="Mobile Frame View"
+              >
+                <Smartphone className="size-3.5" />
+                <span>Mobile</span>
+              </button>
             </div>
           </div>
 
@@ -1114,39 +1197,55 @@ export default function CmsPage() {
           <div
             className={`transition-all duration-300 mx-auto ${
               previewDevice === "mobile"
-                ? "max-w-[340px] sm:max-w-[360px] rounded-[36px] border-[6px] border-zinc-800 bg-[#09090b] shadow-2xl p-2.5 overflow-hidden"
-                : "w-full rounded-2xl border border-zinc-800 bg-[#09090b] shadow-2xl overflow-hidden"
+                ? "max-w-[360px] rounded-[38px] border-[6px] border-zinc-800 bg-[#07080d] shadow-2xl p-2 overflow-hidden"
+                : "w-full rounded-2xl border border-zinc-800 bg-[#07080d] shadow-2xl overflow-hidden"
             }`}
           >
-            {/* Desktop Window Top Header */}
+            {/* Browser / Phone Top Bar */}
             {previewDevice === "desktop" ? (
-              <div className="flex items-center justify-between px-3 py-2 bg-zinc-950 border-b border-zinc-800/80 text-zinc-400 text-xs">
+              <div className="flex items-center justify-between px-3.5 py-2 bg-[#0b0d14] border-b border-white/10 text-zinc-400 text-xs">
                 <div className="flex items-center gap-1.5">
                   <span className="size-2.5 rounded-full bg-rose-500/80" />
                   <span className="size-2.5 rounded-full bg-amber-500/80" />
                   <span className="size-2.5 rounded-full bg-emerald-500/80" />
                 </div>
-                <div className="flex items-center gap-1.5 bg-zinc-900 border border-zinc-800/80 px-2.5 py-0.5 rounded-md text-[10px] font-mono text-zinc-300">
+                <div className="flex items-center gap-1.5 bg-zinc-900/90 border border-white/10 px-3 py-0.5 rounded-md text-[10px] font-mono text-zinc-300">
                   <Lock className="size-2.5 text-emerald-400" />
-                  <span>https://setorgmail.com</span>
+                  <span>{activeTabRoutes[activeTab]}</span>
                 </div>
-                <div className="text-[10px] text-zinc-500 font-mono">100% Real-time</div>
+                <div className="text-[10px] text-emerald-400 font-semibold">Live</div>
               </div>
             ) : (
-              /* Mobile Dynamic Island / Notch */
-              <div className="flex items-center justify-center pb-2">
+              <div className="flex items-center justify-center pb-2 pt-0.5">
                 <div className="w-24 h-3.5 bg-zinc-800 rounded-full flex items-center justify-end px-2">
                   <span className="size-1.5 rounded-full bg-zinc-950" />
                 </div>
               </div>
             )}
 
-            {/* Viewport Content Area: 100% Mengikuti setorgmail.com Asli */}
-            <div className="h-[520px] sm:h-[580px] overflow-y-auto bg-[#09090b] text-[#f8fafc] text-xs select-none relative no-scrollbar flex flex-col justify-between">
-              <div className="space-y-4">
+            {/* Viewport Content Area: Identik Web User (#07080d + subtle grid + aurora) */}
+            <div
+              className="h-[540px] sm:h-[600px] overflow-y-auto overflow-x-hidden bg-[#07080d] text-[#f8fafc] text-xs select-none relative no-scrollbar flex flex-col justify-between"
+              style={{
+                backgroundImage:
+                  "linear-gradient(to right, rgba(255,255,255,0.032) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.032) 1px, transparent 1px)",
+                backgroundSize: "42px 42px",
+              }}
+            >
+              {/* Subtle Ambient Aurora */}
+              <div
+                aria-hidden="true"
+                className="pointer-events-none absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[85%] h-[55%] rounded-full blur-[80px] opacity-60"
+                style={{
+                  background:
+                    "radial-gradient(circle, rgba(56,189,248,0.16) 0%, rgba(99,102,241,0.10) 45%, transparent 72%)",
+                }}
+              />
+
+              <div className="relative z-10 flex-1 flex flex-col">
                 {/* Global Emergency Maintenance Notification Bar if active and not on features tab */}
                 {config.is_maintenance_mode && activeTab !== "features" && (
-                  <div className="sticky top-0 z-30 bg-rose-600/90 text-white px-3 py-1.5 text-[10px] font-bold flex items-center justify-between backdrop-blur-md">
+                  <div className="sticky top-0 z-30 bg-rose-600/95 text-white px-3 py-1.5 text-[10px] font-bold flex items-center justify-between backdrop-blur-md">
                     <span className="flex items-center gap-1">
                       <ShieldAlert className="size-3 shrink-0" />
                       <span>Mode Maintenance Aktif</span>
@@ -1161,517 +1260,559 @@ export default function CmsPage() {
                   </div>
                 )}
 
-                {/* TopBar Asli setorgmail.com (Ditampilkan pada semua tab selain landing) */}
+                {/* TopBar Asli Web User (Semua tab selain landing) */}
                 {activeTab !== "landing" && (
-                  <div className="sticky top-0 z-20 flex items-center justify-between px-3.5 py-2.5 border-b border-white/10 bg-[#09090b]/90 backdrop-blur-md">
-                    {/* Brand Name & Logo Asli */}
-                    <div className="flex items-baseline gap-1.5 text-[0.85rem] tracking-tight">
-                      <span className="font-black text-white tracking-tight">SETOR GMAIL</span>
-                      <span className="text-[9px] font-bold text-zinc-400 lowercase">by</span>
-                      <span className="font-black tracking-tight bg-gradient-to-r from-sky-400 via-cyan-300 to-blue-500 bg-clip-text text-transparent">
-                        Winter
-                      </span>
-                      <img
-                        src="/logo_removebg.png"
-                        alt="Logo"
-                        className="h-5 w-auto object-contain inline-block ml-1"
-                        onError={(e) => {
-                          (e.target as HTMLElement).style.display = "none";
-                        }}
-                      />
-                    </div>
-
-                    {/* Saluran WA Pill */}
-                    <a
-                      href={config.whatsapp_channel_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-semibold transition-all shadow-2xs ${
-                        activeTab === "contacts"
-                          ? "border-emerald-400/60 bg-emerald-500/20 text-emerald-300 ring-2 ring-emerald-500/30"
-                          : "border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10"
-                      }`}
-                    >
-                      <span className="flex size-3.5 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400">
-                        <MessageCircle className="size-2" />
-                      </span>
-                      <span>Saluran WA</span>
-                    </a>
-                  </div>
-                )}
-
-                {/* =================================================== */}
-                {/* 1. VIEW UNTUK TAB: HARGA & SALDO                    */}
-                {/* =================================================== */}
-                {activeTab === "pricing" && (
-                  <div className="p-3.5 space-y-3.5">
-                    {/* Saldo Akun Card Asli */}
-                    <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-[#121217]/85 p-4 shadow-xl backdrop-blur-xl">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="text-[10px] font-semibold tracking-wide text-zinc-400 uppercase">
-                            Saldo Kamu
-                          </p>
-                          <p className="mt-1 text-2xl font-black tracking-tight text-white tabular-nums">
-                            Rp 50.000
-                          </p>
-                        </div>
-                        <span className="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-sky-400 via-sky-500 to-blue-600 text-white shadow-md shadow-sky-500/30">
-                          <Wallet className="size-4" />
-                        </span>
-                      </div>
-
-                      {/* Tag Harga / Gmail Sesuai CMS */}
-                      <div className="mt-3 flex flex-wrap items-center gap-1.5">
-                        <span className="inline-flex items-center rounded-full bg-sky-500/10 border border-sky-500/20 px-2 py-0.5 text-[9px] font-semibold text-sky-400">
-                          Fresh: Rp {config.price_per_gmail.toLocaleString("id-ID")}/akun
-                        </span>
-                        <span className="inline-flex items-center rounded-full bg-zinc-800 border border-zinc-700 px-2 py-0.5 text-[9px] font-semibold text-zinc-300">
-                          Bebas: Rp {config.price_bebas.toLocaleString("id-ID")}/akun
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Modal Tarik Saldo E-Wallet Asli */}
-                    <div className="rounded-2xl border border-sky-500/30 bg-sky-950/20 p-3.5 space-y-3 backdrop-blur-md">
-                      <div className="flex items-center justify-between border-b border-sky-500/20 pb-2">
-                        <div>
-                          <span className="text-[9px] uppercase font-bold tracking-wider text-sky-400 block">
-                            Tarik Saldo E-Wallet
-                          </span>
-                          <span className="text-xs font-bold text-white">
-                            {activeEwallets.length > 0
-                              ? `Penarikan ke ${previewWithdrawMethod}`
-                              : "Penarikan Ditutup"}
-                          </span>
-                        </div>
-                        <span className="text-[10px] text-zinc-400 font-mono">
-                          Min: Rp {config.min_withdrawal.toLocaleString("id-ID")}
-                        </span>
-                      </div>
-
-                      {/* Input Nominal Tarik */}
-                      <div className="space-y-1">
-                        <span className="text-[9px] text-zinc-400 font-medium">Nominal Penarikan:</span>
-                        <div className="flex items-center gap-1.5">
-                          <span className="flex h-9 items-center justify-center px-2.5 rounded-xl border border-sky-500/30 bg-sky-500/10 font-bold text-xs text-sky-300">
-                            Rp
-                          </span>
-                          <div className="flex-1 bg-black/50 border border-white/10 rounded-xl px-3 py-1.5 font-bold text-sm text-white font-mono">
-                            20.000
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Pilihan E-Wallet Aktif dengan Pajak Real-time */}
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between text-[9px]">
-                          <span className="font-semibold text-zinc-300">Pilih E-Wallet:</span>
-                          {activeEwallets.length > 0 ? (
-                            <span
-                              className={
-                                previewTax > 0
-                                  ? "text-amber-400 font-bold"
-                                  : "text-emerald-400 font-bold"
-                              }
-                            >
-                              {activeEwallets.find((w) => w.id === previewWithdrawMethod)?.label ||
-                                previewWithdrawMethod}{" "}
-                              {previewTax > 0
-                                ? `pajak Rp ${previewTax.toLocaleString("id-ID")}`
-                                : "Bebas Pajak"}
-                            </span>
-                          ) : (
-                            <span className="text-rose-400 font-bold">Semua Nonaktif</span>
-                          )}
-                        </div>
-
-                        {activeEwallets.length === 0 ? (
-                          <div className="p-3 rounded-xl bg-black/40 border border-rose-500/30 text-rose-300 text-center text-[10px] font-semibold">
-                            Metode penarikan e-wallet sedang dinonaktifkan sementara oleh admin.
-                          </div>
-                        ) : (
-                          <div className="grid grid-cols-2 gap-1.5">
-                            {activeEwallets.map((item) => (
-                              <button
-                                key={item.id}
-                                type="button"
-                                onClick={() => setPreviewWithdrawMethod(item.id)}
-                                className={`p-2 rounded-xl border text-left transition-all cursor-pointer ${
-                                  previewWithdrawMethod === item.id
-                                    ? "border-sky-500 bg-sky-500/20 text-white font-bold shadow-xs"
-                                    : "border-white/5 bg-black/30 text-zinc-400 hover:border-white/10 hover:text-white"
-                                }`}
-                              >
-                                <div className="flex items-center justify-between">
-                                  <span className="text-xs">{item.label}</span>
-                                  {previewWithdrawMethod === item.id && (
-                                    <CheckCircle2 className="size-3 text-sky-400" />
-                                  )}
-                                </div>
-                                <span
-                                  className={`text-[8px] font-mono block mt-0.5 ${
-                                    item.tax === 0
-                                      ? "text-emerald-400 font-semibold"
-                                      : "text-zinc-500"
-                                  }`}
-                                >
-                                  {item.tax === 0
-                                    ? "Bebas Pajak"
-                                    : `Pajak: Rp ${item.tax.toLocaleString("id-ID")}`}
-                                </span>
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Kalkulasi Diterima */}
-                      <div className="p-2 rounded-xl bg-black/40 border border-white/5 flex items-center justify-between text-[11px]">
-                        <span className="text-zinc-400">Diterima Bersih:</span>
-                        <span className="font-mono font-black text-emerald-400">
-                          Rp {(20000 - previewTax).toLocaleString("id-ID")}
-                        </span>
-                      </div>
-
-                      <button
-                        type="button"
-                        disabled={activeEwallets.length === 0}
-                        className={`w-full py-2 rounded-xl text-white font-bold text-xs shadow-md transition-all ${
-                          activeEwallets.length > 0
-                            ? "bg-gradient-to-r from-sky-400 via-sky-500 to-blue-600 shadow-sky-500/20 cursor-pointer"
-                            : "bg-zinc-800 text-zinc-500 cursor-not-allowed"
-                        }`}
-                      >
-                        {activeEwallets.length > 0
-                          ? "Konfirmasi Tarik Saldo"
-                          : "Penarikan Tidak Tersedia"}
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* =================================================== */}
-                {/* 2. VIEW UNTUK TAB: RULES & GENERATOR                */}
-                {/* =================================================== */}
-                {activeTab === "rules" && (
-                  <div className="p-3.5 space-y-3.5">
-                    {/* Unified Section: Rules & Generate Gmail */}
-                    <div className="rounded-2xl border border-white/10 bg-[#121217]/85 p-3.5 shadow-xl space-y-3">
-                      {/* Header Rules */}
-                      <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
-                        <div className="flex items-center gap-2">
-                          <span className="flex size-7 items-center justify-center rounded-lg bg-gradient-to-br from-sky-400 via-sky-500 to-blue-600 text-white shadow-xs">
-                            <FileText className="size-4" />
-                          </span>
-                          <div>
-                            <h4 className="text-xs font-bold text-white">Rules Setoran Gmail</h4>
-                            <p className="text-[9px] text-zinc-400">Patuhi aturan agar di-ACC admin</p>
-                          </div>
-                        </div>
-
-                        {/* Collapsible Trigger */}
-                        <button
-                          type="button"
-                          onClick={() => setPreviewShowRulesDetail(!previewShowRulesDetail)}
-                          className="text-[10px] font-bold text-sky-400 hover:text-sky-300 flex items-center gap-1 cursor-pointer"
-                        >
-                          <span>{previewShowRulesDetail ? "[-] Sembunyikan" : "[+] Detail Aturan"}</span>
-                          {previewShowRulesDetail ? <ChevronUp className="size-3" /> : <ChevronDown className="size-3" />}
-                        </button>
-                      </div>
-
-                      {/* 2x2 Grid Cards Visual & Ringkas */}
-                      <div className="grid grid-cols-2 gap-2">
-                        {/* 1. Status */}
-                        <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/40 p-2">
-                          <span className="flex size-6 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                            <Sparkles className="size-3" />
-                          </span>
-                          <div className="min-w-0">
-                            <span className="text-[8px] font-semibold text-zinc-400 uppercase block">Status</span>
-                            <span className="text-[10px] font-bold text-white truncate block">
-                              {config.rule_status}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* 2. Nama Akun */}
-                        <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/40 p-2">
-                          <span className="flex size-6 shrink-0 items-center justify-center rounded-lg bg-sky-500/10 text-sky-400 border border-sky-500/20">
-                            <UserCheck className="size-3" />
-                          </span>
-                          <div className="min-w-0">
-                            <span className="text-[8px] font-semibold text-zinc-400 uppercase block">Nama Akun</span>
-                            <span className="text-[10px] font-bold text-white truncate block">
-                              {config.rule_nama}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* 3. Usia Akun */}
-                        <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/40 p-2">
-                          <span className="flex size-6 shrink-0 items-center justify-center rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/20">
-                            <Clock className="size-3" />
-                          </span>
-                          <div className="min-w-0">
-                            <span className="text-[8px] font-semibold text-zinc-400 uppercase block">Usia Akun</span>
-                            <span className="text-[10px] font-bold text-white truncate block">
-                              {config.rule_usia}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* 4. Keamanan */}
-                        <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/40 p-2">
-                          <span className="flex size-6 shrink-0 items-center justify-center rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                            <ShieldAlert className="size-3" />
-                          </span>
-                          <div className="min-w-0">
-                            <span className="text-[8px] font-semibold text-zinc-400 uppercase block">Keamanan</span>
-                            <span className="text-[10px] font-bold text-white truncate block">
-                              {config.rule_keamanan}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Detail Aturan Collapsible */}
-                      {previewShowRulesDetail && (
-                        <div className="space-y-1.5 p-2 rounded-xl bg-black/50 border border-white/10 animate-fade-down text-[10px] text-zinc-300">
-                          {config.rules_detail_text.map((text, idx) => (
-                            <div key={idx} className="flex items-start gap-1.5">
-                              <span className="flex size-3.5 shrink-0 items-center justify-center rounded-full bg-sky-500/20 text-sky-400 font-bold text-[8px] mt-0.5">
-                                {idx + 1}
-                              </span>
-                              <span className="leading-tight">{text}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Generator Nama Gmail Card */}
-                      <div className="pt-2 border-t border-white/10 space-y-2.5">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-white flex items-center gap-1.5">
-                            <Sparkles className="size-3 text-sky-400" />
-                            Generator Nama Gmail
-                          </span>
-                          <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full font-mono">
-                            Rp {config.price_per_gmail.toLocaleString("id-ID")}/akun
-                          </span>
-                        </div>
-
-                        {/* Presets Jumlah Akun */}
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[10px] text-zinc-400">Pilih:</span>
-                          {[1, 3, 5, 10].map((num) => (
-                            <button
-                              key={num}
-                              type="button"
-                              onClick={() => setPreviewSelectedCount(num)}
-                              className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
-                                previewSelectedCount === num
-                                  ? "bg-gradient-to-r from-sky-400 to-blue-600 text-white shadow-xs"
-                                  : "bg-white/5 text-zinc-400 hover:text-white border border-white/10"
-                              }`}
-                            >
-                              {num} Akun
-                            </button>
-                          ))}
-                        </div>
-
-                        {/* Password Wajib Card */}
-                        <div className="flex items-center justify-between p-2 rounded-xl bg-black/40 border border-emerald-500/30">
-                          <div>
-                            <span className="text-[8px] uppercase font-bold text-emerald-400 block">Password Wajib:</span>
-                            <span className="font-mono text-xs font-black text-white">{config.default_password}</span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={handleCopyPreviewPassword}
-                            className="px-2 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 text-[10px] font-bold flex items-center gap-1 hover:bg-emerald-500/30 cursor-pointer"
-                          >
-                            {previewCopiedPassword ? <Check className="size-3" /> : <Copy className="size-3" />}
-                            <span>{previewCopiedPassword ? "Tersalin" : "Salin"}</span>
-                          </button>
-                        </div>
-
-                        {/* Estimasi Saldo */}
-                        <div className="p-2 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-between text-[11px]">
-                          <span className="text-zinc-400">Estimasi Saldo ({previewSelectedCount} Akun):</span>
-                          <span className="font-mono font-black text-emerald-400">
-                            Rp {(previewSelectedCount * config.price_per_gmail).toLocaleString("id-ID")}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* =================================================== */}
-                {/* 3. VIEW UNTUK TAB: LANDING & BANNER                 */}
-                {/* =================================================== */}
-                {activeTab === "landing" && (
-                  <div className="p-4 flex flex-col justify-between min-h-[460px] space-y-5 relative">
-                    {/* Marquee Ticker Bar Asli */}
-                    <div className="overflow-hidden border-y border-white/10 bg-black/60 py-2 -mx-4 shadow-md">
-                      <div className="whitespace-nowrap font-mono text-[9px] font-bold tracking-widest text-zinc-300 uppercase animate-marquee">
-                        {config.marquee_text} &bull; {config.marquee_text}
-                      </div>
-                    </div>
-
-                    {/* Hero Left: Micro-badge, Headlines, Subtitle, Buttons */}
-                    <div className="space-y-3 text-center">
-                      <div className="inline-flex items-center gap-1.5 rounded-full border border-sky-400/20 bg-sky-950/40 px-3 py-0.5 backdrop-blur-md">
-                        <span className="size-1.5 rounded-full bg-sky-400 animate-ping" />
-                        <span className="text-[10px] font-bold text-sky-300">
-                          {config.platform_badge || "Platform Setor Gmail Terpercaya 2026"}
-                        </span>
-                      </div>
-
-                      <h2 className="text-2xl sm:text-3xl font-black tracking-tight leading-[1.1]">
-                        <span className="block text-white">{config.hero_headline_1}</span>
-                        <span className="block text-white mt-0.5">{config.hero_headline_2}</span>
-                        <span className="inline-block mt-0.5 bg-gradient-to-r from-sky-400 via-cyan-300 to-blue-500 bg-clip-text text-transparent drop-shadow-[0_0_20px_rgba(56,189,248,0.5)]">
-                          {config.hero_headline_3}
-                        </span>
-                      </h2>
-
-                      <p className="text-[11px] text-zinc-400 leading-relaxed max-w-xs mx-auto">
-                        {config.hero_subheadline}
-                      </p>
-
-                      <div className="flex items-center justify-center gap-2 pt-1">
-                        <button
-                          type="button"
-                          className="px-4 py-2 rounded-full font-bold text-xs bg-white/5 border border-white/10 text-white flex items-center gap-1.5 shadow-md shadow-sky-500/10 hover:border-sky-400/40"
-                        >
-                          <LogIn className="size-3.5 text-sky-400" />
-                          <span>Login</span>
-                        </button>
-                        <button
-                          type="button"
-                          className="px-4 py-2 rounded-full font-bold text-xs bg-white/5 border border-white/10 text-white flex items-center gap-1.5 shadow-md shadow-emerald-500/10 hover:border-emerald-400/40"
-                        >
-                          <UserPlus className="size-3.5 text-emerald-400" />
-                          <span>Daftar</span>
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Center Showcase Card Asli dengan Logo Amplop */}
-                    <div className="rounded-3xl border border-white/10 bg-[#121217]/90 p-4 text-center space-y-2 shadow-2xl relative">
-                      <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-gradient-to-tr from-sky-500 to-blue-600 shadow-xl shadow-sky-500/30 p-2 overflow-hidden">
+                  <div className="sticky top-0 z-20 border-b border-white/[0.08] bg-[#07080d]/90 backdrop-blur-xl">
+                    <div className="h-[1px] w-full bg-gradient-to-r from-transparent via-sky-400/50 to-transparent" />
+                    <div className="flex items-center justify-between px-4 py-2.5">
+                      <div className="flex items-center gap-2">
                         <img
-                          src="/envelope-icon.png"
-                          alt="Setor Gmail"
-                          className="size-full object-contain"
+                          src="/logo_removebg.png"
+                          alt="Logo"
+                          className="h-6 w-auto object-contain"
                           onError={(e) => {
                             (e.target as HTMLElement).style.display = "none";
                           }}
                         />
-                      </div>
-
-                      <h3 className="text-sm font-black text-white">Setor Gmail</h3>
-                      <p className="text-[10px] text-zinc-400">
-                        Platform setor gmail tercepat &amp; terpercaya
-                      </p>
-
-                      {/* Badge Status Pengumuman */}
-                      {config.badge_status_active && (
-                        <div className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/40 bg-gradient-to-r from-amber-950/80 via-amber-900/60 to-amber-950/80 px-3 py-1 text-[10px] font-bold text-amber-300 shadow-[0_0_20px_-3px_rgba(245,158,11,0.4)]">
-                          <span className="size-1.5 rounded-full bg-amber-400 animate-ping" />
-                          <Wrench className="size-3 text-amber-300" />
-                          <span>{config.badge_status_text}</span>
-                        </div>
-                      )}
-
-                      {/* 4 Floating Mini Cards */}
-                      <div className="grid grid-cols-2 gap-2 pt-2 text-left">
-                        <div className="p-2 rounded-xl bg-black/40 border border-white/5 flex items-center gap-2">
-                          <Zap className="size-3.5 text-amber-400 fill-amber-400" />
-                          <div>
-                            <div className="text-[10px] font-bold text-white">Cair Instan</div>
-                            <div className="text-[8px] text-zinc-400">E-wallet &amp; Bank</div>
-                          </div>
-                        </div>
-
-                        <div className="p-2 rounded-xl bg-black/40 border border-white/5 flex items-center gap-2">
-                          <DollarSign className="size-3.5 text-emerald-400" />
-                          <div>
-                            <div className="text-[10px] font-bold text-white">
-                              Rp {config.price_per_gmail.toLocaleString("id-ID")}
-                            </div>
-                            <div className="text-[8px] text-zinc-400">Per Akun Fresh</div>
-                          </div>
+                        <div className="flex items-baseline gap-1 text-[0.82rem] tracking-tight">
+                          <span className="font-black text-white">SETOR GMAIL</span>
+                          <span className="text-[9px] font-semibold text-zinc-400 lowercase">by</span>
+                          <span className="font-black bg-gradient-to-r from-sky-300 via-cyan-300 to-blue-500 bg-clip-text text-transparent">
+                            Winter
+                          </span>
                         </div>
                       </div>
-                    </div>
-
-                    {/* Giant Background Text Masking */}
-                    <div className="text-center font-black text-3xl tracking-tighter text-transparent bg-gradient-to-b from-white/10 to-transparent bg-clip-text select-none pb-1 pointer-events-none">
-                      SETOR GMAIL
-                    </div>
-                  </div>
-                )}
-
-                {/* =================================================== */}
-                {/* 4. VIEW UNTUK TAB: KONTAK & WA                      */}
-                {/* =================================================== */}
-                {activeTab === "contacts" && (
-                  <div className="p-3.5 space-y-3.5">
-                    {/* WhatsApp Channel Card */}
-                    <div className="rounded-2xl border border-emerald-500/30 bg-emerald-950/20 p-4 space-y-3 backdrop-blur-md">
-                      <div className="flex items-center gap-2.5">
-                        <span className="flex size-9 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                          <MessageCircle className="size-5" />
-                        </span>
-                        <div>
-                          <h4 className="text-xs font-bold text-white">Saluran WhatsApp Resmi</h4>
-                          <p className="text-[10px] text-zinc-400">Update harga &amp; kuota setoran</p>
-                        </div>
-                      </div>
-
-                      <p className="text-[11px] text-zinc-300 leading-relaxed">
-                        Bergabung ke saluran resmi kami untuk mendapatkan informasi terbaru secara berkala.
-                      </p>
 
                       <a
                         href={config.whatsapp_channel_url}
                         target="_blank"
                         rel="noreferrer"
-                        className="flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-colors"
+                        className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold transition-all ${
+                          activeTab === "contacts"
+                            ? "border-emerald-400/60 bg-emerald-500/20 text-emerald-300 ring-2 ring-emerald-500/30"
+                            : "border-white/15 bg-white/[0.06] text-zinc-100 hover:border-emerald-400/40"
+                        }`}
                       >
-                        <MessageCircle className="size-3.5" />
-                        <span>Kunjungi Saluran WhatsApp</span>
+                        <span className="relative flex size-3.5 items-center justify-center rounded-full border border-emerald-400/40 bg-emerald-500/15 text-emerald-400">
+                          <MessageCircle className="size-2" />
+                        </span>
+                        <span>Saluran WA</span>
                       </a>
                     </div>
+                  </div>
+                )}
 
-                    {/* Telegram CS Admin Card */}
-                    <div className="rounded-2xl border border-sky-500/30 bg-sky-950/20 p-4 space-y-3 backdrop-blur-md">
-                      <div className="flex items-center gap-2.5">
-                        <span className="flex size-9 items-center justify-center rounded-xl bg-sky-500/20 text-sky-400 border border-sky-500/30">
-                          <Send className="size-4.5" />
+                {/* =================================================== */}
+                {/* 1. VIEW UNTUK TAB: LANDING PAGE (IDENTIK HERO ASLI) */}
+                {/* =================================================== */}
+                {activeTab === "landing" && (
+                  <div className="relative flex-1 flex flex-col justify-between overflow-hidden min-h-[540px]">
+                    {/* Diagonal Tilted Marquee persis seperti motion-footer.tsx */}
+                    <div className="mt-3 -mx-4 overflow-hidden border-y border-white/10 bg-[#0b0d14]/85 backdrop-blur-md py-2 -rotate-1 shadow-xl">
+                      <div className="flex items-center gap-5 whitespace-nowrap px-4 text-[9px] font-extrabold tracking-[0.22em] text-zinc-200 uppercase overflow-hidden">
+                        {(config.marquee_text || "PROSES CEPAT • AMAN TERPERCAYA • PENCAIRAN INSTAN • SETOR SEKARANG")
+                          .split("•")
+                          .map((s) => s.trim())
+                          .filter(Boolean)
+                          .map((part, i) => (
+                            <React.Fragment key={i}>
+                              <span>{part}</span>
+                              <span className="text-sky-400 font-bold">✦</span>
+                            </React.Fragment>
+                          ))}
+                      </div>
+                    </div>
+
+                    {/* Main Hero Grid: 2 Kolom di Desktop, 1 Kolom di Mobile */}
+                    <div
+                      className={`relative z-10 flex-1 flex items-center px-5 py-6 ${
+                        previewDevice === "desktop" ? "px-7" : "px-4"
+                      }`}
+                    >
+                      <div
+                        className={`grid w-full items-center gap-6 ${
+                          previewDevice === "desktop" ? "grid-cols-12" : "grid-cols-1"
+                        }`}
+                      >
+                        {/* KIRI: Badges, Headline 3 Baris, Subtitle, CTA */}
+                        <div
+                          className={`flex flex-col ${
+                            previewDevice === "desktop"
+                              ? "col-span-6 items-start text-left"
+                              : "items-center text-center"
+                          }`}
+                        >
+                          {/* Top Micro-Badges: Platform Badge + SSL & Anti-Fraud sejajar */}
+                          <div
+                            className={`flex flex-wrap items-center gap-1.5 mb-3.5 ${
+                              previewDevice === "desktop" ? "justify-start" : "justify-center"
+                            }`}
+                          >
+                            <div className="inline-flex items-center gap-1.5 rounded-full border border-sky-400/30 bg-sky-950/60 px-2.5 py-1 shadow-[0_0_16px_-4px_rgba(56,189,248,0.35)]">
+                              <span className="size-1.5 rounded-full bg-sky-400" />
+                              <span className="text-[9px] font-bold text-sky-200 tracking-wide">
+                                {config.platform_badge || "Platform Setor Gmail Terpercaya 2026"}
+                              </span>
+                            </div>
+                            <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[9px] font-semibold text-zinc-300">
+                              <ShieldCheck className="size-3 text-emerald-400" />
+                              SSL &amp; Anti-Fraud
+                            </span>
+                          </div>
+
+                          {/* 3-Line Glowing Headline */}
+                          <h2
+                            className={`font-black tracking-tight leading-[1.06] mb-3 ${
+                              previewDevice === "desktop" ? "text-[2.1rem]" : "text-2xl"
+                            }`}
+                          >
+                            <span className="block text-white">{config.hero_headline_1 || "Ubah Akun"}</span>
+                            <span className="block text-white mt-0.5">{config.hero_headline_2 || "Gmail Jadi"}</span>
+                            <span className="inline-block mt-0.5 pb-1 bg-gradient-to-r from-sky-300 via-cyan-300 to-blue-500 bg-clip-text text-transparent drop-shadow-[0_0_24px_rgba(56,189,248,0.5)]">
+                              {config.hero_headline_3 || "Penghasilan"}
+                            </span>
+                          </h2>
+
+                          {/* Subtitle */}
+                          <p className="text-[11px] text-zinc-300/90 leading-relaxed whitespace-pre-line mb-4 max-w-xs">
+                            {config.hero_subheadline ||
+                              "Setor akun Gmail dan dapatkan saldo\nPencairan instan via E-wallet dan Bank"}
+                          </p>
+
+                          {/* CTA Buttons persis web user: Daftar Gratis, Masuk, Cara Kerja */}
+                          <div
+                            className={`flex flex-wrap items-center gap-2 ${
+                              previewDevice === "desktop" ? "justify-start" : "justify-center"
+                            }`}
+                          >
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-sky-400 via-sky-500 to-blue-600 px-4 py-2 text-[11px] font-extrabold text-white shadow-lg shadow-sky-500/35">
+                              <UserPlus className="size-3.5" />
+                              <span>Daftar Gratis</span>
+                              <ArrowRight className="size-3" />
+                            </span>
+                            <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.06] px-3.5 py-2 text-[11px] font-bold text-white">
+                              <LogIn className="size-3.5 text-sky-400" />
+                              <span>Masuk</span>
+                            </span>
+                            <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.03] px-3 py-2 text-[10px] font-semibold text-zinc-300">
+                              <PlayCircle className="size-3.5 text-sky-400" />
+                              <span>Cara Kerja</span>
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* KANAN: Showcase Card + 4 Floating Orbit Cards persis web user */}
+                        <div className={previewDevice === "desktop" ? "col-span-6" : ""}>
+                          <div className="relative mx-auto max-w-[260px] py-5">
+                            {/* Center Card */}
+                            <div className="rounded-2xl border border-white/12 bg-gradient-to-b from-[#161821]/95 to-[#0d0e14]/95 px-4 py-7 flex flex-col items-center text-center shadow-2xl relative z-10">
+                              <div className="flex size-12 items-center justify-center rounded-xl bg-gradient-to-tr from-sky-500 via-sky-400 to-blue-600 shadow-lg shadow-sky-500/30 p-1.5 mb-2.5">
+                                <img
+                                  src="/envelope-icon.png"
+                                  alt="Logo Setor Gmail"
+                                  className="size-full object-contain"
+                                  onError={(e) => {
+                                    (e.target as HTMLElement).style.display = "none";
+                                  }}
+                                />
+                              </div>
+
+                              <h3 className="text-sm font-black text-white tracking-tight">Setor Gmail</h3>
+                              <p className="mt-1 text-[9.5px] text-zinc-400 flex flex-wrap items-center justify-center gap-1">
+                                <span>Generate nama</span>
+                                <span className="text-sky-400 font-bold">✦</span>
+                                <span>Buat akun</span>
+                                <span className="text-sky-400 font-bold">✦</span>
+                                <span>Langsung cair</span>
+                              </p>
+
+                              {config.badge_status_active && (
+                                <div className="mt-3.5 inline-flex items-center gap-1.5 rounded-full border border-amber-400/35 bg-gradient-to-r from-amber-950/80 via-amber-900/50 to-amber-950/80 px-2.5 py-1 text-[9px] font-bold text-amber-300 shadow-[0_0_16px_-4px_rgba(245,158,11,0.35)]">
+                                  <span className="size-1.5 rounded-full bg-amber-400 shrink-0" />
+                                  <Wrench className="size-2.5 text-amber-300 shrink-0" />
+                                  <span className="truncate max-w-[175px]">
+                                    {config.badge_status_text || "Platform sedang dalam tahap pengembangan"}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* 4 Orbit Cards */}
+                            <div className="absolute top-0 -left-3 z-20 rounded-xl border border-white/12 bg-[#141620]/95 px-2 py-1.5 flex items-center gap-1.5 shadow-xl">
+                              <span className="flex size-6 items-center justify-center rounded-lg bg-amber-500/15 text-amber-400 border border-amber-500/25">
+                                <Zap className="size-3 fill-amber-400" />
+                              </span>
+                              <div className="leading-tight">
+                                <div className="text-[9px] font-extrabold text-white">Cair Instan</div>
+                                <div className="text-[7.5px] text-zinc-400">E-Wallet &amp; Bank</div>
+                              </div>
+                            </div>
+
+                            <div className="absolute top-0 -right-3 z-20 rounded-xl border border-white/12 bg-[#141620]/95 px-2 py-1.5 flex items-center gap-1.5 shadow-xl">
+                              <span className="flex size-6 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
+                                <Banknote className="size-3" />
+                              </span>
+                              <div className="leading-tight">
+                                <div className="text-[9px] font-extrabold text-white">Rp 90.000 Cair</div>
+                                <div className="text-[7.5px] text-emerald-400">DANA · 2m lalu</div>
+                              </div>
+                            </div>
+
+                            <div className="absolute bottom-0 -left-3 z-20 rounded-xl border border-white/12 bg-[#141620]/95 px-2 py-1.5 flex items-center gap-1.5 shadow-xl">
+                              <span className="flex size-6 items-center justify-center rounded-lg bg-sky-500/15 text-sky-400 border border-sky-500/25">
+                                <ShieldCheck className="size-3" />
+                              </span>
+                              <div className="leading-tight">
+                                <div className="text-[9px] font-extrabold text-white">100% Aman</div>
+                                <div className="text-[7.5px] text-zinc-400">SSL Terenkripsi</div>
+                              </div>
+                            </div>
+
+                            <div className="absolute bottom-0 -right-3 z-20 rounded-xl border border-white/12 bg-[#141620]/95 px-2 py-1.5 flex items-center gap-1.5 shadow-xl">
+                              <span className="flex size-6 items-center justify-center rounded-lg bg-sky-500/15 text-sky-400 border border-sky-500/25">
+                                <Users className="size-3" />
+                              </span>
+                              <div className="leading-tight">
+                                <div className="text-[9px] font-extrabold text-white">3.5K+ Member</div>
+                                <div className="text-[7.5px] text-sky-400">Aktif menyetor</div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Bottom Watermark + Crafted by Winter */}
+                    <div className="relative px-4 pb-3 pt-1 flex items-end justify-between">
+                      <span className="text-2xl sm:text-3xl font-black tracking-tighter text-white/[0.06] select-none leading-none">
+                        SETOR GMAIL
+                      </span>
+                      <div className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 flex items-center gap-1">
+                        <span className="text-[8px] font-semibold uppercase tracking-wider text-zinc-400">
+                          Crafted by
                         </span>
+                        <span className="text-[9px] font-black bg-gradient-to-r from-sky-300 to-blue-400 bg-clip-text text-transparent">
+                          Winter
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* =================================================== */}
+                {/* 2. VIEW UNTUK TAB: RULES (IDENTIK /SETOR COMPACT)   */}
+                {/* =================================================== */}
+                {activeTab === "rules" && (
+                  <div className="p-4 space-y-3.5">
+                    <div className="relative overflow-hidden rounded-2xl border border-white/12 bg-gradient-to-b from-[#151824]/92 via-[#11131c]/95 to-[#0c0d14]/95 p-4 shadow-2xl space-y-3.5">
+                      <div className="pointer-events-none absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-sky-400/50 to-transparent" />
+
+                      {/* Segmented Switch: Buat Email Baru vs Setor Email Lama */}
+                      <div className="grid grid-cols-2 gap-1.5 rounded-xl border border-white/10 bg-black/50 p-1">
+                        <button
+                          type="button"
+                          onClick={() => setPreviewDepositMode("fresh")}
+                          className={`flex items-center justify-between gap-1 rounded-lg px-2.5 py-1.5 text-[10px] font-extrabold transition-all cursor-pointer ${
+                            previewDepositMode === "fresh"
+                              ? "bg-sky-500/15 border border-sky-400/45 text-white"
+                              : "border border-transparent text-zinc-400"
+                          }`}
+                        >
+                          <span className="inline-flex items-center gap-1 truncate">
+                            <Sparkles className="size-3 text-sky-400 shrink-0" />
+                            <span className="truncate">Buat Email Baru</span>
+                          </span>
+                          <span className="rounded-full bg-emerald-500/15 border border-emerald-400/35 px-1.5 py-0.5 text-[9px] text-emerald-300 font-mono shrink-0">
+                            Rp{config.price_per_gmail.toLocaleString("id-ID")}
+                          </span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setPreviewDepositMode("old")}
+                          className={`flex items-center justify-between gap-1 rounded-lg px-2.5 py-1.5 text-[10px] font-extrabold transition-all cursor-pointer ${
+                            previewDepositMode === "old"
+                              ? "bg-sky-500/15 border border-sky-400/45 text-white"
+                              : "border border-transparent text-zinc-400"
+                          }`}
+                        >
+                          <span className="inline-flex items-center gap-1 truncate">
+                            <Send className="size-3 text-sky-400 shrink-0" />
+                            <span className="truncate">Setor Email Lama</span>
+                          </span>
+                          <span className="rounded-full bg-white/5 px-1.5 py-0.5 text-[9px] text-zinc-300 font-mono shrink-0">
+                            Rp{config.price_bebas.toLocaleString("id-ID")}
+                          </span>
+                        </button>
+                      </div>
+
+                      {/* Rules Setoran Gmail Compact */}
+                      <div>
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5">
+                            <span className="flex size-5.5 items-center justify-center rounded-md bg-sky-500/15 text-sky-400 border border-sky-400/25">
+                              <ScrollText className="size-3" />
+                            </span>
+                            <h4 className="text-xs font-extrabold text-white">Rules Setoran Gmail</h4>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setPreviewShowRulesDetail(!previewShowRulesDetail)}
+                            className="inline-flex items-center gap-1 text-[10px] font-bold text-sky-400 hover:text-sky-300 cursor-pointer"
+                          >
+                            <span>{previewShowRulesDetail ? "Tutup Detail" : "Detail Aturan"}</span>
+                            {previewShowRulesDetail ? <ChevronUp className="size-3" /> : <ChevronDown className="size-3" />}
+                          </button>
+                        </div>
+
+                        <div className="mt-2 grid grid-cols-2 gap-1.5">
+                          <div className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-black/40 px-2 py-1.5">
+                            <Sparkles className="size-3 text-emerald-400 shrink-0" />
+                            <span className="text-[10px] font-semibold text-zinc-200 truncate">
+                              {previewDepositMode === "fresh" ? config.rule_status : "Email Lama (sudah terdaftar)"}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-black/40 px-2 py-1.5">
+                            <CheckCircle2 className="size-3 text-sky-400 shrink-0" />
+                            <span className="text-[10px] font-semibold text-zinc-200 truncate">
+                              {previewDepositMode === "fresh" ? config.rule_nama : "Bebas (tidak perlu generate)"}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-black/40 px-2 py-1.5">
+                            <Calendar className="size-3 text-amber-400 shrink-0" />
+                            <span className="text-[10px] font-semibold text-zinc-200 truncate">
+                              {config.rule_usia}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-black/40 px-2 py-1.5">
+                            <ShieldAlert className="size-3 text-rose-400 shrink-0" />
+                            <span className="text-[10px] font-semibold text-zinc-200 truncate">
+                              {config.rule_keamanan}
+                            </span>
+                          </div>
+                        </div>
+
+                        {previewShowRulesDetail && (
+                          <div className="mt-2 space-y-1 p-2.5 rounded-xl bg-black/50 border border-white/10 text-[10px] text-zinc-300">
+                            {config.rules_detail_text.map((text, idx) => (
+                              <p key={idx} className="leading-snug">• {text}</p>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Generate Gmail Compact (Mode Buat Email Baru) */}
+                      {previewDepositMode === "fresh" && (
+                        <div className="pt-2.5 border-t border-white/10 space-y-2.5">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex items-center gap-1.5">
+                              <Sparkles className="size-3.5 text-sky-400" />
+                              <span className="text-xs font-extrabold text-white">Generate Gmail</span>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-1 text-[9px] text-zinc-300">
+                              {["1 Generate", "2 Salin", "3 Bikin Akun", "4 Setor"].map((st, i) => (
+                                <React.Fragment key={st}>
+                                  <span className="rounded-md border border-white/10 bg-black/40 px-1.5 py-0.5 font-semibold">
+                                    {st}
+                                  </span>
+                                  {i < 3 && <span className="text-zinc-600">→</span>}
+                                </React.Fragment>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="rounded-xl border border-white/10 bg-black/40 p-2.5 space-y-2.5">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="flex items-center gap-1">
+                                <span className="text-[9px] font-bold text-zinc-400 uppercase mr-0.5">Jumlah:</span>
+                                {[1, 3, 5, 10].map((num) => (
+                                  <button
+                                    key={num}
+                                    type="button"
+                                    onClick={() => setPreviewSelectedCount(num)}
+                                    className={`px-2 py-0.5 rounded-md text-[10px] font-bold cursor-pointer ${
+                                      previewSelectedCount === num
+                                        ? "bg-sky-500 text-white"
+                                        : "bg-white/5 text-zinc-300 border border-white/10"
+                                    }`}
+                                  >
+                                    {num}
+                                  </button>
+                                ))}
+                              </div>
+
+                              <div className="flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-950/40 px-2 py-1">
+                                <span className="text-[9px] font-semibold text-emerald-300">Pass:</span>
+                                <span className="font-mono text-[10px] font-black text-white">
+                                  {config.default_password}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={handleCopyPreviewPassword}
+                                  className="inline-flex items-center gap-0.5 rounded bg-emerald-500/20 px-1.5 py-0.5 text-[9px] font-bold text-emerald-200 cursor-pointer"
+                                >
+                                  {previewCopiedPassword ? <Check className="size-2.5" /> : <Copy className="size-2.5" />}
+                                  <span>{previewCopiedPassword ? "OK" : "Copy"}</span>
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between rounded-lg border border-white/10 bg-black/35 px-2.5 py-1.5 text-[10px]">
+                              <span className="text-zinc-400">Estimasi ({previewSelectedCount} akun):</span>
+                              <span className="font-mono font-black text-emerald-400">
+                                Rp{(previewSelectedCount * config.price_per_gmail).toLocaleString("id-ID")}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* =================================================== */}
+                {/* 3. VIEW UNTUK TAB: HARGA & SALDO (IDENTIK DASHBOARD)*/}
+                {/* =================================================== */}
+                {activeTab === "pricing" && (
+                  <div className="p-4 space-y-3.5">
+                    {/* Balance Card Persis dashboard-view.tsx */}
+                    <div className="relative overflow-hidden rounded-2xl border border-white/12 bg-gradient-to-b from-[#151824]/92 via-[#11131c]/95 to-[#0c0d14]/95 p-4 shadow-2xl space-y-4">
+                      <div className="pointer-events-none absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-sky-400/50 to-transparent" />
+                      <div className="flex items-start justify-between gap-2">
                         <div>
-                          <h4 className="text-xs font-bold text-white">Customer Service Telegram</h4>
-                          <p className="text-[10px] text-zinc-400">Bantuan kendala akun &amp; penarikan</p>
+                          <p className="text-[9px] font-bold tracking-widest text-zinc-400 uppercase">
+                            Saldo Dompet Kamu
+                          </p>
+                          <p className="mt-1 text-2xl font-black tracking-tight text-white tabular-nums">
+                            Rp50.000
+                          </p>
+                        </div>
+                        <span className="flex size-10 items-center justify-center rounded-xl bg-gradient-to-br from-sky-400 via-sky-500 to-blue-600 text-white shadow-lg shadow-sky-500/35">
+                          <Wallet className="size-4.5" />
+                        </span>
+                      </div>
+
+                      {/* 2-Col Info Cards Persis Dashboard */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="rounded-xl border border-sky-400/20 bg-sky-500/[0.07] px-3 py-2">
+                          <div className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-sky-300/85">
+                            <Zap className="size-3 text-sky-400" />
+                            <span>Harga / Gmail</span>
+                          </div>
+                          <p className="mt-0.5 text-xs sm:text-sm font-black text-white tabular-nums">
+                            Rp{config.price_per_gmail.toLocaleString("id-ID")}
+                          </p>
+                        </div>
+                        <div className="rounded-xl border border-white/10 bg-black/35 px-3 py-2">
+                          <div className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-zinc-400">
+                            <Target className="size-3 text-sky-400" />
+                            <span>Min. Penarikan</span>
+                          </div>
+                          <p className="mt-0.5 text-xs sm:text-sm font-black text-white tabular-nums">
+                            Rp{config.min_withdrawal.toLocaleString("id-ID")}
+                          </p>
                         </div>
                       </div>
 
-                      <p className="text-[11px] text-zinc-300 leading-relaxed">
-                        Hubungi admin secara langsung jika mengalami kendala saat menyetor atau mencairkan saldo.
-                      </p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <span className="inline-flex h-9 items-center justify-center gap-1.5 rounded-full bg-gradient-to-r from-sky-400 via-sky-500 to-blue-600 text-xs font-bold text-white shadow-md shadow-sky-500/30">
+                          <Wallet className="size-3.5" />
+                          Tarik Saldo
+                        </span>
+                        <span className="inline-flex h-9 items-center justify-center gap-1.5 rounded-full border border-white/12 bg-white/[0.05] text-xs font-bold text-zinc-200">
+                          <History className="size-3.5 text-sky-400" />
+                          Riwayat
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Preview Pilihan E-Wallet & Pajak Penarikan */}
+                    <div className="rounded-2xl border border-white/10 bg-[#11131c]/90 p-3.5 space-y-2.5">
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="font-bold text-white">Simulasi Tarik Rp20.000</span>
+                        {activeEwallets.length > 0 ? (
+                          <span className={previewTax > 0 ? "text-amber-400 font-bold" : "text-emerald-400 font-bold"}>
+                            {previewTax > 0
+                              ? `Pajak Rp${previewTax.toLocaleString("id-ID")}`
+                              : "Bebas Pajak"}
+                          </span>
+                        ) : (
+                          <span className="text-rose-400 font-bold">Semua Nonaktif</span>
+                        )}
+                      </div>
+
+                      {activeEwallets.length === 0 ? (
+                        <div className="p-2.5 rounded-xl bg-black/40 border border-rose-500/30 text-rose-300 text-center text-[10px] font-semibold">
+                          Semua metode e-wallet sedang dinonaktifkan.
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-1.5">
+                          {activeEwallets.map((item) => (
+                            <button
+                              key={item.id}
+                              type="button"
+                              onClick={() => setPreviewWithdrawMethod(item.id)}
+                              className={`p-2 rounded-xl border text-left transition-all cursor-pointer ${
+                                previewWithdrawMethod === item.id
+                                  ? "border-sky-500 bg-sky-500/20 text-white font-bold"
+                                  : "border-white/10 bg-black/35 text-zinc-400 hover:text-white"
+                              }`}
+                            >
+                              <div className="flex items-center justify-between text-[11px]">
+                                <span>{item.label}</span>
+                                {previewWithdrawMethod === item.id && (
+                                  <CheckCircle2 className="size-3 text-sky-400" />
+                                )}
+                              </div>
+                              <span
+                                className={`text-[8.5px] font-mono block mt-0.5 ${
+                                  item.tax === 0 ? "text-emerald-400" : "text-amber-300"
+                                }`}
+                              >
+                                {item.tax === 0 ? "Bebas Pajak" : `Pajak: Rp${item.tax.toLocaleString("id-ID")}`}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="p-2 rounded-xl bg-black/40 border border-white/10 flex items-center justify-between text-[11px]">
+                        <span className="text-zinc-400">Diterima Bersih:</span>
+                        <span className="font-mono font-black text-emerald-400">
+                          Rp{(20000 - previewTax).toLocaleString("id-ID")}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* =================================================== */}
+                {/* 4. VIEW UNTUK TAB: KONTAK (IDENTIK /LAPORAN ASLI)   */}
+                {/* =================================================== */}
+                {activeTab === "contacts" && (
+                  <div className="p-4 flex flex-col items-center justify-center flex-1">
+                    <div className="w-full max-w-[260px] flex flex-col items-center">
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-400/30 bg-sky-500/10 px-3 py-1 text-[9px] font-extrabold uppercase tracking-wider text-sky-300 mb-3">
+                        <Sparkles className="size-3 text-sky-400" />
+                        Layanan Bantuan Resmi
+                      </span>
+
+                      <div className="relative w-full aspect-[716/968] max-h-[270px] flex items-center justify-center mb-3.5 drop-shadow-[0_14px_30px_rgba(56,189,248,0.18)]">
+                        <img
+                          src="/telegram-qr-card.png"
+                          alt={`Telegram QR @${config.telegram_admin_username.replace("@", "")}`}
+                          className="h-full w-auto object-contain rounded-2xl"
+                        />
+                      </div>
 
                       <a
                         href={`https://t.me/${config.telegram_admin_username.replace("@", "")}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-gradient-to-r from-sky-400 via-sky-500 to-blue-600 text-white font-bold text-xs shadow-md shadow-sky-500/20"
+                        className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#8b5cf6] via-[#6366f1] to-[#38bdf8] px-4 py-2.5 text-xs font-extrabold text-white shadow-lg shadow-indigo-500/25"
                       >
                         <Send className="size-3.5" />
-                        <span>Chat CS: @{config.telegram_admin_username.replace("@", "")}</span>
+                        <span>Chat via Telegram (@{config.telegram_admin_username.replace("@", "")})</span>
                       </a>
                     </div>
                   </div>
@@ -1681,39 +1822,29 @@ export default function CmsPage() {
                 {/* 5. VIEW UNTUK TAB: FITUR & SAKLAR                   */}
                 {/* =================================================== */}
                 {activeTab === "features" && (
-                  <div className="p-3.5 space-y-3.5">
+                  <div className="p-4 space-y-3.5">
                     {config.is_maintenance_mode ? (
-                      /* Mode Maintenance Aktif */
-                      <div className="p-5 flex flex-col items-center justify-center text-center space-y-3.5 rounded-2xl border border-rose-500/30 bg-rose-950/30">
-                        <div className="flex size-14 items-center justify-center rounded-2xl bg-rose-500/20 border border-rose-500/40 text-rose-400 animate-bounce">
-                          <ShieldAlert className="size-7" />
+                      <div className="p-5 flex flex-col items-center justify-center text-center space-y-3 rounded-2xl border border-rose-500/30 bg-rose-950/30">
+                        <div className="flex size-12 items-center justify-center rounded-2xl bg-rose-500/20 border border-rose-500/40 text-rose-400">
+                          <ShieldAlert className="size-6" />
                         </div>
-
                         <div className="space-y-1">
-                          <span className="px-2.5 py-0.5 rounded-full bg-rose-500/20 border border-rose-500/40 text-rose-300 text-[10px] font-bold uppercase tracking-wider">
+                          <span className="px-2.5 py-0.5 rounded-full bg-rose-500/20 border border-rose-500/40 text-rose-300 text-[9px] font-bold uppercase tracking-wider">
                             Mode Pemeliharaan Aktif
                           </span>
-                          <h3 className="text-base font-black text-white">
+                          <h3 className="text-sm font-black text-white">
                             Sistem Sedang Dalam Pemeliharaan
                           </h3>
                         </div>
-
-                        <div className="p-3 rounded-xl bg-black/60 border border-rose-500/30 text-xs text-zinc-300 max-w-xs leading-relaxed">
+                        <div className="p-3 rounded-xl bg-black/60 border border-rose-500/30 text-[11px] text-zinc-300 max-w-xs leading-relaxed">
                           {config.maintenance_message}
                         </div>
-
-                        <a
-                          href={`https://t.me/${config.telegram_admin_username}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1.5 text-xs text-sky-400 hover:underline pt-1 font-semibold"
-                        >
-                          <Send className="size-3.5" />
-                          <span>Hubungi CS Telegram: @{config.telegram_admin_username}</span>
-                        </a>
+                        <span className="inline-flex items-center gap-1.5 text-[11px] text-sky-400 font-semibold">
+                          <Send className="size-3" />
+                          <span>Hubungi CS Telegram: @{config.telegram_admin_username.replace("@", "")}</span>
+                        </span>
                       </div>
                     ) : (
-                      /* Status Layanan Normal */
                       <div className="space-y-2.5">
                         <div className="p-3 rounded-2xl bg-emerald-950/30 border border-emerald-500/30 flex items-center justify-between">
                           <div className="flex items-center gap-2">
@@ -1729,24 +1860,22 @@ export default function CmsPage() {
                         </div>
 
                         <div className="grid grid-cols-3 gap-2 text-[11px]">
-                          <div className="p-2.5 rounded-xl bg-black/40 border border-white/5 space-y-1">
+                          <div className="p-2.5 rounded-xl bg-black/40 border border-white/10 space-y-1">
                             <span className="text-zinc-400 block text-[9px] uppercase font-bold">Setor Akun</span>
                             <span className={`font-bold block ${config.is_setor_active ? "text-emerald-400" : "text-rose-400"}`}>
-                              {config.is_setor_active ? "Buka (Menerima)" : "Tutup Sementara"}
+                              {config.is_setor_active ? "Buka" : "Tutup"}
                             </span>
                           </div>
-
-                          <div className="p-2.5 rounded-xl bg-black/40 border border-white/5 space-y-1">
-                            <span className="text-zinc-400 block text-[9px] uppercase font-bold">Checker Akun</span>
+                          <div className="p-2.5 rounded-xl bg-black/40 border border-white/10 space-y-1">
+                            <span className="text-zinc-400 block text-[9px] uppercase font-bold">Checker</span>
                             <span className={`font-bold block ${config.is_checker_active ? "text-emerald-400" : "text-rose-400"}`}>
-                              {config.is_checker_active ? "Online Aktif" : "Maintenance"}
+                              {config.is_checker_active ? "Aktif" : "Nonaktif"}
                             </span>
                           </div>
-
-                          <div className="p-2.5 rounded-xl bg-black/40 border border-white/5 space-y-1">
+                          <div className="p-2.5 rounded-xl bg-black/40 border border-white/10 space-y-1">
                             <span className="text-zinc-400 block text-[9px] uppercase font-bold">Tarik Saldo</span>
                             <span className={`font-bold block ${config.is_withdrawal_active ? "text-emerald-400" : "text-rose-400"}`}>
-                              {config.is_withdrawal_active ? "Bisa Ditarik" : "Tutup Sementara"}
+                              {config.is_withdrawal_active ? "Buka" : "Tutup"}
                             </span>
                           </div>
                         </div>
@@ -1756,7 +1885,7 @@ export default function CmsPage() {
                           onClick={() => updateField("is_maintenance_mode", true)}
                           className="w-full py-2 rounded-xl bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 text-xs font-bold transition-colors cursor-pointer"
                         >
-                          Simulasikan Nyalakan Maintenance
+                          Simulasikan Mode Maintenance
                         </button>
                       </div>
                     )}
@@ -1764,45 +1893,36 @@ export default function CmsPage() {
                 )}
               </div>
 
-              {/* BottomNav Asli setorgmail.com (Ditampilkan di bagian bawah preview bila bukan landing) */}
+              {/* Floating BottomNav Asli Web User (Semua tab selain landing) */}
               {activeTab !== "landing" && (
-                <div className="sticky bottom-0 z-20 px-3 py-2 bg-[#09090b]/90 border-t border-white/10 backdrop-blur-md">
-                  <div className="flex items-center justify-around gap-1 rounded-2xl border border-white/10 bg-[#121215]/95 p-1.5 shadow-xl">
+                <div className="sticky bottom-2 z-20 px-4 pb-2 pt-1">
+                  <div className="mx-auto max-w-[300px] flex items-center justify-around gap-1 rounded-full border border-white/12 bg-[#11131c]/95 px-2 py-1.5 shadow-2xl backdrop-blur-xl">
                     <div
-                      className={`flex flex-col items-center py-1 px-2 rounded-xl text-[9px] font-semibold transition-colors ${
+                      className={`flex flex-col items-center px-2.5 py-0.5 rounded-full text-[8.5px] font-semibold ${
                         activeTab === "pricing" ? "text-sky-400 bg-sky-400/10 font-bold" : "text-zinc-400"
                       }`}
                     >
                       <Home className="size-3.5 mb-0.5" />
                       <span>Beranda</span>
                     </div>
-
-                    <div className="flex flex-col items-center py-1 px-2 rounded-xl text-[9px] font-semibold text-zinc-400">
+                    <div className="flex flex-col items-center px-2 py-0.5 text-[8.5px] font-semibold text-zinc-400">
                       <History className="size-3.5 mb-0.5" />
                       <span>Riwayat</span>
                     </div>
-
-                    {/* Elevated Setor Button */}
                     <div
-                      className={`flex items-center justify-center size-8 rounded-full text-white shadow-md transition-all ${
-                        activeTab === "rules"
-                          ? "bg-gradient-to-tr from-sky-400 via-sky-500 to-blue-600 ring-2 ring-sky-400 shadow-sky-500/50 scale-105"
-                          : "bg-gradient-to-tr from-sky-400 via-sky-500 to-blue-600"
+                      className={`-mt-4 flex items-center justify-center size-9 rounded-full bg-gradient-to-tr from-sky-400 via-sky-500 to-blue-600 text-white shadow-lg shadow-sky-500/40 ${
+                        activeTab === "rules" ? "ring-2 ring-sky-300 scale-105" : ""
                       }`}
                     >
                       <Send className="size-3.5" />
                     </div>
-
-                    <div className="flex flex-col items-center py-1 px-2 rounded-xl text-[9px] font-semibold text-zinc-400">
+                    <div className="flex flex-col items-center px-2 py-0.5 text-[8.5px] font-semibold text-zinc-400">
                       <ShieldCheck className="size-3.5 mb-0.5" />
                       <span>Checker</span>
                     </div>
-
                     <div
-                      className={`flex flex-col items-center py-1 px-2 rounded-xl text-[9px] font-semibold transition-colors ${
-                        activeTab === "contacts"
-                          ? "text-sky-400 bg-sky-400/10 font-bold"
-                          : "text-zinc-400"
+                      className={`flex flex-col items-center px-2.5 py-0.5 rounded-full text-[8.5px] font-semibold ${
+                        activeTab === "contacts" ? "text-sky-400 bg-sky-400/10 font-bold" : "text-zinc-400"
                       }`}
                     >
                       <User className="size-3.5 mb-0.5" />
