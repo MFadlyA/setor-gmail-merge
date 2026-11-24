@@ -22,6 +22,7 @@ import {
   fetchUserTransactions,
   fetchUserTickets,
   fetchSiteConfig,
+  getCachedSiteConfig,
   type SiteConfig,
   DEFAULT_SITE_CONFIG,
 } from "@/lib/supabase";
@@ -258,16 +259,36 @@ export function UserProfileProvider({ children }: { children: React.ReactNode })
         }
       }
 
-      // Hydrate site config
+      // Instant hydrate site config from localStorage, then revalidate live from server
+      const cachedCfg = getCachedSiteConfig();
+      if (cachedCfg) {
+        setSiteConfig(cachedCfg);
+      }
       refreshSiteConfig();
     } catch {
       // ignore JSON parse errors
     }
   }, [refreshSiteConfig]);
 
+  // Revalidate CMS siteConfig automatically whenever tab regains focus or visibility
+  React.useEffect(() => {
+    const onFocusOrVisible = () => {
+      if (document.visibilityState === "visible") {
+        refreshSiteConfig();
+      }
+    };
+    window.addEventListener("focus", onFocusOrVisible);
+    document.addEventListener("visibilitychange", onFocusOrVisible);
+    return () => {
+      window.removeEventListener("focus", onFocusOrVisible);
+      document.removeEventListener("visibilitychange", onFocusOrVisible);
+    };
+  }, [refreshSiteConfig]);
+
   // 2. Refresh All (Full Stale-While-Revalidate network revalidation)
   const refreshAll = React.useCallback(async () => {
     try {
+      refreshSiteConfig();
       const user = await getCurrentAuthUser();
       if (!user) {
         setIsLoading(false);
@@ -380,7 +401,7 @@ export function UserProfileProvider({ children }: { children: React.ReactNode })
       setIsHistoryLoading(false);
       setIsTicketsLoading(false);
     }
-  }, []);
+  }, [refreshSiteConfig]);
 
   // Fetch on mount and revalidate on auth changes
   React.useEffect(() => {

@@ -712,9 +712,18 @@ export interface SiteConfig {
   price_per_gmail: number;
   price_bebas: number;
   min_withdrawal: number;
+  max_withdrawals_per_day: number;
+  is_gopay_active: boolean;
+  is_ovo_active: boolean;
+  is_dana_active: boolean;
+  is_shopeepay_active: boolean;
+  tax_gopay_active: boolean;
   tax_gopay: number;
+  tax_ovo_active: boolean;
   tax_ovo: number;
+  tax_dana_active: boolean;
   tax_dana: number;
+  tax_shopeepay_active: boolean;
   tax_shopeepay: number;
   default_password: string;
   rule_status: string;
@@ -743,9 +752,18 @@ export const DEFAULT_SITE_CONFIG: SiteConfig = {
   price_per_gmail: 1500,
   price_bebas: 1000,
   min_withdrawal: 5000,
+  max_withdrawals_per_day: 3,
+  is_gopay_active: true,
+  is_ovo_active: true,
+  is_dana_active: true,
+  is_shopeepay_active: true,
+  tax_gopay_active: true,
   tax_gopay: 1000,
+  tax_ovo_active: true,
   tax_ovo: 1000,
+  tax_dana_active: false,
   tax_dana: 0,
+  tax_shopeepay_active: false,
   tax_shopeepay: 0,
   default_password: "winter1212",
   rule_status: "Wajib Fresh (baru dibuat)",
@@ -781,6 +799,10 @@ export const DEFAULT_SITE_CONFIG: SiteConfig = {
 
 function hardenSiteConfig(raw: Record<string, any> | null | undefined): SiteConfig {
   const merged = { ...DEFAULT_SITE_CONFIG, ...(raw || {}) };
+  const rawMaxDaily = Number(merged.max_withdrawals_per_day);
+  merged.max_withdrawals_per_day = Number.isFinite(rawMaxDaily) && rawMaxDaily >= 1
+    ? Math.min(50, Math.floor(rawMaxDaily))
+    : DEFAULT_SITE_CONFIG.max_withdrawals_per_day;
   merged.whatsapp_channel_url = sanitizeExternalUrl(
     merged.whatsapp_channel_url,
     DEFAULT_SITE_CONFIG.whatsapp_channel_url,
@@ -792,43 +814,43 @@ function hardenSiteConfig(raw: Record<string, any> | null | undefined): SiteConf
   return merged;
 }
 
+export function getCachedSiteConfig(): SiteConfig | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const cached = localStorage.getItem("setorgmail_cached_site_config_v1");
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (parsed && typeof parsed === "object") {
+        return hardenSiteConfig(parsed);
+      }
+    }
+  } catch {}
+  return null;
+}
+
 export async function fetchSiteConfig(): Promise<SiteConfig> {
-  // Check local cached config first for instantaneous render
+  // 1. Always fetch authoritative fresh config from server endpoint (no-store) first on browser
   if (typeof window !== "undefined") {
     try {
-      const cached = localStorage.getItem("setorgmail_cached_site_config_v1");
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        if (parsed && typeof parsed === "object") {
-          // Asynchronously revalidate in background
-          if (isSupabaseConfigured) {
-            (async () => {
-              try {
-                const { data } = await supabase
-                  .from("app_settings")
-                  .select("value")
-                  .eq("key", "site_config")
-                  .maybeSingle();
-
-                if (data?.value) {
-                  const fresh =
-                    typeof data.value === "string"
-                      ? JSON.parse(data.value)
-                      : data.value;
-                  localStorage.setItem(
-                    "setorgmail_cached_site_config_v1",
-                    JSON.stringify(hardenSiteConfig(fresh))
-                  );
-                }
-              } catch {}
-            })();
-          }
-          return hardenSiteConfig(parsed);
+      const res = await fetch("/api/site-config", {
+        method: "GET",
+        cache: "no-store",
+        headers: { Accept: "application/json" },
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json?.success && json?.config && typeof json.config === "object") {
+          const merged = hardenSiteConfig(json.config);
+          try {
+            localStorage.setItem("setorgmail_cached_site_config_v1", JSON.stringify(merged));
+          } catch {}
+          return merged;
         }
       }
     } catch {}
   }
 
+  // 2. Fallback direct query to Supabase app_settings
   if (isSupabaseConfigured) {
     try {
       const { data } = await supabase
@@ -854,6 +876,6 @@ export async function fetchSiteConfig(): Promise<SiteConfig> {
     } catch {}
   }
 
-  return DEFAULT_SITE_CONFIG;
+  return getCachedSiteConfig() || DEFAULT_SITE_CONFIG;
 }
 

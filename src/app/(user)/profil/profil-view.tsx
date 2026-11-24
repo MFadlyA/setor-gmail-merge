@@ -39,7 +39,6 @@ import { cn, formatDateTime, formatIDR } from "@/lib/utils";
 import { TarikSaldoModal } from "@/app/(user)/saldo/tarik-saldo-modal";
 import {
   EWALLET_CONFIGS,
-  EWALLET_ORDER,
   IndonesiaFlag,
   type EWalletMethod,
 } from "@/components/ui/ewallet-logos";
@@ -214,6 +213,22 @@ export function ProfilView() {
   const [accountNumbers, setAccountNumbers] = React.useState<Record<EWalletMethod, string>>(persistedAccounts);
   const [isSaving, setIsSaving] = React.useState(false);
   const [isWithdrawModalOpen, setIsWithdrawModalOpen] = React.useState(false);
+
+  const availableMethods = React.useMemo<EWalletMethod[]>(() => {
+    const allMethods: { key: EWalletMethod; active: boolean }[] = [
+      { key: "DANA", active: siteConfig?.is_dana_active !== false },
+      { key: "GOPAY", active: siteConfig?.is_gopay_active !== false },
+      { key: "OVO", active: siteConfig?.is_ovo_active !== false },
+      { key: "SHOPEEPAY", active: siteConfig?.is_shopeepay_active !== false },
+    ];
+    return allMethods.filter((m) => m.active).map((m) => m.key);
+  }, [siteConfig]);
+
+  React.useEffect(() => {
+    if (availableMethods.length > 0 && !availableMethods.includes(selectedMethod)) {
+      setSelectedMethod(availableMethods[0]);
+    }
+  }, [availableMethods, selectedMethod]);
 
   // Gabungkan riwayat transaksi dan riwayat penarikan menjadi satu daftar terpadu
   const unifiedTransactions: UnifiedTransaction[] = React.useMemo(() => {
@@ -561,32 +576,43 @@ export function ProfilView() {
                 </div>
               </div>
 
-              {/* 2 E-Wallet Buttons: DANA & GoPay */}
-              <div className="grid grid-cols-2 gap-2.5">
-                {EWALLET_ORDER.map((methodKey) => {
-                  const item = EWALLET_CONFIGS[methodKey];
-                  const isSelected = selectedMethod === methodKey;
+              {/* Daftar E-Wallet Aktif dari CMS */}
+              {availableMethods.length === 0 ? (
+                <div className="rounded-xl border border-rose-500/30 bg-rose-950/30 px-3.5 py-2.5 text-xs font-semibold text-rose-300 text-center">
+                  Metode penarikan e-wallet sedang dinonaktifkan sementara oleh Admin.
+                </div>
+              ) : (
+                <div
+                  className={cn(
+                    "grid gap-2.5",
+                    availableMethods.length === 1 ? "grid-cols-1" : "grid-cols-2"
+                  )}
+                >
+                  {availableMethods.map((methodKey) => {
+                    const item = EWALLET_CONFIGS[methodKey];
+                    const isSelected = selectedMethod === methodKey;
 
-                  return (
-                    <button
-                      key={methodKey}
-                      type="button"
-                      onClick={() => setSelectedMethod(methodKey)}
-                      className={cn(
-                        "flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl border text-xs sm:text-sm transition-all cursor-pointer active:scale-98",
-                        isSelected
-                          ? item.activeClass
-                          : item.inactiveClass
-                      )}
-                    >
-                      <span>{item.name}</span>
-                      {isSelected && (
-                        <CheckCircle2 className="size-3.5 ml-0.5 text-white" />
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
+                    return (
+                      <button
+                        key={methodKey}
+                        type="button"
+                        onClick={() => setSelectedMethod(methodKey)}
+                        className={cn(
+                          "flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl border text-xs sm:text-sm transition-all cursor-pointer active:scale-98",
+                          isSelected
+                            ? item.activeClass
+                            : item.inactiveClass
+                        )}
+                      >
+                        <span>{item.name}</span>
+                        {isSelected && (
+                          <CheckCircle2 className="size-3.5 ml-0.5 text-white" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
 
               {/* Input Nomor E-Wallet & Tombol Simpan */}
               <div className="pt-0.5">

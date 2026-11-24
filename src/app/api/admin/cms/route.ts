@@ -89,7 +89,13 @@ export async function POST(req: NextRequest) {
     const sanitizedIncoming: Partial<SiteConfig> = {
       price_per_gmail: sanitizeNumber(config.price_per_gmail, 0, 999_999, DEFAULT_CONFIG.price_per_gmail),
       price_bebas: sanitizeNumber(config.price_bebas, 0, 999_999, DEFAULT_CONFIG.price_bebas),
-      min_withdrawal: sanitizeNumber(config.min_withdrawal, 0, 999_999, DEFAULT_CONFIG.min_withdrawal),
+      min_withdrawal: sanitizeNumber(config.min_withdrawal, 1000, 999_999, DEFAULT_CONFIG.min_withdrawal),
+      max_withdrawals_per_day: sanitizeNumber(
+        config.max_withdrawals_per_day,
+        1,
+        50,
+        DEFAULT_CONFIG.max_withdrawals_per_day
+      ),
 
       // E-Wallet Active & Tax Controls
       is_gopay_active: config.is_gopay_active !== undefined ? Boolean(config.is_gopay_active) : DEFAULT_CONFIG.is_gopay_active,
@@ -190,6 +196,8 @@ export async function POST(req: NextRequest) {
       details: {
         price_per_gmail: fullConfig.price_per_gmail,
         price_bebas: fullConfig.price_bebas,
+        min_withdrawal: fullConfig.min_withdrawal,
+        max_withdrawals_per_day: fullConfig.max_withdrawals_per_day,
         is_maintenance_mode: fullConfig.is_maintenance_mode,
       },
     });

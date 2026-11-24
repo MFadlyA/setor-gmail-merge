@@ -30,6 +30,37 @@ export function RulesModal({ open, onClose }: RulesModalProps) {
   const activePassword = siteConfig?.default_password || defaultPassword;
   const [copied, setCopied] = React.useState(false);
 
+  const dynamicRules = React.useMemo(() => {
+    const details = siteConfig?.rules_detail_text?.filter(Boolean) || [];
+    return [
+      {
+        type: "text" as const,
+        text: details[0] || siteConfig?.rule_status || "Wajib Fresh: Akun harus baru dibuat secara manual.",
+      },
+      {
+        type: "text" as const,
+        text:
+          details[1] ||
+          siteConfig?.rule_nama ||
+          "Nama Akun Sama Persis: Huruf dan angka pada Gmail wajib sama dengan hasil yang di-generate.",
+      },
+      {
+        type: "text" as const,
+        text: details[2] || siteConfig?.rule_usia || "Tanggal lahir akun Gmail wajib 18 tahun ke atas.",
+      },
+      { type: "password" as const },
+      {
+        type: "text" as const,
+        text:
+          details[3] ||
+          siteConfig?.rule_keamanan ||
+          "Akun tidak boleh ditautkan dengan nomor pemulihan maupun Gmail pemulihan.",
+      },
+      { type: "check_url" as const },
+      { type: "text" as const, text: "Hanya kirim Gmail dengan status Live/Aktif." },
+    ];
+  }, [siteConfig]);
+
   const handleProceed = () => {
     onClose();
     router.push("/setor");
@@ -79,7 +110,7 @@ export function RulesModal({ open, onClose }: RulesModalProps) {
 
       {/* Rules list */}
       <ul className="min-h-0 flex-1 space-y-2.5 overflow-y-auto px-5 py-5 md:px-6 bg-[#10121a]">
-        {RULES.map((ruleItem, index) => (
+        {dynamicRules.map((ruleItem, index) => (
           <li
             key={index}
             className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/40 p-3.5 transition-colors hover:border-sky-400/25 hover:bg-white/[0.04]"
@@ -172,26 +203,6 @@ export function RulesModal({ open, onClose }: RulesModalProps) {
     </Modal>
   );
 }
-
-const RULES: Array<
-  | { type: "text"; text: string }
-  | { type: "password" }
-  | { type: "check_url" }
-> = [
-  { type: "text", text: "Wajib Fresh: Akun harus baru dibuat secara manual." },
-  {
-    type: "text",
-    text: "Nama Akun Sama Persis: Huruf dan angka pada Gmail wajib sama dengan hasil yang di-generate.",
-  },
-  { type: "text", text: "Tanggal lahir akun Gmail wajib 18 tahun ke atas." },
-  { type: "password" },
-  {
-    type: "text",
-    text: "Akun tidak boleh ditautkan dengan nomor pemulihan maupun Gmail pemulihan.",
-  },
-  { type: "check_url" },
-  { type: "text", text: "Hanya kirim Gmail dengan status Live/Aktif." },
-];
 
 const NOTES = [
   "Status di Checker digunakan untuk memastikan Gmail sudah terdaftar aktif di Google sebelum disetor.",

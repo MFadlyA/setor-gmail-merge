@@ -15,12 +15,14 @@ import {
   RefreshCw,
   Zap,
   Globe,
+  ShieldAlert,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status";
 import { EmptyState, PageShell, Reveal } from "@/components/layout/page-shell";
 import { splitLines } from "@/lib/email";
+import { useUserProfile } from "@/context/user-profile-context";
 import {
   getStoredCheckStatusMap,
   saveStoredCheckStatusMap,
@@ -46,6 +48,8 @@ const probeStatusMeta: Record<
 };
 
 export function CheckerView() {
+  const { siteConfig } = useUserProfile();
+  const isCheckerServiceActive = siteConfig?.is_checker_active !== false;
   const [input, setInput] = React.useState("");
   const [results, setResults] = React.useState<GmailProbeItem[]>([]);
   const [isRunning, setIsRunning] = React.useState(false);
@@ -112,6 +116,12 @@ export function CheckerView() {
    * Engine 2: Automatic Serverless HTTPS Port 443 Probe
    */
   const handleStart = async () => {
+    if (!isCheckerServiceActive) {
+      toast.error("Email Checker Dinonaktifkan", {
+        description: "Layanan Email Checker sedang dinonaktifkan sementara oleh Admin.",
+      });
+      return;
+    }
     const rawLines = splitLines(input);
     if (rawLines.length === 0) {
       toast.error("Tidak ada email untuk dicek", {
@@ -412,6 +422,18 @@ export function CheckerView() {
                   )}
                 </div>
 
+                {!isCheckerServiceActive && (
+                  <div className="flex items-start gap-2.5 rounded-2xl border border-rose-500/35 bg-rose-950/40 p-3.5 text-xs text-rose-200">
+                    <ShieldAlert className="size-4 shrink-0 text-rose-400 mt-0.5" />
+                    <div>
+                      <p className="font-bold text-rose-300">Email Checker Ditutup Sementara</p>
+                      <p className="mt-0.5 text-rose-200/85 leading-relaxed">
+                        Layanan pengecekan status email sedang dinonaktifkan sementara oleh Admin.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <textarea
                   ref={textareaRef}
                   rows={8}
@@ -453,6 +475,7 @@ export function CheckerView() {
                     size="lg"
                     fullWidth
                     isLoading={isRunning}
+                    disabled={!isCheckerServiceActive}
                     onClick={handleStart}
                     leftIcon={
                       isRunning ? undefined : (

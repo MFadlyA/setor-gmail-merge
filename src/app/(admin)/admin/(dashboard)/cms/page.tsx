@@ -127,7 +127,12 @@ export default function CmsPage() {
       const json = await res.json();
 
       if (json.success) {
-        setSavedSnapshot(JSON.stringify(config));
+        const syncedConfig = json.config || config;
+        setConfig(syncedConfig);
+        setSavedSnapshot(JSON.stringify(syncedConfig));
+        try {
+          localStorage.setItem("setorgmail_cached_site_config_v1", JSON.stringify(syncedConfig));
+        } catch {}
         setSaveSuccess("Perubahan berhasil disimpan & disinkronkan ke web user!");
         setUpdatedAt(json.updatedAt || new Date().toISOString());
         setTimeout(() => setSaveSuccess(null), 4000);
@@ -161,11 +166,45 @@ export default function CmsPage() {
     return typeof val === "number" ? String(val) : "";
   };
 
-  const handleNumberChange = (key: keyof SiteConfig, raw: string) => {
-    const digits = raw.replace(/\D/g, "").slice(0, 6);
+  const handleNumberChange = (
+    key: keyof SiteConfig,
+    raw: string,
+    options?: { maxDigits?: number; min?: number; max?: number }
+  ) => {
+    const maxDigits = options?.maxDigits ?? 6;
+    const digits = raw.replace(/\D/g, "").slice(0, maxDigits);
     setNumericStrings((prev) => ({ ...prev, [key]: digits }));
-    const parsed = digits === "" ? 0 : parseInt(digits, 10);
+    if (digits === "") {
+      updateField(key, (options?.min ?? 0) as any);
+      return;
+    }
+    let parsed = parseInt(digits, 10);
+    if (options?.max !== undefined && parsed > options.max) {
+      parsed = options.max;
+      setNumericStrings((prev) => ({ ...prev, [key]: String(parsed) }));
+    }
+    if (options?.min !== undefined && parsed < options.min) {
+      parsed = options.min;
+    }
     updateField(key, parsed as any);
+  };
+
+  const handleNumberBlur = (key: keyof SiteConfig) => {
+    setNumericStrings((prev) => {
+      if (prev[key] === undefined) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
+  const setPresetNumber = (key: keyof SiteConfig, val: number) => {
+    setNumericStrings((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+    updateField(key, val as any);
   };
 
   const handleCopyPreviewPassword = () => {
@@ -256,8 +295,14 @@ export default function CmsPage() {
 
   return (
     <div className="space-y-4">
-      {/* Top CMS Toolbar: Status & Quick Save */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-zinc-800/90 bg-zinc-900/70 px-4 py-3 backdrop-blur-md">
+      {/* Top CMS Toolbar: Sticky Status & Quick Save */}
+      <div
+        className={`sticky top-16 z-30 flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3 backdrop-blur-xl transition-colors shadow-lg ${
+          hasUnsavedChanges
+            ? "border-amber-500/40 bg-zinc-900/90 shadow-amber-950/20"
+            : "border-zinc-800/90 bg-zinc-900/85"
+        }`}
+      >
         <div className="flex items-center gap-3 min-w-0">
           <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">
             <Sparkles className="size-4.5" />
@@ -338,9 +383,9 @@ export default function CmsPage() {
         {/* ========================================================= */}
         {/* SISI KIRI: FORM CONTROL CMS                               */}
         {/* ========================================================= */}
-        <div className="lg:col-span-5 xl:col-span-5 space-y-4">
+        <div className="lg:col-span-6 xl:col-span-6 space-y-4">
           {/* Form Tabs Navigation - Always 1 Clean Horizontal Row */}
-          <div className="grid grid-cols-5 gap-1 p-1 bg-zinc-900/80 border border-zinc-800/90 rounded-2xl">
+          <div className="grid grid-cols-5 gap-1.5 p-1.5 bg-zinc-900/85 border border-zinc-800/90 rounded-2xl shadow-sm">
             {[
               { key: "landing", label: "Landing", icon: Megaphone },
               { key: "rules", label: "Rules", icon: FileText },
@@ -355,10 +400,10 @@ export default function CmsPage() {
                   key={tab.key}
                   type="button"
                   onClick={() => setActiveTab(tab.key as CmsTab)}
-                  className={`flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 px-1.5 py-2 text-[11px] font-semibold rounded-xl transition-all cursor-pointer text-center ${
+                  className={`flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 px-2 py-2.5 text-xs font-semibold rounded-xl transition-all cursor-pointer text-center ${
                     isActive
-                      ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/35 shadow-xs font-bold"
-                      : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50 border border-transparent"
+                      ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm shadow-emerald-950/40 font-bold"
+                      : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 border border-transparent"
                   }`}
                 >
                   <Icon className="w-3.5 h-3.5 shrink-0" />
@@ -371,10 +416,12 @@ export default function CmsPage() {
           <form onSubmit={handleSave} className="space-y-5">
             {/* TAB 1: LANDING PAGE */}
             {activeTab === "landing" && (
-              <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-5 space-y-5">
-                <div>
+              <div className="bg-zinc-900/65 border border-zinc-800/90 rounded-2xl p-5 space-y-5 shadow-sm">
+                <div className="pb-3 border-b border-zinc-800/80">
                   <h3 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
-                    <Megaphone className="w-4 h-4 text-purple-400" />
+                    <span className="flex size-7 items-center justify-center rounded-lg bg-purple-500/15 border border-purple-500/30 text-purple-400">
+                      <Megaphone className="w-4 h-4" />
+                    </span>
                     Teks Landing Page &amp; Banner Pengumuman
                   </h3>
                   <p className="text-xs text-zinc-400 mt-1">
@@ -526,10 +573,12 @@ export default function CmsPage() {
 
             {/* TAB 2: RULES */}
             {activeTab === "rules" && (
-              <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-5 space-y-5">
-                <div>
+              <div className="bg-zinc-900/65 border border-zinc-800/90 rounded-2xl p-5 space-y-5 shadow-sm">
+                <div className="pb-3 border-b border-zinc-800/80">
                   <h3 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-sky-400" />
+                    <span className="flex size-7 items-center justify-center rounded-lg bg-sky-500/15 border border-sky-500/30 text-sky-400">
+                      <FileText className="w-4 h-4" />
+                    </span>
                     Rules Setoran &amp; Parameter Generator
                   </h3>
                   <p className="text-xs text-zinc-400 mt-1">
@@ -643,99 +692,222 @@ export default function CmsPage() {
               </div>
             )}
 
-            {/* TAB 3: HARGA */}
+            {/* TAB 3: HARGA & BATAS PENARIKAN */}
             {activeTab === "pricing" && (
-              <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-5 space-y-6">
-                <div>
-                  <h3 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
-                    <DollarSign className="w-4 h-4 text-emerald-400" />
-                    Pengaturan Harga Beli &amp; Biaya Penarikan
-                  </h3>
-                  <p className="text-xs text-zinc-400 mt-1">
-                    Atur harga beli Gmail per akun, minimal withdraw, saklar metode penarikan e-wallet, dan potongan pajaknya.
-                  </p>
+              <div className="bg-zinc-900/65 border border-zinc-800/90 rounded-2xl p-5 space-y-6 shadow-sm">
+                <div className="flex flex-wrap items-start justify-between gap-2 pb-3 border-b border-zinc-800/80">
+                  <div>
+                    <h3 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
+                      <span className="flex size-7 items-center justify-center rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">
+                        <DollarSign className="w-4 h-4" />
+                      </span>
+                      Harga Setoran &amp; Batas Penarikan
+                    </h3>
+                    <p className="text-xs text-zinc-400 mt-1">
+                      Atur tarif beli Gmail, batas minimal tarik, kuota penarikan harian user, serta pajak e-wallet.
+                    </p>
+                  </div>
                 </div>
 
-                {/* 1. Pengaturan Harga & Minimal Withdraw */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  {/* Harga per Gmail Fresh */}
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-zinc-300 block">
-                      Harga Beli Gmail Fresh (Good)
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-2.5 text-xs font-bold text-zinc-500">Rp</span>
+                {/* 1. Grid 2x2 Simetris: 2 Tarif Setoran + 2 Aturan Penarikan */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  {/* Card 1: Harga Gmail Fresh */}
+                  <div className="flex flex-col justify-between rounded-2xl border border-zinc-800/90 bg-zinc-950/65 p-3.5 space-y-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <label className="text-xs font-bold text-zinc-200 truncate">
+                        Harga Gmail Baru
+                      </label>
+                      <span className="shrink-0 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-bold text-emerald-400">
+                        Fresh / Good
+                      </span>
+                    </div>
+                    <div className="relative flex items-center">
+                      <span className="absolute left-3 text-xs font-bold text-zinc-500 select-none">
+                        Rp
+                      </span>
                       <input
                         type="text"
                         inputMode="numeric"
                         maxLength={6}
-                        placeholder="0"
+                        placeholder="1500"
                         value={getNumberValue("price_per_gmail")}
                         onChange={(e) => handleNumberChange("price_per_gmail", e.target.value)}
-                        className="w-full bg-zinc-950 border border-zinc-800 rounded-xl pl-9 pr-3 py-2 text-sm font-mono text-zinc-100 focus:outline-none focus:border-emerald-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        onBlur={() => handleNumberBlur("price_per_gmail")}
+                        className="w-full h-10 bg-zinc-900/90 border border-zinc-800 rounded-xl pl-9 pr-3 text-sm font-mono font-bold text-white focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15"
                       />
                     </div>
-                    <p className="text-[10px] text-zinc-500">Harga standar setoran Fresh.</p>
+                    <p className="text-[10.5px] text-zinc-500 leading-snug">
+                      Tarif standar per akun Gmail baru hasil generate.
+                    </p>
                   </div>
 
-                  {/* Harga per Gmail Bebas */}
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-zinc-300 block">
-                      Harga Beli Gmail Bebas
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-2.5 text-xs font-bold text-zinc-500">Rp</span>
+                  {/* Card 2: Harga Gmail Bebas */}
+                  <div className="flex flex-col justify-between rounded-2xl border border-zinc-800/90 bg-zinc-950/65 p-3.5 space-y-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <label className="text-xs font-bold text-zinc-200 truncate">
+                        Harga Gmail Lama
+                      </label>
+                      <span className="shrink-0 rounded-md border border-sky-500/30 bg-sky-500/10 px-1.5 py-0.5 text-[10px] font-bold text-sky-400">
+                        Bebas
+                      </span>
+                    </div>
+                    <div className="relative flex items-center">
+                      <span className="absolute left-3 text-xs font-bold text-zinc-500 select-none">
+                        Rp
+                      </span>
                       <input
                         type="text"
                         inputMode="numeric"
                         maxLength={6}
-                        placeholder="0"
+                        placeholder="1000"
                         value={getNumberValue("price_bebas")}
                         onChange={(e) => handleNumberChange("price_bebas", e.target.value)}
-                        className="w-full bg-zinc-950 border border-zinc-800 rounded-xl pl-9 pr-3 py-2 text-sm font-mono text-zinc-100 focus:outline-none focus:border-emerald-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        onBlur={() => handleNumberBlur("price_bebas")}
+                        className="w-full h-10 bg-zinc-900/90 border border-zinc-800 rounded-xl pl-9 pr-3 text-sm font-mono font-bold text-white focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15"
                       />
                     </div>
-                    <p className="text-[10px] text-zinc-500">Harga kategori Gmail bebas/cadangan.</p>
+                    <p className="text-[10.5px] text-zinc-500 leading-snug">
+                      Tarif per akun kategori Gmail lama / bebas.
+                    </p>
                   </div>
 
-                  {/* Minimal Withdrawal */}
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-zinc-300 block">
-                      Minimal Penarikan (Withdraw)
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-2.5 text-xs font-bold text-zinc-500">Rp</span>
+                  {/* Card 3: Minimal Penarikan */}
+                  <div className="flex flex-col justify-between rounded-2xl border border-zinc-800/90 bg-zinc-950/65 p-3.5 space-y-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <label className="text-xs font-bold text-zinc-200 truncate">
+                        Minimal Penarikan
+                      </label>
+                      <span className="shrink-0 rounded-md border border-zinc-700 bg-zinc-800/80 px-1.5 py-0.5 text-[10px] font-bold text-zinc-300">
+                        Min. WD
+                      </span>
+                    </div>
+                    <div className="relative flex items-center">
+                      <span className="absolute left-3 text-xs font-bold text-zinc-500 select-none">
+                        Rp
+                      </span>
                       <input
                         type="text"
                         inputMode="numeric"
                         maxLength={6}
-                        placeholder="0"
+                        placeholder="5000"
                         value={getNumberValue("min_withdrawal")}
-                        onChange={(e) => handleNumberChange("min_withdrawal", e.target.value)}
-                        className="w-full bg-zinc-950 border border-zinc-800 rounded-xl pl-9 pr-3 py-2 text-sm font-mono text-zinc-100 focus:outline-none focus:border-emerald-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        onChange={(e) =>
+                          handleNumberChange("min_withdrawal", e.target.value, { min: 1000 })
+                        }
+                        onBlur={() => handleNumberBlur("min_withdrawal")}
+                        className="w-full h-10 bg-zinc-900/90 border border-zinc-800 rounded-xl pl-9 pr-3 text-sm font-mono font-bold text-white focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15"
                       />
                     </div>
-                    <p className="text-[10px] text-zinc-500">Batas bawah penarikan user.</p>
+                    <div className="flex flex-wrap items-center gap-1">
+                      {[1000, 5000, 10000, 20000].map((preset) => {
+                        const active = config.min_withdrawal === preset;
+                        return (
+                          <button
+                            key={preset}
+                            type="button"
+                            onClick={() => setPresetNumber("min_withdrawal", preset)}
+                            className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-colors cursor-pointer ${
+                              active
+                                ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                                : "bg-zinc-900 text-zinc-400 border border-zinc-800 hover:text-zinc-200"
+                            }`}
+                          >
+                            Rp{preset / 1000}rb
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Card 4: Batas Penarikan Harian (Maks. X kali / hari) */}
+                  <div className="flex flex-col justify-between rounded-2xl border border-zinc-800/90 bg-zinc-950/65 p-3.5 space-y-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <label className="text-xs font-bold text-zinc-200 truncate">
+                        Batas Penarikan / Hari
+                      </label>
+                      <span className="shrink-0 rounded-md border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-bold text-amber-300">
+                        Kuota Harian
+                      </span>
+                    </div>
+                    <div className="relative flex items-center">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={2}
+                        placeholder="3"
+                        value={getNumberValue("max_withdrawals_per_day")}
+                        onChange={(e) =>
+                          handleNumberChange("max_withdrawals_per_day", e.target.value, {
+                            maxDigits: 2,
+                            min: 1,
+                            max: 50,
+                          })
+                        }
+                        onBlur={() => handleNumberBlur("max_withdrawals_per_day")}
+                        className="w-full h-10 bg-zinc-900/90 border border-zinc-800 rounded-xl pl-3.5 pr-16 text-sm font-mono font-bold text-white focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15"
+                      />
+                      <span className="absolute right-3 text-[11px] font-semibold text-zinc-400 select-none">
+                        x / hari
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1">
+                      {[1, 2, 3, 5, 10].map((preset) => {
+                        const active = config.max_withdrawals_per_day === preset;
+                        return (
+                          <button
+                            key={preset}
+                            type="button"
+                            onClick={() => setPresetNumber("max_withdrawals_per_day", preset)}
+                            className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition-colors cursor-pointer ${
+                              active
+                                ? "bg-amber-500/20 text-amber-300 border border-amber-500/40"
+                                : "bg-zinc-900 text-zinc-400 border border-zinc-800 hover:text-zinc-200"
+                            }`}
+                          >
+                            {preset}x
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
 
                 {/* 2. Metode Penarikan E-Wallet & Saklar Pajak */}
-                <div className="pt-4 border-t border-zinc-800/80 space-y-4">
-                  <div>
-                    <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                      <Wallet className="size-4 text-sky-400" />
-                      Metode Penarikan E-Wallet &amp; Pajak
-                    </h4>
-                    <p className="text-[11px] text-zinc-400 mt-0.5">
-                      Atur tombol on/off setiap e-wallet, saklar kena pajak, dan nominal biaya admin per transaksi.
-                    </p>
+                <div className="pt-4 border-t border-zinc-800/80 space-y-3.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                        <Wallet className="size-4 text-sky-400" />
+                        Metode Penarikan E-Wallet &amp; Pajak
+                      </h4>
+                      <p className="text-[11px] text-zinc-400 mt-0.5">
+                        Aktifkan e-wallet tujuan penarikan dan atur potongan biaya admin per transaksi.
+                      </p>
+                    </div>
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-zinc-700/80 bg-zinc-950 px-2.5 py-1 text-[10.5px] font-bold text-zinc-300">
+                      <span
+                        className={`size-1.5 rounded-full ${
+                          activeEwallets.length > 0 ? "bg-emerald-400" : "bg-rose-400"
+                        }`}
+                      />
+                      {activeEwallets.length}/4 E-Wallet Aktif
+                    </span>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {[
+                      {
+                        key: "dana",
+                        name: "DANA",
+                        badgeBg: "bg-[#118EEA]/20 text-sky-300 border-[#118EEA]/40",
+                        activeKey: "is_dana_active" as const,
+                        taxActiveKey: "tax_dana_active" as const,
+                        taxKey: "tax_dana" as const,
+                      },
                       {
                         key: "gopay",
                         name: "GoPay",
+                        badgeBg: "bg-[#00AED6]/20 text-cyan-300 border-[#00AED6]/40",
                         activeKey: "is_gopay_active" as const,
                         taxActiveKey: "tax_gopay_active" as const,
                         taxKey: "tax_gopay" as const,
@@ -743,20 +915,15 @@ export default function CmsPage() {
                       {
                         key: "ovo",
                         name: "OVO",
+                        badgeBg: "bg-purple-500/20 text-purple-300 border-purple-500/40",
                         activeKey: "is_ovo_active" as const,
                         taxActiveKey: "tax_ovo_active" as const,
                         taxKey: "tax_ovo" as const,
                       },
                       {
-                        key: "dana",
-                        name: "DANA",
-                        activeKey: "is_dana_active" as const,
-                        taxActiveKey: "tax_dana_active" as const,
-                        taxKey: "tax_dana" as const,
-                      },
-                      {
                         key: "shopeepay",
                         name: "ShopeePay",
+                        badgeBg: "bg-orange-500/20 text-orange-300 border-orange-500/40",
                         activeKey: "is_shopeepay_active" as const,
                         taxActiveKey: "tax_shopeepay_active" as const,
                         taxKey: "tax_shopeepay" as const,
@@ -768,28 +935,30 @@ export default function CmsPage() {
                       return (
                         <div
                           key={wallet.key}
-                          className={`p-4 rounded-2xl border transition-all space-y-3.5 ${
+                          className={`flex flex-col justify-between p-3.5 rounded-2xl border transition-all space-y-3 ${
                             isMethodActive
-                              ? "bg-zinc-950/70 border-zinc-800 shadow-sm"
-                              : "bg-zinc-950/30 border-zinc-900 opacity-60"
+                              ? "bg-zinc-950/75 border-zinc-800/90 shadow-sm"
+                              : "bg-zinc-950/35 border-zinc-900 opacity-65"
                           }`}
                         >
                           {/* Header: Nama E-Wallet & Saklar On/Off Metode */}
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2.5">
-                              <span className="flex size-7 items-center justify-center rounded-lg bg-zinc-800 text-xs font-bold text-white">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <span
+                                className={`flex size-8 shrink-0 items-center justify-center rounded-xl border text-xs font-extrabold ${wallet.badgeBg}`}
+                              >
                                 {wallet.name[0]}
                               </span>
-                              <div>
-                                <span className="text-xs font-bold text-white block">
+                              <div className="min-w-0">
+                                <span className="text-xs font-bold text-white block truncate">
                                   {wallet.name}
                                 </span>
                                 <span
-                                  className={`text-[9px] font-semibold uppercase tracking-wider ${
+                                  className={`text-[10px] font-semibold whitespace-nowrap block ${
                                     isMethodActive ? "text-emerald-400" : "text-zinc-500"
                                   }`}
                                 >
-                                  {isMethodActive ? "Metode Aktif" : "Metode Nonaktif"}
+                                  {isMethodActive ? "● Aktif" : "○ Nonaktif"}
                                 </span>
                               </div>
                             </div>
@@ -798,9 +967,10 @@ export default function CmsPage() {
                             <button
                               type="button"
                               onClick={() => updateField(wallet.activeKey, !isMethodActive)}
-                              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors cursor-pointer ${
+                              className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors cursor-pointer ${
                                 isMethodActive ? "bg-emerald-600" : "bg-zinc-800"
                               }`}
+                              aria-label={`Toggle metode ${wallet.name}`}
                             >
                               <span
                                 className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
@@ -812,23 +982,19 @@ export default function CmsPage() {
 
                           {/* Konten Ketika Metode Aktif */}
                           {isMethodActive ? (
-                            <div className="pt-2 border-t border-zinc-800/60 space-y-2.5">
+                            <div className="pt-2.5 border-t border-zinc-800/70 space-y-2">
                               {/* Saklar Kena Pajak */}
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <span className="text-[11px] font-semibold text-zinc-300 block">
-                                    Potongan Pajak / Admin
-                                  </span>
-                                  <span className="text-[10px] text-zinc-500">
-                                    {isTaxActive ? "Dikenakan biaya admin" : "Bebas biaya admin (Rp 0)"}
-                                  </span>
-                                </div>
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-[11px] font-semibold text-zinc-300 whitespace-nowrap">
+                                  Biaya Admin / Pajak
+                                </span>
                                 <button
                                   type="button"
                                   onClick={() => updateField(wallet.taxActiveKey, !isTaxActive)}
-                                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors cursor-pointer ${
+                                  className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors cursor-pointer ${
                                     isTaxActive ? "bg-amber-600" : "bg-zinc-800"
                                   }`}
+                                  aria-label={`Toggle pajak ${wallet.name}`}
                                 >
                                   <span
                                     className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
@@ -840,38 +1006,37 @@ export default function CmsPage() {
 
                               {/* Input Nominal Pajak jika Saklar Pajak Aktif */}
                               {isTaxActive ? (
-                                <div className="space-y-1 animate-fade-down pt-1">
-                                  <label className="text-[10px] font-semibold text-zinc-400 block">
-                                    Nominal Pajak {wallet.name}
-                                  </label>
-                                  <div className="relative">
-                                    <span className="absolute left-3 top-2 text-xs font-bold text-zinc-500">
-                                      Rp
-                                    </span>
-                                    <input
-                                      type="text"
-                                      inputMode="numeric"
-                                      maxLength={6}
-                                      placeholder="0"
-                                      value={getNumberValue(wallet.taxKey)}
-                                      onChange={(e) => handleNumberChange(wallet.taxKey, e.target.value)}
-                                      className="w-full bg-zinc-900 border border-zinc-800 rounded-xl pl-9 pr-3 py-1.5 text-xs font-mono text-amber-300 focus:outline-none focus:border-amber-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                    />
-                                  </div>
+                                <div className="relative flex items-center animate-fade-down">
+                                  <span className="absolute left-3 text-[11px] font-bold text-zinc-500 select-none">
+                                    Rp
+                                  </span>
+                                  <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    maxLength={6}
+                                    placeholder="1000"
+                                    value={getNumberValue(wallet.taxKey)}
+                                    onChange={(e) => handleNumberChange(wallet.taxKey, e.target.value)}
+                                    className="w-full h-8.5 bg-zinc-900 border border-amber-500/30 rounded-xl pl-8 pr-3 text-xs font-mono font-bold text-amber-300 focus:outline-none focus:border-amber-500"
+                                  />
                                 </div>
                               ) : (
-                                <div className="p-2 rounded-xl bg-emerald-950/20 border border-emerald-500/20 flex items-center justify-between text-[11px] text-emerald-400">
-                                  <div className="flex items-center gap-1.5 font-medium">
-                                    <CheckCircle2 className="size-3.5 text-emerald-400" />
-                                    <span>Bebas Pajak (Rp 0)</span>
-                                  </div>
-                                  <span className="text-[10px] text-zinc-500">Gratis biaya</span>
+                                <div className="h-8.5 px-2.5 rounded-xl bg-emerald-950/25 border border-emerald-500/20 flex items-center justify-between gap-2 text-[11px] text-emerald-400">
+                                  <span className="inline-flex items-center gap-1.5 font-semibold whitespace-nowrap">
+                                    <CheckCircle2 className="size-3.5 shrink-0 text-emerald-400" />
+                                    Bebas Pajak
+                                  </span>
+                                  <span className="text-[10.5px] font-mono font-bold text-emerald-300/90 whitespace-nowrap">
+                                    Rp 0
+                                  </span>
                                 </div>
                               )}
                             </div>
                           ) : (
-                            <div className="p-2 rounded-xl bg-zinc-950/40 border border-zinc-900 text-[10px] text-zinc-500 text-center">
-                              Metode {wallet.name} dinonaktifkan dari web user
+                            <div className="pt-2.5 border-t border-zinc-900 flex items-center justify-center min-h-[62px]">
+                              <span className="px-2.5 py-1.5 rounded-lg bg-zinc-900/70 border border-zinc-800/70 text-[10.5px] text-zinc-500 font-medium whitespace-nowrap">
+                                Disembunyikan di web user
+                              </span>
                             </div>
                           )}
                         </div>
@@ -884,10 +1049,12 @@ export default function CmsPage() {
 
             {/* TAB 4: KONTAK */}
             {activeTab === "contacts" && (
-              <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-5 space-y-5">
-                <div>
+              <div className="bg-zinc-900/65 border border-zinc-800/90 rounded-2xl p-5 space-y-5 shadow-sm">
+                <div className="pb-3 border-b border-zinc-800/80">
                   <h3 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
-                    <Share2 className="w-4 h-4 text-emerald-400" />
+                    <span className="flex size-7 items-center justify-center rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">
+                      <Share2 className="w-4 h-4" />
+                    </span>
                     Tautan Saluran &amp; Kontak Komunitas
                   </h3>
                   <p className="text-xs text-zinc-400 mt-1">
@@ -949,10 +1116,12 @@ export default function CmsPage() {
 
             {/* TAB 5: FITUR */}
             {activeTab === "features" && (
-              <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-5 space-y-5">
-                <div>
+              <div className="bg-zinc-900/65 border border-zinc-800/90 rounded-2xl p-5 space-y-5 shadow-sm">
+                <div className="pb-3 border-b border-zinc-800/80">
                   <h3 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
-                    <ShieldAlert className="w-4 h-4 text-rose-400" />
+                    <span className="flex size-7 items-center justify-center rounded-lg bg-rose-500/15 border border-rose-500/30 text-rose-400">
+                      <ShieldAlert className="w-4 h-4" />
+                    </span>
                     Saklar Fitur &amp; Mode Pemeliharaan
                   </h3>
                   <p className="text-xs text-zinc-400 mt-1">
@@ -1143,7 +1312,7 @@ export default function CmsPage() {
         {/* ========================================================= */}
         {/* SISI KANAN: INTERACTIVE LIVE PREVIEW (IDENTIK WEB USER)   */}
         {/* ========================================================= */}
-        <div className="lg:col-span-7 xl:col-span-7 lg:sticky lg:top-20 space-y-3">
+        <div className="lg:col-span-6 xl:col-span-6 lg:sticky lg:top-32 space-y-3">
           {/* Preview Control Header */}
           <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl px-3.5 py-2.5 backdrop-blur-md shadow-xl flex items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
@@ -1637,8 +1806,8 @@ export default function CmsPage() {
                         </div>
                       </div>
 
-                      {/* Generate Gmail Compact (Mode Buat Email Baru) */}
-                      {previewDepositMode === "fresh" && (
+                      {/* Generate Gmail Compact (Mode Buat Email Baru) / Password & Caution (Email Lama) */}
+                      {previewDepositMode === "fresh" ? (
                         <div className="pt-2.5 border-t border-white/10 space-y-2.5">
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <div className="flex items-center gap-1.5">
@@ -1701,6 +1870,24 @@ export default function CmsPage() {
                             </div>
                           </div>
                         </div>
+                      ) : (
+                        <div className="pt-2.5 border-t border-white/10 space-y-2">
+                          <div className="text-[10px] font-bold text-zinc-200 flex items-center gap-1">
+                            <span>Password Email</span>
+                            <span className="text-rose-400">*</span>
+                          </div>
+                          <div className="rounded-lg border border-white/10 bg-black/40 px-2.5 py-1.5 font-mono text-[10px] text-zinc-500">
+                            Masukkan password akun Gmail lama yang disetor...
+                          </div>
+                          <div className="flex items-start gap-2 rounded-xl border border-amber-400/45 bg-amber-500/15 px-2.5 py-2 text-[9.5px] leading-relaxed text-amber-100">
+                            <AlertCircle className="size-3.5 shrink-0 text-amber-400 mt-0.5" />
+                            <p>
+                              <strong className="text-amber-300">Caution:</strong> Apabila setor{" "}
+                              <strong>lebih dari 1 email</strong> dan <strong>beda-beda password</strong>, setornya{" "}
+                              <strong className="text-amber-200 underline">1 per 1</strong> yaa!
+                            </p>
+                          </div>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -1728,8 +1915,8 @@ export default function CmsPage() {
                         </span>
                       </div>
 
-                      {/* Inline Stats Persis Dashboard (tanpa kolom) */}
-                      <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+                      {/* Inline Stats Persis Dashboard (Harga, Min. Penarikan, Maks. Tarik) */}
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
                         <div>
                           <div className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-sky-300/85">
                             <Zap className="size-3 text-sky-400" />
@@ -1749,6 +1936,16 @@ export default function CmsPage() {
                             Rp{config.min_withdrawal.toLocaleString("id-ID")}
                           </p>
                         </div>
+                        <div className="h-6 w-[1px] bg-white/10" aria-hidden="true" />
+                        <div>
+                          <div className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-zinc-400">
+                            <Clock className="size-3 text-sky-400" />
+                            <span>Maks. Tarik</span>
+                          </div>
+                          <p className="mt-0.5 text-xs sm:text-sm font-black text-white tabular-nums">
+                            {config.max_withdrawals_per_day}x / Hari
+                          </p>
+                        </div>
                       </div>
 
                       <div className="grid grid-cols-2 gap-2">
@@ -1765,8 +1962,14 @@ export default function CmsPage() {
 
                     {/* Preview Pilihan E-Wallet & Pajak Penarikan */}
                     <div className="rounded-2xl border border-white/10 bg-[#11131c]/90 p-3.5 space-y-2.5">
-                      <div className="flex items-center justify-between text-[10px]">
-                        <span className="font-bold text-white">Simulasi Tarik Rp20.000</span>
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-[10px]">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-white">Simulasi Tarik Rp20.000</span>
+                          <span className="inline-flex items-center gap-1 rounded-full border border-sky-400/25 bg-sky-500/10 px-2 py-0.5 text-[9px] font-bold text-sky-300">
+                            <Clock className="size-2.5 text-sky-400" />
+                            Maks. {config.max_withdrawals_per_day}x / hari
+                          </span>
+                        </div>
                         {activeEwallets.length > 0 ? (
                           <span className={previewTax > 0 ? "text-amber-400 font-bold" : "text-emerald-400 font-bold"}>
                             {previewTax > 0

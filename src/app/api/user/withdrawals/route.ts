@@ -101,8 +101,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 5. Load authoritative CMS configuration (tax, min_withdrawal, active flags)
+    // 5. Load authoritative CMS configuration (tax, min_withdrawal, daily limit, active flags)
     let authoritativeMinWithdrawal = 5000;
+    let hasCmsMinWithdrawal = false;
+    let authoritativeMaxWithdrawalsPerDay = MAX_WITHDRAWALS_PER_DAY;
     let authoritativeTax = 0;
 
     const { data: cfgRow } = await supabaseAdmin
@@ -142,6 +144,17 @@ export async function POST(req: NextRequest) {
 
         if (Number.isFinite(Number(parsed?.min_withdrawal)) && Number(parsed.min_withdrawal) >= 1000) {
           authoritativeMinWithdrawal = Math.floor(Number(parsed.min_withdrawal));
+          hasCmsMinWithdrawal = true;
+        }
+
+        if (
+          Number.isFinite(Number(parsed?.max_withdrawals_per_day)) &&
+          Number(parsed.max_withdrawals_per_day) >= 1
+        ) {
+          authoritativeMaxWithdrawalsPerDay = Math.min(
+            50,
+            Math.max(1, Math.floor(Number(parsed.max_withdrawals_per_day)))
+          );
         }
 
         const taxMap: Record<string, number> = {
@@ -158,19 +171,24 @@ export async function POST(req: NextRequest) {
       authoritativeTax = 1000;
     }
 
-    // 6. Enforce 24-hour withdrawal velocity cap (Max 3 withdrawals / 24h)
-    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    // 6. Enforce daily withdrawal frequency cap (WIB / UTC+7 calendar day, excluding rejected)
+    const wibOffsetMs = 7 * 60 * 60 * 1000;
+    const wibToday = new Date(Date.now() + wibOffsetMs);
+    wibToday.setUTCHours(0, 0, 0, 0);
+    const startOfWibDayIso = new Date(wibToday.getTime() - wibOffsetMs).toISOString();
+
     const { count: dailyCount } = await supabaseAdmin
       .from("withdrawals")
       .select("id", { count: "exact", head: true })
       .eq("user_id", user.id)
-      .gte("created_at", twentyFourHoursAgo);
+      .gte("created_at", startOfWibDayIso)
+      .not("status", "in", '("ditolak","rejected","failed")');
 
-    if (typeof dailyCount === "number" && dailyCount >= MAX_WITHDRAWALS_PER_DAY) {
+    if (typeof dailyCount === "number" && dailyCount >= authoritativeMaxWithdrawalsPerDay) {
       return NextResponse.json(
         {
           success: false,
-          error: `Batas penarikan tercapai: Maksimal ${MAX_WITHDRAWALS_PER_DAY} kali penarikan dalam 24 jam untuk perlindungan keamanan akun.`,
+          error: `Batas penarikan harian tercapai: Maksimal ${authoritativeMaxWithdrawalsPerDay}x penarikan per hari. Silakan coba kembali besok.`,
         },
         { status: 429 }
       );
@@ -190,8 +208,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const effectiveMin = hasCmsMinWithdrawal
+      ? authoritativeMinWithdrawal
+      : Math.max(1000, Number(currentWallet.minimum_withdrawal) || authoritativeMinWithdrawal);
+
     const currentBalance = Number(currentWallet.balance) || 0;
-    const amountVal = validateWithdrawalAmount(body.amount, currentBalance);
+    const amountVal = validateWithdrawalAmount(body.amount, currentBalance, effectiveMin);
     if (!amountVal.valid) {
       return NextResponse.json(
         { success: false, error: amountVal.error },
@@ -200,10 +222,6 @@ export async function POST(req: NextRequest) {
     }
 
     const requestedAmount = amountVal.cleanAmount;
-    const effectiveMin = Math.max(
-      authoritativeMinWithdrawal,
-      Number(currentWallet.minimum_withdrawal) || 5000
-    );
 
     if (requestedAmount < effectiveMin) {
       return NextResponse.json(

@@ -1,8 +1,9 @@
 export interface SiteConfig {
   // 1. Harga & Transaksi
-  price_per_gmail: number;        // Default: 4500
-  price_bebas: number;            // Default: 2500
+  price_per_gmail: number;        // Default: 1500
+  price_bebas: number;            // Default: 1000
   min_withdrawal: number;         // Default: 5000
+  max_withdrawals_per_day: number;// Default: 3 (1 - 50x per hari)
 
   // Saklar On/Off Metode E-Wallet
   is_gopay_active: boolean;       // Default: true
@@ -54,6 +55,7 @@ export const DEFAULT_CONFIG: SiteConfig = {
   price_per_gmail: 1500,
   price_bebas: 1000,
   min_withdrawal: 5000,
+  max_withdrawals_per_day: 3,
 
   is_gopay_active: true,
   is_ovo_active: true,

@@ -29,7 +29,15 @@ export function LandingView({
   });
 
   const [isTutorialOpen, setIsTutorialOpen] = React.useState(false);
-  const pricePerGmail = siteConfig?.price_per_gmail || 4500;
+  const pricePerGmail = siteConfig?.price_per_gmail || 1500;
+  const activeWalletNames = React.useMemo(() => {
+    const names: string[] = [];
+    if (siteConfig?.is_dana_active !== false) names.push("DANA");
+    if (siteConfig?.is_gopay_active !== false) names.push("GoPay");
+    if (siteConfig?.is_ovo_active !== false) names.push("OVO");
+    if (siteConfig?.is_shopeepay_active !== false) names.push("ShopeePay");
+    return names.length > 0 ? names.join(", ") : "E-Wallet";
+  }, [siteConfig]);
 
   const openAuth = (mode: "login" | "register") => {
     setAuthModal({ open: true, mode });
@@ -165,7 +173,7 @@ export function LandingView({
                   4. Terima {formatIDR(pricePerGmail)}/Akun &amp; Tarik Saldo
                 </strong>
                 <p className="text-xs text-emerald-200/85 mt-0.5 leading-relaxed">
-                  Begitu setoran diterima admin, saldo otomatis masuk ke dompetmu dan siap dicairkan ke DANA, GoPay, OVO, atau ShopeePay!
+                  Begitu setoran diterima admin, saldo otomatis masuk ke dompetmu dan siap dicairkan ke {activeWalletNames}!
                 </p>
               </div>
             </div>

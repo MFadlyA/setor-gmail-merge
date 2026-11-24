@@ -17,6 +17,7 @@ import {
   ChevronDown,
   Calendar,
   ShieldAlert,
+  AlertTriangle,
   UserCheck,
   KeyRound,
   Mail,
@@ -567,11 +568,10 @@ export function SetorView() {
   }, [setoranCheckResults]);
 
   const liveCount = liveResults.length;
+  const isSetorServiceActive = siteConfig?.is_setor_active !== false;
+  const isCheckerServiceActive = siteConfig?.is_checker_active !== false;
   const freshPrice = siteConfig?.price_per_gmail || 1500;
-  const oldEmailPrice =
-    siteConfig?.price_bebas && siteConfig.price_bebas !== 2500
-      ? siteConfig.price_bebas
-      : 1000;
+  const oldEmailPrice = siteConfig?.price_bebas ?? 1000;
   const pricePerGmail = depositMode === "fresh" ? freshPrice : oldEmailPrice;
   const calculatedEarnings = liveCount * pricePerGmail;
 
@@ -590,6 +590,12 @@ export function SetorView() {
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!isSetorServiceActive) {
+      toast.error("Layanan Setor Ditutup Sementara", {
+        description: "Penerimaan setoran Gmail sedang dinonaktifkan sementara oleh Admin.",
+      });
+      return;
+    }
     if (totalLines === 0) {
       toast.error("Masukkan minimal 1 Gmail");
       return;
@@ -1206,26 +1212,62 @@ export function SetorView() {
               </div>
             </div>
 
-            {/* Kolom Password Email (Khusus Setor Email Lama) */}
+            {/* Banner jika penerimaan setoran sedang ditutup di CMS */}
+            {!isSetorServiceActive && (
+              <div className="mb-3.5 flex items-start gap-2.5 rounded-2xl border border-rose-500/35 bg-rose-950/40 p-3.5 text-xs text-rose-200">
+                <ShieldAlert className="size-4 shrink-0 text-rose-400 mt-0.5" />
+                <div>
+                  <p className="font-bold text-rose-300">Penerimaan Setoran Ditutup Sementara</p>
+                  <p className="mt-0.5 text-rose-200/85 leading-relaxed">
+                    Layanan pengiriman setoran Gmail sedang dinonaktifkan sementara oleh Admin. Silakan coba kembali beberapa saat lagi.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Kolom Password Email & Caution Beda Password (Khusus Setor Email Lama) */}
             {depositMode === "old" && (
-              <div className="mb-3">
-                <label
-                  htmlFor="old-email-password"
-                  className="mb-1.5 flex items-center gap-1.5 text-xs font-bold text-zinc-200"
+              <div className="mb-3 space-y-2.5">
+                <div>
+                  <label
+                    htmlFor="old-email-password"
+                    className="mb-1.5 flex items-center gap-1.5 text-xs font-bold text-zinc-200"
+                  >
+                    <KeyRound className="size-3.5 text-sky-400" />
+                    <span>Password Email</span>
+                    <span className="text-rose-400">*</span>
+                  </label>
+                  <input
+                    id="old-email-password"
+                    type="text"
+                    value={oldEmailPassword}
+                    onChange={(e) => setOldEmailPassword(e.target.value.slice(0, 120))}
+                    placeholder="Masukkan password akun Gmail lama yang disetor..."
+                    autoComplete="off"
+                    className="w-full h-10.5 rounded-xl border border-white/10 bg-black/40 px-3.5 font-mono text-xs sm:text-sm text-white placeholder:text-zinc-500 outline-none transition-all focus:border-sky-500/60 focus:bg-black/60 focus:ring-2 focus:ring-sky-500/20"
+                  />
+                </div>
+
+                {/* Caution: Setor > 1 dengan password berbeda wajib setor 1 per 1 */}
+                <div
+                  className={cn(
+                    "flex items-start gap-2.5 rounded-xl border px-3.5 py-2.5 text-xs leading-relaxed transition-all",
+                    totalLines > 1
+                      ? "border-amber-400/55 bg-amber-500/15 text-amber-100 shadow-sm shadow-amber-500/10"
+                      : "border-amber-500/30 bg-amber-950/35 text-amber-200/95"
+                  )}
                 >
-                  <KeyRound className="size-3.5 text-sky-400" />
-                  <span>Password Email</span>
-                  <span className="text-rose-400">*</span>
-                </label>
-                <input
-                  id="old-email-password"
-                  type="text"
-                  value={oldEmailPassword}
-                  onChange={(e) => setOldEmailPassword(e.target.value.slice(0, 120))}
-                  placeholder="Masukkan password akun Gmail lama yang disetor..."
-                  autoComplete="off"
-                  className="w-full h-10.5 rounded-xl border border-white/10 bg-black/40 px-3.5 font-mono text-xs sm:text-sm text-white placeholder:text-zinc-500 outline-none transition-all focus:border-sky-500/60 focus:bg-black/60 focus:ring-2 focus:ring-sky-500/20"
-                />
+                  <AlertTriangle className="size-4 shrink-0 text-amber-400 mt-0.5" aria-hidden="true" />
+                  <p>
+                    <strong className="font-extrabold text-amber-300">Caution:</strong>{" "}
+                    Apabila menyetor <strong className="text-white">lebih dari 1 email</strong> dan{" "}
+                    <strong className="text-white">password-nya berbeda-beda</strong>, setornya{" "}
+                    <span className="inline-flex items-center rounded-md border border-amber-400/40 bg-amber-500/20 px-1.5 py-0.5 font-extrabold text-amber-200">
+                      1 per 1 (satu-satu)
+                    </span>{" "}
+                    yaa! Kolom setor sekaligus hanya untuk email yang memiliki password sama.
+                  </p>
+                </div>
               </div>
             )}
 
@@ -1411,10 +1453,10 @@ export function SetorView() {
                 <button
                   type="button"
                   onClick={handleCheckSetoran}
-                  disabled={totalLines === 0 || isExceededMax || isCheckingSetoran}
+                  disabled={!isCheckerServiceActive || totalLines === 0 || isExceededMax || isCheckingSetoran}
                   className={cn(
                     "inline-flex items-center justify-center gap-2 rounded-xl px-4 sm:px-5 py-2.5 text-xs sm:text-sm font-bold transition-all shadow-md active:scale-95 cursor-pointer",
-                    totalLines > 0 && !isExceededMax && !isCheckingSetoran
+                    isCheckerServiceActive && totalLines > 0 && !isExceededMax && !isCheckingSetoran
                       ? "bg-gradient-to-r from-sky-400 via-sky-500 to-blue-600 hover:from-sky-300 hover:to-blue-500 text-white shadow-sky-500/25 border border-sky-400/30"
                       : "bg-white/5 border border-white/10 text-zinc-500 cursor-not-allowed opacity-60"
                   )}
@@ -1446,10 +1488,10 @@ export function SetorView() {
 
                   <button
                     type="submit"
-                    disabled={!hasCheckedSetoran || liveCount === 0 || isExceededMax || isSubmitting}
+                    disabled={!isSetorServiceActive || !hasCheckedSetoran || liveCount === 0 || isExceededMax || isSubmitting}
                     className={cn(
                       "inline-flex items-center justify-center gap-2 rounded-xl px-5 sm:px-6 py-2.5 text-xs sm:text-sm font-semibold transition-all shadow-sm",
-                      hasCheckedSetoran && liveCount > 0 && !isExceededMax
+                      isSetorServiceActive && hasCheckedSetoran && liveCount > 0 && !isExceededMax
                         ? "bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white cursor-pointer active:scale-95 shadow-md shadow-sky-500/20"
                         : "bg-white/5 border border-white/10 text-zinc-500 cursor-not-allowed"
                     )}

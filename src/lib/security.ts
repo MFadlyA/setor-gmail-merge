@@ -153,13 +153,15 @@ export const MAX_WITHDRAWALS_PER_DAY = 3; // Max 3 withdrawals per 24 hours per 
 
 export function validateWithdrawalAmount(
   amount: unknown,
-  currentBalance: number
+  currentBalance: number,
+  minAmount: number = MIN_WITHDRAWAL_AMOUNT
 ): {
   valid: boolean;
   cleanAmount: number;
   error?: string;
 } {
   const num = Number(amount);
+  const effectiveMin = Math.max(1000, Math.floor(Number(minAmount) || MIN_WITHDRAWAL_AMOUNT));
 
   if (isNaN(num) || !Number.isFinite(num) || !Number.isInteger(num)) {
     return {
@@ -169,11 +171,11 @@ export function validateWithdrawalAmount(
     };
   }
 
-  if (num < MIN_WITHDRAWAL_AMOUNT) {
+  if (num < effectiveMin) {
     return {
       valid: false,
       cleanAmount: num,
-      error: `Minimal penarikan saldo adalah Rp${MIN_WITHDRAWAL_AMOUNT.toLocaleString("id-ID")}.`,
+      error: `Minimal penarikan saldo adalah Rp${effectiveMin.toLocaleString("id-ID")}.`,
     };
   }
 

@@ -247,6 +247,39 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Enforce CMS feature flags (is_maintenance_mode & is_checker_active)
+    try {
+      const { data: cfgRow } = await supabaseAdmin
+        .from("app_settings")
+        .select("value")
+        .eq("key", "site_config")
+        .maybeSingle();
+
+      if (cfgRow?.value) {
+        const parsed = typeof cfgRow.value === "string" ? JSON.parse(cfgRow.value) : cfgRow.value;
+        if (parsed?.is_maintenance_mode) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: parsed.maintenance_message || "Platform sedang dalam pemeliharaan sistem.",
+            },
+            { status: 503 }
+          );
+        }
+        if (parsed?.is_checker_active === false) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: "Layanan Email Checker sedang dinonaktifkan sementara oleh Admin.",
+            },
+            { status: 403 }
+          );
+        }
+      }
+    } catch {
+      // fallback allow if DB check fails
+    }
+
     const body = await req.json().catch(() => ({}));
     const rawEmails: unknown[] = Array.isArray(body?.emails)
       ? body.emails

@@ -9,6 +9,7 @@ import {
   AlertTriangle,
   AlertCircle,
   CheckCircle2,
+  Clock,
 } from "lucide-react";
 import { Modal, ModalCloseButton } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
@@ -16,7 +17,6 @@ import { Input } from "@/components/ui/input";
 import { cn, formatIDR, formatRupiah } from "@/lib/utils";
 import {
   EWALLET_CONFIGS,
-  EWALLET_ORDER,
   IndonesiaFlag,
   type EWalletMethod,
 } from "@/components/ui/ewallet-logos";
@@ -46,9 +46,28 @@ export function TarikSaldoModal({
   initialMethod = "DANA",
   onSuccess,
 }: TarikSaldoModalProps) {
-  const { siteConfig } = useUserProfile();
+  const { siteConfig, refreshSiteConfig } = useUserProfile();
+  const isWithdrawalServiceActive = siteConfig?.is_withdrawal_active !== false;
   const effectiveMinimum = siteConfig?.min_withdrawal || minimum || 5000;
+  const maxWithdrawalsPerDay = siteConfig?.max_withdrawals_per_day ?? 3;
+
+  const availableMethods = React.useMemo<EWalletMethod[]>(() => {
+    const allMethods: { key: EWalletMethod; active: boolean }[] = [
+      { key: "DANA", active: siteConfig?.is_dana_active !== false },
+      { key: "GOPAY", active: siteConfig?.is_gopay_active !== false },
+      { key: "OVO", active: siteConfig?.is_ovo_active !== false },
+      { key: "SHOPEEPAY", active: siteConfig?.is_shopeepay_active !== false },
+    ];
+    return allMethods.filter((m) => m.active).map((m) => m.key);
+  }, [siteConfig]);
+
   const [selectedMethod, setSelectedMethod] = React.useState<EWalletMethod>(initialMethod);
+
+  React.useEffect(() => {
+    if (availableMethods.length > 0 && !availableMethods.includes(selectedMethod)) {
+      setSelectedMethod(availableMethods[0]);
+    }
+  }, [availableMethods, selectedMethod]);
   const [accountNumbers, setAccountNumbers] = React.useState<Record<EWalletMethod, string>>({
     DANA: "",
     OVO: "",
@@ -59,9 +78,10 @@ export function TarikSaldoModal({
   const [isLoading, setIsLoading] = React.useState(false);
   const prevOpenRef = React.useRef(false);
 
-  // Load saved preferences and initialize amount when modal opens
+  // Load saved preferences, refresh CMS config, and initialize amount when modal opens
   React.useEffect(() => {
     if (open && !prevOpenRef.current) {
+      refreshSiteConfig();
       if (balance > 0) {
         setAmountInput(formatRupiah(balance));
       } else {
@@ -92,7 +112,7 @@ export function TarikSaldoModal({
       }
     }
     prevOpenRef.current = open;
-  }, [open, initialMethod, balance]);
+  }, [open, initialMethod, balance, refreshSiteConfig]);
 
   const withdrawAmount = React.useMemo(() => {
     const digitsOnly = amountInput.replace(/[^0-9]/g, "");
@@ -103,12 +123,20 @@ export function TarikSaldoModal({
   const currentNumber = accountNumbers[selectedMethod] || "";
   const phoneValid = /^08\d{8,11}$/.test(currentNumber.trim());
 
-  // Pajak transfer dinamis dari CMS: GoPay & OVO, DANA & ShopeePay
+  // Pajak transfer dinamis dari CMS (mematuhi saklar tax_*_active)
   const taxFee = React.useMemo(() => {
-    if (selectedMethod === "GOPAY") return siteConfig?.tax_gopay ?? 1000;
-    if (selectedMethod === "OVO") return siteConfig?.tax_ovo ?? 1000;
-    if (selectedMethod === "DANA") return siteConfig?.tax_dana ?? 0;
-    if (selectedMethod === "SHOPEEPAY") return siteConfig?.tax_shopeepay ?? 0;
+    if (selectedMethod === "GOPAY") {
+      return siteConfig?.tax_gopay_active === false ? 0 : (siteConfig?.tax_gopay ?? 1000);
+    }
+    if (selectedMethod === "OVO") {
+      return siteConfig?.tax_ovo_active === false ? 0 : (siteConfig?.tax_ovo ?? 1000);
+    }
+    if (selectedMethod === "DANA") {
+      return siteConfig?.tax_dana_active === false ? 0 : (siteConfig?.tax_dana ?? 0);
+    }
+    if (selectedMethod === "SHOPEEPAY") {
+      return siteConfig?.tax_shopeepay_active === false ? 0 : (siteConfig?.tax_shopeepay ?? 0);
+    }
     return config.hasTax ? config.taxFee : 0;
   }, [selectedMethod, siteConfig, config]);
 
@@ -126,8 +154,14 @@ export function TarikSaldoModal({
     withdrawAmount <= balance &&
     withdrawAmount <= 5000000;
 
-  // Tombol konfirmasi tarik hanya bisa diklik bila format nomor akun sudah benar, nominal valid, dan saldo tersedia
-  const canWithdraw = isAmountValid && phoneValid && reached && !isLoading;
+  // Tombol konfirmasi tarik hanya bisa diklik bila layanan aktif, format nomor akun sudah benar, nominal valid, metode aktif, dan saldo tersedia
+  const canWithdraw =
+    isWithdrawalServiceActive &&
+    availableMethods.length > 0 &&
+    isAmountValid &&
+    phoneValid &&
+    reached &&
+    !isLoading;
 
   const hasStartedTyping = currentNumber.length > 0;
   const isPrefixInvalid = hasStartedTyping && !currentNumber.startsWith("08");
@@ -213,14 +247,14 @@ export function TarikSaldoModal({
 
     if (!reached) {
       toast.error("Saldo belum mencukupi", {
-        description: `Minimal penarikan adalah ${formatIDR(minimum)}. Saldo kamu saat ini ${formatIDR(balance)}.`,
+        description: `Minimal penarikan adalah ${formatIDR(effectiveMinimum)}. Saldo kamu saat ini ${formatIDR(balance)}.`,
       });
       return;
     }
 
-    if (!hasStartedAmount || withdrawAmount < minimum) {
+    if (!hasStartedAmount || withdrawAmount < effectiveMinimum) {
       toast.error("Nominal penarikan kurang", {
-        description: `Minimal penarikan adalah ${formatIDR(minimum)}.`,
+        description: `Minimal penarikan adalah ${formatIDR(effectiveMinimum)}.`,
       });
       return;
     }
@@ -319,6 +353,18 @@ export function TarikSaldoModal({
         onSubmit={handleWithdraw}
         className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-5 md:px-6"
       >
+        {!isWithdrawalServiceActive && (
+          <div className="flex items-start gap-2.5 rounded-2xl border border-rose-500/35 bg-rose-950/40 p-3.5 text-xs text-rose-200">
+            <AlertCircle className="size-4 shrink-0 text-rose-400 mt-0.5" />
+            <div>
+              <p className="font-bold text-rose-300">Layanan Penarikan Ditutup Sementara</p>
+              <p className="mt-0.5 text-rose-200/85 leading-relaxed">
+                Penarikan saldo ke e-wallet sedang dinonaktifkan sementara oleh Admin. Silakan coba kembali beberapa saat lagi.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Info Saldo & Input Penarikan Langsung di Saldo Tersedia */}
         <div className="rounded-2xl border border-sky-500/30 bg-sky-950/30 p-4 space-y-2.5 backdrop-blur-md">
           <div className="flex items-center justify-between gap-3">
@@ -335,9 +381,19 @@ export function TarikSaldoModal({
                 Minimal Penarikan
               </p>
               <p className="text-sm font-bold text-sky-300 tabular-nums">
-                {formatIDR(minimum)}
+                {formatIDR(effectiveMinimum)}
               </p>
             </div>
+          </div>
+
+          <div className="flex items-center justify-between rounded-xl border border-sky-400/20 bg-sky-500/10 px-3 py-1.5 text-[0.7rem] text-sky-200">
+            <span className="inline-flex items-center gap-1.5 font-medium">
+              <Clock className="size-3.5 text-sky-400 shrink-0" />
+              Batas frekuensi penarikan
+            </span>
+            <span className="font-extrabold text-white tabular-nums">
+              Maks. {maxWithdrawalsPerDay}x / hari
+            </span>
           </div>
 
           {/* Input Nominal Langsung pada Saldo Tersedia dengan Rp di samping input */}
@@ -353,7 +409,7 @@ export function TarikSaldoModal({
                 id="tarik-saldo-input"
                 type="text"
                 inputMode="numeric"
-                placeholder={`Minimal ${formatRupiah(minimum)}`}
+                placeholder={`Minimal ${formatRupiah(effectiveMinimum)}`}
                 value={amountInput}
                 onChange={handleAmountChange}
                 className={cn(
@@ -409,7 +465,7 @@ export function TarikSaldoModal({
           {hasStartedAmount && isBelowMinimum && (
             <p className="text-[0.72rem] text-amber-400 font-semibold flex items-center gap-1.5">
               <AlertTriangle className="size-3.5 shrink-0" />
-              Nominal minimal penarikan adalah {formatIDR(minimum)}
+              Nominal minimal penarikan adalah {formatIDR(effectiveMinimum)}
             </p>
           )}
           {hasStartedAmount && isExceedingMax && (
@@ -434,32 +490,43 @@ export function TarikSaldoModal({
               Pilih E-Wallet
             </label>
           </div>
-          {/* Urutan E-Wallet: DANA & GoPay */}
-          <div className="grid grid-cols-2 gap-2">
-            {EWALLET_ORDER.map((methodKey) => {
-              const item = EWALLET_CONFIGS[methodKey];
-              const isSelected = selectedMethod === methodKey;
+          {/* Urutan E-Wallet Aktif dari CMS */}
+          {availableMethods.length === 0 ? (
+            <div className="rounded-xl border border-rose-500/30 bg-rose-950/30 px-3.5 py-2.5 text-xs font-semibold text-rose-300 text-center">
+              Metode penarikan e-wallet sedang dinonaktifkan sementara oleh Admin.
+            </div>
+          ) : (
+            <div
+              className={cn(
+                "grid gap-2",
+                availableMethods.length === 1 ? "grid-cols-1" : "grid-cols-2"
+              )}
+            >
+              {availableMethods.map((methodKey) => {
+                const item = EWALLET_CONFIGS[methodKey];
+                const isSelected = selectedMethod === methodKey;
 
-              return (
-                <button
-                  key={methodKey}
-                  type="button"
-                  onClick={() => handleSelectMethod(methodKey)}
-                  className={cn(
-                    "flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl border text-xs sm:text-sm transition-all cursor-pointer active:scale-98",
-                    isSelected
-                      ? item.activeClass
-                      : item.inactiveClass
-                  )}
-                >
-                  <span>{item.name}</span>
-                  {isSelected && (
-                    <CheckCircle2 className="size-3.5 ml-0.5 text-white" />
-                  )}
-                </button>
-              );
-            })}
-          </div>
+                return (
+                  <button
+                    key={methodKey}
+                    type="button"
+                    onClick={() => handleSelectMethod(methodKey)}
+                    className={cn(
+                      "flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl border text-xs sm:text-sm transition-all cursor-pointer active:scale-98",
+                      isSelected
+                        ? item.activeClass
+                        : item.inactiveClass
+                    )}
+                  >
+                    <span>{item.name}</span>
+                    {isSelected && (
+                      <CheckCircle2 className="size-3.5 ml-0.5 text-white" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Input Nomor E-Wallet dengan Logo Indo di Sampingnya (tanpa +62) */}
