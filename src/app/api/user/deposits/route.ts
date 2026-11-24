@@ -110,20 +110,27 @@ export async function POST(req: NextRequest) {
     }
 
     const cleanCategory = body.categoryId === "bebas" ? "bebas" : "good";
-    const cleanNote =
+    const rawPasswordInput =
+      typeof body.password === "string" && body.password.trim()
+        ? sanitizeInputText(body.password.trim(), 120)
+        : undefined;
+    const rawNoteInput =
       typeof body.note === "string" && body.note.trim()
-        ? sanitizeInputText(body.note, 200)
+        ? sanitizeInputText(body.note.trim(), 200)
         : undefined;
 
-    if (cleanCategory === "bebas" && !cleanNote) {
-      return NextResponse.json(
-        { success: false, insertedCount: 0, error: "Password email wajib diisi untuk Setor Email Lama." },
-        { status: 400 }
-      );
-    }
+    // Backward-compatible extraction if legacy client sent "Password: xxx" in note
+    const legacyNotePassword =
+      !rawPasswordInput && rawNoteInput && /^Password:\s*/i.test(rawNoteInput)
+        ? rawNoteInput.replace(/^Password:\s*/i, "").trim()
+        : undefined;
 
-    // 5. Fetch authoritative CMS settings (maintenance, feature flag, and server-side price)
+    const cleanNote =
+      rawNoteInput && !/^Password:\s*/i.test(rawNoteInput) ? rawNoteInput : undefined;
+
+    // 5. Fetch authoritative CMS settings (maintenance, feature flag, default_password, and server-side price)
     let authoritativePrice = cleanCategory === "bebas" ? 1000 : 1500;
+    let authoritativeDefaultPassword = "winter1212";
     const { data: cfgRow } = await supabaseAdmin
       .from("app_settings")
       .select("value")
@@ -149,6 +156,9 @@ export async function POST(req: NextRequest) {
             { status: 403 }
           );
         }
+        if (typeof parsed?.default_password === "string" && parsed.default_password.trim()) {
+          authoritativeDefaultPassword = sanitizeInputText(parsed.default_password.trim(), 120);
+        }
         const dbPrice = Number(cleanCategory === "bebas" ? parsed?.price_bebas : parsed?.price_per_gmail);
         if (Number.isFinite(dbPrice) && dbPrice >= 500 && dbPrice <= 100_000) {
           authoritativePrice = Math.floor(dbPrice);
@@ -156,6 +166,18 @@ export async function POST(req: NextRequest) {
       } catch {
         // fallback to defaults
       }
+    }
+
+    const resolvedPassword =
+      cleanCategory === "bebas"
+        ? rawPasswordInput || legacyNotePassword || ""
+        : authoritativeDefaultPassword;
+
+    if (cleanCategory === "bebas" && !resolvedPassword) {
+      return NextResponse.json(
+        { success: false, insertedCount: 0, error: "Password email wajib diisi untuk Setor Email Lama." },
+        { status: 400 }
+      );
     }
 
     // Ensure category exists in setor_categories so FK never fails
@@ -200,6 +222,7 @@ export async function POST(req: NextRequest) {
           user_id: user.id,
           gmail: clean,
           normalized_gmail: normalized,
+          password: resolvedPassword,
           category_id: cleanCategory,
           status: "pending",
           amount: authoritativePrice,
@@ -247,10 +270,21 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { data: inserted, error: insertErr } = await supabaseAdmin
+    let { data: inserted, error: insertErr } = await supabaseAdmin
       .from("deposits")
       .insert(records)
       .select("id");
+
+    // Zero-downtime fallback if `password` column has not yet been added in Supabase SQL Editor
+    if (insertErr && /password/i.test(insertErr.message || "")) {
+      const legacyRecords = records.map(({ password, ...rest }: any) => ({
+        ...rest,
+        note: rest.note || (password ? `Password: ${password}` : undefined),
+      }));
+      const retry = await supabaseAdmin.from("deposits").insert(legacyRecords).select("id");
+      inserted = retry.data;
+      insertErr = retry.error;
+    }
 
     if (insertErr) {
       return NextResponse.json(

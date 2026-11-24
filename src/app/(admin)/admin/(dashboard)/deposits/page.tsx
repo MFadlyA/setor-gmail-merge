@@ -11,6 +11,7 @@ import {
   Clock,
   Copy,
   Check,
+  KeyRound,
 } from "lucide-react";
 import { Button } from "@/components/admin/ui/button";
 import { Modal } from "@/components/admin/ui/modal";
@@ -32,6 +33,8 @@ export default function DepositsPage() {
   const [depositCategoryFilter, setDepositCategoryFilter] = useState("all");
   const [depositStatusFilter, setDepositStatusFilter] = useState("all");
   const [copiedGmailId, setCopiedGmailId] = useState<string | null>(null);
+  const [copiedPasswordId, setCopiedPasswordId] = useState<string | null>(null);
+  const [categories, setCategories] = useState<any[]>([]);
 
   // Deposit Detail / Verification Modal
   const [depositModalOpen, setDepositModalOpen] = useState(false);
@@ -53,6 +56,7 @@ export default function DepositsPage() {
       if (json.success) {
         setDeposits(json.deposits || []);
         if (json.stats) setDepositStats(json.stats);
+        if (Array.isArray(json.categories)) setCategories(json.categories);
       }
     } catch (err) {
       console.error("Gagal memuat data setoran Gmail:", err);
@@ -104,6 +108,21 @@ export default function DepositsPage() {
       setTimeout(() => setCopiedGmailId(null), 2000);
     }
   };
+
+  const handleCopyPassword = (text: string, id: string) => {
+    if (navigator?.clipboard && text && text !== "-") {
+      navigator.clipboard.writeText(text);
+      setCopiedPasswordId(id);
+      setTimeout(() => setCopiedPasswordId(null), 2000);
+    }
+  };
+
+  const isAcceptedStatus = (s?: string) => ["accepted", "diterima"].includes((s || "").toLowerCase());
+  const isRejectedStatus = (s?: string) => ["rejected", "ditolak"].includes((s || "").toLowerCase());
+  const isPendingStatus = (s?: string) => ["pending", "dicek"].includes((s || "").toLowerCase());
+
+  const freshCatPrice = categories.find((c) => c.id === "good")?.price || 1500;
+  const bebasCatPrice = categories.find((c) => c.id === "bebas")?.price || 1000;
 
   return (
     <div className="space-y-6">
@@ -190,8 +209,8 @@ export default function DepositsPage() {
         <div className="flex items-center gap-1.5 p-1 bg-zinc-900 border border-zinc-800 rounded-xl overflow-x-auto no-scrollbar flex-wrap sm:flex-nowrap w-full sm:w-max">
           {[
             { label: "Semua Kategori", value: "all" },
-            { label: "Gmail Good (Rp 4.500)", value: "good" },
-            { label: "Gmail Bebas (Rp 2.500)", value: "bebas" },
+            { label: `Gmail Fresh (Rp ${Number(freshCatPrice).toLocaleString("id-ID")})`, value: "good" },
+            { label: `Gmail Lama / Bebas (Rp ${Number(bebasCatPrice).toLocaleString("id-ID")})`, value: "bebas" },
           ].map((tab) => (
             <button
               key={tab.value}
@@ -241,6 +260,7 @@ export default function DepositsPage() {
               <tr className="bg-zinc-950/80 border-b border-zinc-800 text-zinc-400 font-semibold uppercase tracking-wider text-[10px]">
                 <th className="py-3 px-4">Tanggal Setor</th>
                 <th className="py-3 px-4">Akun Gmail Disetor</th>
+                <th className="py-3 px-4">Password</th>
                 <th className="py-3 px-4">Penyetor (Member)</th>
                 <th className="py-3 px-4">Kategori</th>
                 <th className="py-3 px-4 text-right">Reward</th>
@@ -252,7 +272,7 @@ export default function DepositsPage() {
             <tbody className="divide-y divide-zinc-800/80 text-zinc-200">
               {isLoadingDeposits ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-zinc-500">
+                  <td colSpan={9} className="py-12 text-center text-zinc-500">
                     <div className="flex flex-col items-center gap-2">
                       <RefreshCw className="w-5 h-5 animate-spin text-emerald-400" />
                       <span>Memuat data setoran Gmail...</span>
@@ -261,7 +281,7 @@ export default function DepositsPage() {
                 </tr>
               ) : deposits.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-zinc-500">
+                  <td colSpan={9} className="py-12 text-center text-zinc-500">
                     <div className="flex flex-col items-center gap-2 max-w-sm mx-auto">
                       <Mail className="w-8 h-8 text-zinc-600" />
                       <p className="font-medium text-zinc-400">Belum ada akun Gmail yang disetor</p>
@@ -296,7 +316,7 @@ export default function DepositsPage() {
                           type="button"
                           onClick={() => handleCopy(dep.gmail, dep.id)}
                           title="Salin Gmail"
-                          className="text-zinc-500 hover:text-zinc-200 transition-colors p-1 rounded hover:bg-zinc-800"
+                          className="text-zinc-500 hover:text-zinc-200 transition-colors p-1 rounded hover:bg-zinc-800 cursor-pointer"
                         >
                           {copiedGmailId === dep.id ? (
                             <Check className="w-3.5 h-3.5 text-emerald-400" />
@@ -305,6 +325,29 @@ export default function DepositsPage() {
                           )}
                         </button>
                       </div>
+                    </td>
+
+                    <td className="py-3 px-4 font-mono whitespace-nowrap">
+                      {dep.password && dep.password !== "-" ? (
+                        <div className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-950/90 px-2.5 py-1 text-xs text-sky-300">
+                          <KeyRound className="w-3 h-3 text-sky-400 shrink-0" />
+                          <span className="font-semibold select-all">{dep.password}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleCopyPassword(dep.password, dep.id)}
+                            title="Salin Password"
+                            className="text-zinc-500 hover:text-white transition-colors p-0.5 rounded hover:bg-zinc-800 cursor-pointer"
+                          >
+                            {copiedPasswordId === dep.id ? (
+                              <Check className="w-3 h-3 text-emerald-400" />
+                            ) : (
+                              <Copy className="w-3 h-3" />
+                            )}
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-zinc-500">-</span>
+                      )}
                     </td>
 
                     <td className="py-3 px-4">
@@ -333,16 +376,16 @@ export default function DepositsPage() {
                     <td className="py-3 px-4 text-center whitespace-nowrap">
                       <span
                         className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider ${
-                          dep.status === "accepted"
+                          isAcceptedStatus(dep.status)
                             ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                            : dep.status === "rejected"
+                            : isRejectedStatus(dep.status)
                             ? "bg-rose-500/10 text-rose-400 border-rose-500/20"
                             : "bg-amber-500/10 text-amber-400 border-amber-500/20"
                         }`}
                       >
-                        {dep.status === "accepted"
+                        {isAcceptedStatus(dep.status)
                           ? "Diterima"
-                          : dep.status === "rejected"
+                          : isRejectedStatus(dep.status)
                           ? "Ditolak"
                           : "Menunggu Cek"}
                       </span>
@@ -354,7 +397,7 @@ export default function DepositsPage() {
 
                     <td className="py-3 px-4 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1.5">
-                        {dep.status === "pending" ? (
+                        {isPendingStatus(dep.status) ? (
                           <>
                             <Button
                               variant="success"
@@ -370,6 +413,7 @@ export default function DepositsPage() {
                               size="sm"
                               onClick={() => {
                                 setSelectedDeposit(dep);
+                                setDepositAdminNote("");
                                 setDepositModalOpen(true);
                               }}
                               className="px-2 py-1 text-[11px] flex items-center gap-1"
@@ -384,6 +428,7 @@ export default function DepositsPage() {
                             size="sm"
                             onClick={() => {
                               setSelectedDeposit(dep);
+                              setDepositAdminNote(dep.note !== "-" ? dep.note : "");
                               setDepositModalOpen(true);
                             }}
                             className="px-2 py-1 text-[11px] text-zinc-400 hover:text-zinc-200"
@@ -420,7 +465,7 @@ export default function DepositsPage() {
               >
                 Tutup
               </Button>
-              {selectedDeposit?.status === "pending" && (
+              {isPendingStatus(selectedDeposit?.status) && (
                 <>
                   <Button
                     variant="danger"
@@ -431,7 +476,13 @@ export default function DepositsPage() {
                   </Button>
                   <Button
                     variant="success"
-                    onClick={() => handleUpdateDepositStatus(selectedDeposit, "accepted")}
+                    onClick={() =>
+                      handleUpdateDepositStatus(
+                        selectedDeposit,
+                        "accepted",
+                        depositAdminNote.trim() || "Disetujui Admin"
+                      )
+                    }
                     isLoading={isUpdatingDeposit}
                   >
                     Terima & Tambah Saldo
@@ -443,12 +494,52 @@ export default function DepositsPage() {
         }
       >
         <div className="space-y-4 text-xs">
-          <div className="p-3 bg-zinc-950 border border-zinc-800 rounded-xl space-y-2">
-            <div className="flex items-center justify-between">
+          <div className="p-3 bg-zinc-950 border border-zinc-800 rounded-xl space-y-2.5">
+            <div className="flex items-center justify-between gap-2">
               <span className="text-zinc-500">Akun Gmail:</span>
-              <span className="font-mono font-bold text-emerald-400 text-sm">
-                {selectedDeposit?.gmail}
-              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="font-mono font-bold text-emerald-400 text-sm select-all">
+                  {selectedDeposit?.gmail}
+                </span>
+                {selectedDeposit?.gmail && (
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(selectedDeposit.gmail, `modal-${selectedDeposit.id}`)}
+                    className="p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-white cursor-pointer"
+                    title="Salin Gmail"
+                  >
+                    {copiedGmailId === `modal-${selectedDeposit.id}` ? (
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    ) : (
+                      <Copy className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-zinc-500">Password Akun:</span>
+              <div className="flex items-center gap-1.5">
+                <span className="font-mono font-bold text-sky-300 text-sm select-all">
+                  {selectedDeposit?.password || "-"}
+                </span>
+                {selectedDeposit?.password && selectedDeposit.password !== "-" && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleCopyPassword(selectedDeposit.password, `modal-${selectedDeposit.id}`)
+                    }
+                    className="p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-white cursor-pointer"
+                    title="Salin Password"
+                  >
+                    {copiedPasswordId === `modal-${selectedDeposit.id}` ? (
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    ) : (
+                      <Copy className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                )}
+              </div>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-zinc-500">Penyetor (Member):</span>
@@ -470,16 +561,16 @@ export default function DepositsPage() {
               <span className="text-zinc-500">Status Saat Ini:</span>
               <span
                 className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider ${
-                  selectedDeposit?.status === "accepted"
+                  isAcceptedStatus(selectedDeposit?.status)
                     ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                    : selectedDeposit?.status === "rejected"
+                    : isRejectedStatus(selectedDeposit?.status)
                     ? "bg-rose-500/10 text-rose-400 border-rose-500/20"
                     : "bg-amber-500/10 text-amber-400 border-amber-500/20"
                 }`}
               >
-                {selectedDeposit?.status === "accepted"
+                {isAcceptedStatus(selectedDeposit?.status)
                   ? "Diterima"
-                  : selectedDeposit?.status === "rejected"
+                  : isRejectedStatus(selectedDeposit?.status)
                   ? "Ditolak"
                   : "Menunggu Cek"}
               </span>

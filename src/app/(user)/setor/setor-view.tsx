@@ -634,14 +634,15 @@ export function SetorView() {
         const user = await getCurrentAuthUser();
         if (user) {
           const categoryId = depositMode === "old" ? "bebas" : "good";
-          const noteText =
-            depositMode === "old" ? `Password: ${oldEmailPassword.trim()}` : undefined;
+          const submittedPassword =
+            depositMode === "old" ? oldEmailPassword.trim() : activePassword;
           const res = await insertUserDeposits(
             user.id,
             liveEmailList,
             categoryId,
             pricePerGmail,
-            noteText
+            undefined,
+            submittedPassword
           );
           if (!res.success) {
             toast.error("Gagal menyetor Gmail", {

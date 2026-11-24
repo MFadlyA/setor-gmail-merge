@@ -14,10 +14,11 @@ export async function GET(req: NextRequest) {
     const filterCategory = searchParams.get("category") || "all";
     const search = searchParams.get("search")?.toLowerCase().trim() || "";
 
-    // Parallel fetch all profiles, categories, and deposits
+    // Parallel fetch all profiles, categories, site_config, and deposits
     const [
       { data: profiles },
       { data: categories },
+      { data: cfgRow },
       { data: depositsData, error: depError },
     ] = await Promise.all([
       fetchAllRows((from, to) =>
@@ -28,6 +29,7 @@ export async function GET(req: NextRequest) {
           .range(from, to)
       ),
       supabaseAdmin.from("setor_categories").select("*"),
+      supabaseAdmin.from("app_settings").select("value").eq("key", "site_config").maybeSingle(),
       fetchAllRows((from, to) => {
         let q = supabaseAdmin
           .from("deposits")
@@ -35,7 +37,13 @@ export async function GET(req: NextRequest) {
           .order("created_at", { ascending: false })
           .order("id", { ascending: true })
           .range(from, to);
-        if (filterStatus !== "all") {
+        if (filterStatus === "accepted" || filterStatus === "diterima") {
+          q = q.in("status", ["accepted", "diterima"]);
+        } else if (filterStatus === "rejected" || filterStatus === "ditolak") {
+          q = q.in("status", ["rejected", "ditolak"]);
+        } else if (filterStatus === "pending" || filterStatus === "dicek") {
+          q = q.in("status", ["pending", "dicek"]);
+        } else if (filterStatus !== "all") {
           q = q.eq("status", filterStatus);
         }
         if (filterCategory !== "all") {
@@ -46,6 +54,18 @@ export async function GET(req: NextRequest) {
     ]);
 
     if (depError) throw depError;
+
+    let cmsDefaultPassword = "winter1212";
+    let cmsFreshPrice = 1500;
+    let cmsBebasPrice = 1000;
+    if (cfgRow?.value) {
+      try {
+        const parsedCfg = typeof cfgRow.value === "string" ? JSON.parse(cfgRow.value) : cfgRow.value;
+        if (parsedCfg?.default_password) cmsDefaultPassword = String(parsedCfg.default_password);
+        if (Number(parsedCfg?.price_per_gmail) > 0) cmsFreshPrice = Number(parsedCfg.price_per_gmail);
+        if (Number(parsedCfg?.price_bebas) > 0) cmsBebasPrice = Number(parsedCfg.price_bebas);
+      } catch {}
+    }
 
     const userMap: Record<string, { name: string; email: string; dana: string }> = {};
     (profiles || []).forEach((p) => {
@@ -68,9 +88,22 @@ export async function GET(req: NextRequest) {
         dana: "-",
       };
       const cat = categoryMap[d.category_id] || {
-        label: d.category_id === "good" ? "Setor Gmail Good" : "Setor Gmail Bebas",
-        price: d.amount || (d.category_id === "good" ? 4500 : 2500),
+        label: d.category_id === "good" ? "Gmail Fresh" : "Gmail Lama",
+        price: d.amount || (d.category_id === "good" ? cmsFreshPrice : cmsBebasPrice),
       };
+
+      const rawNote = typeof d.note === "string" ? d.note.trim() : "";
+      const noteHasLegacyPassword = /^Password:\s*/i.test(rawNote);
+      const legacyPasswordFromNote = noteHasLegacyPassword
+        ? rawNote.replace(/^Password:\s*/i, "").trim()
+        : "";
+
+      const resolvedPassword =
+        (typeof d.password === "string" && d.password.trim()) ||
+        legacyPasswordFromNote ||
+        (d.category_id === "good" ? cmsDefaultPassword : "-");
+
+      const displayNote = noteHasLegacyPassword ? "-" : rawNote || "-";
 
       return {
         id: d.id,
@@ -81,11 +114,12 @@ export async function GET(req: NextRequest) {
         batch_id: d.batch_id,
         gmail: d.gmail || "-",
         normalized_gmail: d.normalized_gmail || d.gmail || "-",
+        password: resolvedPassword,
         category_id: d.category_id || "good",
         category_label: cat.label,
         status: d.status || "pending",
-        amount: Number(d.amount) || Number(cat.price) || 4500,
-        note: d.note || "-",
+        amount: Number(d.amount) || Number(cat.price) || cmsFreshPrice,
+        note: displayNote,
         checked_at: d.checked_at,
         created_at: d.created_at,
       };

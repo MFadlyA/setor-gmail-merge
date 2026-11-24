@@ -423,7 +423,8 @@ export async function insertUserDeposits(
   emails: string[],
   categoryId = "good",
   _amountPerAccount = 1500,
-  note?: string
+  note?: string,
+  password?: string
 ): Promise<{ success: boolean; insertedCount: number; error?: string }> {
   if (!isSupabaseConfigured) {
     return { success: true, insertedCount: emails.length };
@@ -471,6 +472,7 @@ export async function insertUserDeposits(
       body: JSON.stringify({
         emails: validEmails,
         categoryId: categoryId === "bebas" ? "bebas" : "good",
+        password: password ? sanitizeInputText(password, 120) : undefined,
         note: note ? sanitizeInputText(note, 200) : undefined,
       }),
     });
