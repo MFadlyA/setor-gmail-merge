@@ -1,15 +1,21 @@
 -- ==============================================================================
 -- SETOR GMAIL BY WINTER - OWASP TOP 10 & CLOUDFLARE SECURITY HARDENING PATCH
--- Jalankan script ini di Supabase SQL Editor untuk menutup celah Privilege
--- Escalation (RLS role spoofing) dan manipulasi saldo / transaksi langsung.
+-- Jalankan script ini di Supabase SQL Editor.
+-- Seluruh perintah bersifat idempotent & mengecek keberadaan tabel terlebih dahulu
+-- (to_regclass) sehingga tidak akan gagal apabila ada tabel opsional yang dihapus.
 -- ==============================================================================
 
--- 1. Pastikan kategori 'good' dan 'bebas' tersedia untuk Foreign Key deposits
-INSERT INTO public.setor_categories (id, label, price, description, badge, is_active)
-VALUES
-  ('good', 'Gmail Fresh', 1500, 'Akun Gmail Fresh baru dibuat sesuai rules standar', 'Rekomendasi', true),
-  ('bebas', 'Gmail Lama', 1000, 'Setor akun Gmail lama yang sudah ada beserta password', 'Fleksibel', true)
-ON CONFLICT (id) DO NOTHING;
+-- 1. Pastikan kategori 'good' dan 'bebas' tersedia (jika tabel setor_categories ada)
+DO $$
+BEGIN
+  IF to_regclass('public.setor_categories') IS NOT NULL THEN
+    INSERT INTO public.setor_categories (id, label, price, description, badge, is_active)
+    VALUES
+      ('good', 'Gmail Fresh', 1500, 'Akun Gmail Fresh baru dibuat sesuai rules standar', 'Rekomendasi', true),
+      ('bebas', 'Gmail Lama', 1000, 'Setor akun Gmail lama yang sudah ada beserta password', 'Fleksibel', true)
+    ON CONFLICT (id) DO NOTHING;
+  END IF;
+END $$;
 
 -- 2. Perketat fungsi public.is_admin() dengan search_path eksplisit (CWE-426)
 CREATE OR REPLACE FUNCTION public.is_admin()
@@ -53,14 +59,12 @@ BEGIN
   END IF;
 
   IF TG_OP = 'INSERT' THEN
-    -- User biasa tidak boleh membuat profil dengan role selain 'User' atau milik orang lain
     IF NEW.id <> auth.uid() THEN
       RAISE EXCEPTION 'Akses ditolak: Tidak dapat membuat profil untuk pengguna lain.';
     END IF;
     NEW.role := 'User';
     RETURN NEW;
   ELSIF TG_OP = 'UPDATE' THEN
-    -- Blokir perubahan id, email, dan role oleh non-admin
     IF NEW.id IS DISTINCT FROM OLD.id THEN
       RAISE EXCEPTION 'Akses ditolak: ID profil tidak dapat diubah.';
     END IF;
@@ -77,118 +81,186 @@ BEGIN
 END;
 $$;
 
-DROP TRIGGER IF EXISTS trg_protect_profile_privileged_fields ON public.profiles;
-CREATE TRIGGER trg_protect_profile_privileged_fields
-  BEFORE INSERT OR UPDATE ON public.profiles
-  FOR EACH ROW
-  EXECUTE FUNCTION public.protect_profile_privileged_fields();
+DO $$
+BEGIN
+  IF to_regclass('public.profiles') IS NOT NULL THEN
+    DROP TRIGGER IF EXISTS trg_protect_profile_privileged_fields ON public.profiles;
+    CREATE TRIGGER trg_protect_profile_privileged_fields
+      BEFORE INSERT OR UPDATE ON public.profiles
+      FOR EACH ROW
+      EXECUTE FUNCTION public.protect_profile_privileged_fields();
+  END IF;
+END $$;
 
--- 4. Aktifkan RLS di SELURUH tabel (termasuk tabel referral & bonus yang sebelumnya belum aktif)
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.wallets ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.saved_ewallets ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.deposits ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.deposit_batches ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.withdrawals ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.support_tickets ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.ticket_replies ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.setor_categories ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.app_settings ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.email_checker_logs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.referral_missions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.referrals ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.bonus_history ENABLE ROW LEVEL SECURITY;
+-- 4. Aktifkan RLS & Kebijakan Keamanan pada Seluruh Tabel Aktif (Aman dengan to_regclass)
+DO $$
+DECLARE
+  v_tbl text;
+BEGIN
+  -- Aktifkan RLS otomatis hanya untuk tabel yang benar-benar ada di database produksi
+  FOREACH v_tbl IN ARRAY ARRAY[
+    'profiles',
+    'wallets',
+    'saved_ewallets',
+    'deposits',
+    'deposit_batches',
+    'withdrawals',
+    'transactions',
+    'setor_categories',
+    'app_settings',
+    'email_checker_logs',
+    'referral_missions',
+    'referrals',
+    'bonus_history'
+  ]
+  LOOP
+    IF to_regclass('public.' || v_tbl) IS NOT NULL THEN
+      EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', v_tbl);
+    END IF;
+  END LOOP;
 
--- 5. Perketat kebijakan RLS pada Profiles
-DROP POLICY IF EXISTS "profiles_select_own" ON public.profiles;
-CREATE POLICY "profiles_select_own" ON public.profiles
-  FOR SELECT USING (auth.uid() = id OR public.is_admin());
+  -- 5. Profiles
+  IF to_regclass('public.profiles') IS NOT NULL THEN
+    DROP POLICY IF EXISTS "profiles_select_own" ON public.profiles;
+    CREATE POLICY "profiles_select_own" ON public.profiles
+      FOR SELECT USING (auth.uid() = id OR public.is_admin());
 
-DROP POLICY IF EXISTS "profiles_insert_own" ON public.profiles;
-CREATE POLICY "profiles_insert_own" ON public.profiles
-  FOR INSERT WITH CHECK (
-    (auth.uid() = id AND role = 'User') OR public.is_admin()
-  );
+    DROP POLICY IF EXISTS "profiles_insert_own" ON public.profiles;
+    CREATE POLICY "profiles_insert_own" ON public.profiles
+      FOR INSERT WITH CHECK ((auth.uid() = id AND role = 'User') OR public.is_admin());
 
-DROP POLICY IF EXISTS "profiles_update_own" ON public.profiles;
-CREATE POLICY "profiles_update_own" ON public.profiles
-  FOR UPDATE
-  USING (auth.uid() = id OR public.is_admin())
-  WITH CHECK (auth.uid() = id OR public.is_admin());
+    DROP POLICY IF EXISTS "profiles_update_own" ON public.profiles;
+    CREATE POLICY "profiles_update_own" ON public.profiles
+      FOR UPDATE
+      USING (auth.uid() = id OR public.is_admin())
+      WITH CHECK (auth.uid() = id OR public.is_admin());
+  END IF;
 
--- 6. HAPUS akses tulis langsung klien ke Wallets (Kritis: Cegah manipulasi saldo bebas)
-DROP POLICY IF EXISTS "wallets_update_own" ON public.wallets;
-DROP POLICY IF EXISTS "wallets_admin_all" ON public.wallets;
-CREATE POLICY "wallets_admin_all" ON public.wallets
-  FOR ALL
-  USING (public.is_admin())
-  WITH CHECK (public.is_admin());
+  -- 6. Wallets (HAPUS akses tulis langsung klien — cegah manipulasi saldo bebas)
+  IF to_regclass('public.wallets') IS NOT NULL THEN
+    DROP POLICY IF EXISTS "wallets_select_own" ON public.wallets;
+    CREATE POLICY "wallets_select_own" ON public.wallets
+      FOR SELECT USING (auth.uid() = user_id OR public.is_admin());
 
--- 7. Perketat Saved E-Wallets dengan WITH CHECK eksplisit
-DROP POLICY IF EXISTS "ewallets_all_own" ON public.saved_ewallets;
-CREATE POLICY "ewallets_all_own" ON public.saved_ewallets
-  FOR ALL
-  USING (auth.uid() = user_id OR public.is_admin())
-  WITH CHECK (auth.uid() = user_id OR public.is_admin());
+    DROP POLICY IF EXISTS "wallets_update_own" ON public.wallets;
+    DROP POLICY IF EXISTS "wallets_admin_all" ON public.wallets;
+    CREATE POLICY "wallets_admin_all" ON public.wallets
+      FOR ALL USING (public.is_admin()) WITH CHECK (public.is_admin());
+  END IF;
 
--- 8. Kunci mutasi Deposits, Withdrawals, dan Transactions agar HANYA melalui API Server (service_role) atau Admin
-DROP POLICY IF EXISTS "deposits_insert_own" ON public.deposits;
-DROP POLICY IF EXISTS "deposits_admin_write" ON public.deposits;
-CREATE POLICY "deposits_admin_write" ON public.deposits
-  FOR INSERT WITH CHECK (public.is_admin());
+  -- 7. Saved E-Wallets
+  IF to_regclass('public.saved_ewallets') IS NOT NULL THEN
+    DROP POLICY IF EXISTS "ewallets_all_own" ON public.saved_ewallets;
+    CREATE POLICY "ewallets_all_own" ON public.saved_ewallets
+      FOR ALL
+      USING (auth.uid() = user_id OR public.is_admin())
+      WITH CHECK (auth.uid() = user_id OR public.is_admin());
+  END IF;
 
-DROP POLICY IF EXISTS "deposits_update_admin" ON public.deposits;
-CREATE POLICY "deposits_update_admin" ON public.deposits
-  FOR UPDATE USING (public.is_admin()) WITH CHECK (public.is_admin());
+  -- 8. Deposits (Mutasi wajib via API Server /api/user/deposits atau Admin)
+  IF to_regclass('public.deposits') IS NOT NULL THEN
+    DROP POLICY IF EXISTS "deposits_select_own" ON public.deposits;
+    CREATE POLICY "deposits_select_own" ON public.deposits
+      FOR SELECT USING (auth.uid() = user_id OR public.is_admin());
 
-DROP POLICY IF EXISTS "withdrawals_insert_own" ON public.withdrawals;
-DROP POLICY IF EXISTS "withdrawals_admin_insert" ON public.withdrawals;
-CREATE POLICY "withdrawals_admin_insert" ON public.withdrawals
-  FOR INSERT WITH CHECK (public.is_admin());
+    DROP POLICY IF EXISTS "deposits_insert_own" ON public.deposits;
+    DROP POLICY IF EXISTS "deposits_admin_write" ON public.deposits;
+    CREATE POLICY "deposits_admin_write" ON public.deposits
+      FOR INSERT WITH CHECK (public.is_admin());
 
-DROP POLICY IF EXISTS "withdrawals_update_admin" ON public.withdrawals;
-CREATE POLICY "withdrawals_update_admin" ON public.withdrawals
-  FOR UPDATE USING (public.is_admin()) WITH CHECK (public.is_admin());
+    DROP POLICY IF EXISTS "deposits_update_admin" ON public.deposits;
+    CREATE POLICY "deposits_update_admin" ON public.deposits
+      FOR UPDATE USING (public.is_admin()) WITH CHECK (public.is_admin());
 
-DROP POLICY IF EXISTS "transactions_insert_own" ON public.transactions;
-DROP POLICY IF EXISTS "transactions_admin_all" ON public.transactions;
-CREATE POLICY "transactions_admin_all" ON public.transactions
-  FOR ALL USING (public.is_admin()) WITH CHECK (public.is_admin());
+    ALTER TABLE public.deposits DROP CONSTRAINT IF EXISTS deposits_status_check;
+    ALTER TABLE public.deposits ADD CONSTRAINT deposits_status_check
+      CHECK (status::text = ANY (ARRAY['pending', 'dicek', 'diterima', 'ditolak', 'accepted', 'rejected']::text[]));
 
--- 9. Kebijakan RLS untuk tabel pendukung (deposit_batches, email_checker_logs, referrals, bonus_history)
-DROP POLICY IF EXISTS "deposit_batches_select_own" ON public.deposit_batches;
-CREATE POLICY "deposit_batches_select_own" ON public.deposit_batches
-  FOR SELECT USING (auth.uid() = user_id OR public.is_admin());
+    CREATE INDEX IF NOT EXISTS idx_deposits_normalized_lower ON public.deposits (LOWER(normalized_gmail));
+  END IF;
 
-DROP POLICY IF EXISTS "checker_logs_select_own" ON public.email_checker_logs;
-CREATE POLICY "checker_logs_select_own" ON public.email_checker_logs
-  FOR SELECT USING (auth.uid() = user_id OR public.is_admin());
+  -- 9. Withdrawals (Mutasi wajib via API Server /api/user/withdrawals atau Admin)
+  IF to_regclass('public.withdrawals') IS NOT NULL THEN
+    DROP POLICY IF EXISTS "withdrawals_select_own" ON public.withdrawals;
+    CREATE POLICY "withdrawals_select_own" ON public.withdrawals
+      FOR SELECT USING (auth.uid() = user_id OR public.is_admin());
 
-DROP POLICY IF EXISTS "referral_missions_read_all" ON public.referral_missions;
-CREATE POLICY "referral_missions_read_all" ON public.referral_missions
-  FOR SELECT USING (true);
+    DROP POLICY IF EXISTS "withdrawals_insert_own" ON public.withdrawals;
+    DROP POLICY IF EXISTS "withdrawals_admin_insert" ON public.withdrawals;
+    CREATE POLICY "withdrawals_admin_insert" ON public.withdrawals
+      FOR INSERT WITH CHECK (public.is_admin());
 
-DROP POLICY IF EXISTS "referral_missions_admin_all" ON public.referral_missions;
-CREATE POLICY "referral_missions_admin_all" ON public.referral_missions
-  FOR ALL USING (public.is_admin()) WITH CHECK (public.is_admin());
+    DROP POLICY IF EXISTS "withdrawals_update_admin" ON public.withdrawals;
+    CREATE POLICY "withdrawals_update_admin" ON public.withdrawals
+      FOR UPDATE USING (public.is_admin()) WITH CHECK (public.is_admin());
 
-DROP POLICY IF EXISTS "referrals_select_own" ON public.referrals;
-CREATE POLICY "referrals_select_own" ON public.referrals
-  FOR SELECT USING (auth.uid() = referrer_id OR auth.uid() = referee_id OR public.is_admin());
+    ALTER TABLE public.withdrawals DROP CONSTRAINT IF EXISTS withdrawals_status_check;
+    ALTER TABLE public.withdrawals ADD CONSTRAINT withdrawals_status_check
+      CHECK (status::text = ANY (ARRAY['diproses', 'berhasil', 'ditolak', 'pending', 'success', 'failed', 'rejected']::text[]));
+  END IF;
 
-DROP POLICY IF EXISTS "bonus_history_select_own" ON public.bonus_history;
-CREATE POLICY "bonus_history_select_own" ON public.bonus_history
-  FOR SELECT USING (auth.uid() = user_id OR public.is_admin());
+  -- 10. Transactions (Mutasi wajib via API Server atau Admin)
+  IF to_regclass('public.transactions') IS NOT NULL THEN
+    DROP POLICY IF EXISTS "transactions_select_own" ON public.transactions;
+    CREATE POLICY "transactions_select_own" ON public.transactions
+      FOR SELECT USING (auth.uid() = user_id OR public.is_admin());
 
--- 10. Perluas CHECK constraint status pada deposits & withdrawals agar kompatibel penuh dengan Admin & User
-ALTER TABLE public.deposits DROP CONSTRAINT IF EXISTS deposits_status_check;
-ALTER TABLE public.deposits ADD CONSTRAINT deposits_status_check
-  CHECK (status::text = ANY (ARRAY['pending', 'dicek', 'diterima', 'ditolak', 'accepted', 'rejected']::text[]));
+    DROP POLICY IF EXISTS "transactions_insert_own" ON public.transactions;
+    DROP POLICY IF EXISTS "transactions_admin_all" ON public.transactions;
+    CREATE POLICY "transactions_admin_all" ON public.transactions
+      FOR ALL USING (public.is_admin()) WITH CHECK (public.is_admin());
+  END IF;
 
-ALTER TABLE public.withdrawals DROP CONSTRAINT IF EXISTS withdrawals_status_check;
-ALTER TABLE public.withdrawals ADD CONSTRAINT withdrawals_status_check
-  CHECK (status::text = ANY (ARRAY['diproses', 'berhasil', 'ditolak', 'pending', 'success', 'failed', 'rejected']::text[]));
+  -- 11. Setor Categories & App Settings
+  IF to_regclass('public.setor_categories') IS NOT NULL THEN
+    DROP POLICY IF EXISTS "categories_read_all" ON public.setor_categories;
+    CREATE POLICY "categories_read_all" ON public.setor_categories FOR SELECT USING (true);
 
--- 11. Unique partial index anti-duplikasi global setoran Gmail (kecuali yang sudah ditolak jika ingin diatur ulang, atau global penuh)
-CREATE INDEX IF NOT EXISTS idx_deposits_normalized_lower ON public.deposits (LOWER(normalized_gmail));
+    DROP POLICY IF EXISTS "categories_admin_all" ON public.setor_categories;
+    CREATE POLICY "categories_admin_all" ON public.setor_categories
+      FOR ALL USING (public.is_admin()) WITH CHECK (public.is_admin());
+  END IF;
+
+  IF to_regclass('public.app_settings') IS NOT NULL THEN
+    DROP POLICY IF EXISTS "app_settings_read_all" ON public.app_settings;
+    CREATE POLICY "app_settings_read_all" ON public.app_settings FOR SELECT USING (true);
+
+    DROP POLICY IF EXISTS "app_settings_admin_all" ON public.app_settings;
+    CREATE POLICY "app_settings_admin_all" ON public.app_settings
+      FOR ALL USING (public.is_admin()) WITH CHECK (public.is_admin());
+  END IF;
+
+  -- 12. Tabel opsional lainnya (hanya dieksekusi jika tabelnya masih ada di database)
+  IF to_regclass('public.deposit_batches') IS NOT NULL THEN
+    DROP POLICY IF EXISTS "deposit_batches_select_own" ON public.deposit_batches;
+    CREATE POLICY "deposit_batches_select_own" ON public.deposit_batches
+      FOR SELECT USING (auth.uid() = user_id OR public.is_admin());
+  END IF;
+
+  IF to_regclass('public.email_checker_logs') IS NOT NULL THEN
+    DROP POLICY IF EXISTS "checker_logs_select_own" ON public.email_checker_logs;
+    CREATE POLICY "checker_logs_select_own" ON public.email_checker_logs
+      FOR SELECT USING (auth.uid() = user_id OR public.is_admin());
+  END IF;
+
+  IF to_regclass('public.referral_missions') IS NOT NULL THEN
+    DROP POLICY IF EXISTS "referral_missions_read_all" ON public.referral_missions;
+    CREATE POLICY "referral_missions_read_all" ON public.referral_missions FOR SELECT USING (true);
+
+    DROP POLICY IF EXISTS "referral_missions_admin_all" ON public.referral_missions;
+    CREATE POLICY "referral_missions_admin_all" ON public.referral_missions
+      FOR ALL USING (public.is_admin()) WITH CHECK (public.is_admin());
+  END IF;
+
+  IF to_regclass('public.referrals') IS NOT NULL THEN
+    DROP POLICY IF EXISTS "referrals_select_own" ON public.referrals;
+    CREATE POLICY "referrals_select_own" ON public.referrals
+      FOR SELECT USING (auth.uid() = referrer_id OR auth.uid() = referee_id OR public.is_admin());
+  END IF;
+
+  IF to_regclass('public.bonus_history') IS NOT NULL THEN
+    DROP POLICY IF EXISTS "bonus_history_select_own" ON public.bonus_history;
+    CREATE POLICY "bonus_history_select_own" ON public.bonus_history
+      FOR SELECT USING (auth.uid() = user_id OR public.is_admin());
+  END IF;
+END $$;

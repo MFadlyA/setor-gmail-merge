@@ -43,5 +43,8 @@
     "tailwindcss": "^4",
     "typescript": "^5",
     "wrangler": "^4.164.0"
+  },
+  "overrides": {
+    "cookie": "0.7.2"
   }
 }

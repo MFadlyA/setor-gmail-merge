@@ -156,40 +156,7 @@ CREATE TABLE IF NOT EXISTS public.transactions (
 );
 
 -- ------------------------------------------------------------------------------
--- 10. TABEL: SUPPORT TICKETS & REPLIES (LAPORAN)
--- ------------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS public.support_tickets (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  ticket_code character varying NOT NULL UNIQUE,
-  user_id uuid NOT NULL,
-  category character varying NOT NULL CHECK (category::text = ANY (ARRAY['Setoran Gmail'::character varying, 'Penarikan Saldo'::character varying, 'Bug / Error'::character varying, 'Saran & Masukan'::character varying, 'Lainnya'::character varying]::text[])),
-  subject character varying NOT NULL,
-  description text NOT NULL,
-  status character varying NOT NULL DEFAULT 'baru'::character varying CHECK (status::text = ANY (ARRAY['baru'::character varying, 'diproses'::character varying, 'selesai'::character varying]::text[])),
-  attachment_name character varying,
-  attachment_url text,
-  telegram_sent boolean DEFAULT false,
-  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
-  updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
-  CONSTRAINT support_tickets_pkey PRIMARY KEY (id),
-  CONSTRAINT support_tickets_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS public.ticket_replies (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  ticket_id uuid NOT NULL,
-  sender_type character varying NOT NULL CHECK (sender_type::text = ANY (ARRAY['user'::character varying, 'admin'::character varying]::text[])),
-  sender_id uuid,
-  message text NOT NULL,
-  attachment_url text,
-  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
-  CONSTRAINT ticket_replies_pkey PRIMARY KEY (id),
-  CONSTRAINT ticket_replies_ticket_id_fkey FOREIGN KEY (ticket_id) REFERENCES public.support_tickets(id) ON DELETE CASCADE,
-  CONSTRAINT ticket_replies_sender_id_fkey FOREIGN KEY (sender_id) REFERENCES public.profiles(id) ON DELETE SET NULL
-);
-
--- ------------------------------------------------------------------------------
--- 11. TABEL: EMAIL CHECKER LOGS & APP SETTINGS
+-- 10. TABEL: EMAIL CHECKER LOGS & APP SETTINGS
 -- ------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.email_checker_logs (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -258,7 +225,6 @@ CREATE INDEX IF NOT EXISTS idx_deposits_user_created ON public.deposits(user_id,
 CREATE INDEX IF NOT EXISTS idx_deposits_normalized_gmail ON public.deposits(normalized_gmail);
 CREATE INDEX IF NOT EXISTS idx_withdrawals_user_created ON public.withdrawals(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_transactions_user_created ON public.transactions(user_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_support_tickets_user_created ON public.support_tickets(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_saved_ewallets_user ON public.saved_ewallets(user_id);
 
 -- ==============================================================================
@@ -373,8 +339,6 @@ ALTER TABLE public.deposits ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.deposit_batches ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.withdrawals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.support_tickets ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.ticket_replies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.setor_categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.app_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.email_checker_logs ENABLE ROW LEVEL SECURITY;
@@ -433,23 +397,6 @@ CREATE POLICY "transactions_select_own" ON public.transactions FOR SELECT USING 
 DROP POLICY IF EXISTS "transactions_insert_own" ON public.transactions;
 DROP POLICY IF EXISTS "transactions_admin_all" ON public.transactions;
 CREATE POLICY "transactions_admin_all" ON public.transactions FOR ALL USING (public.is_admin()) WITH CHECK (public.is_admin());
-
--- Support Tickets & Replies
-DROP POLICY IF EXISTS "tickets_select_own" ON public.support_tickets;
-CREATE POLICY "tickets_select_own" ON public.support_tickets FOR SELECT USING (auth.uid() = user_id OR public.is_admin());
-
-DROP POLICY IF EXISTS "tickets_insert_own" ON public.support_tickets;
-CREATE POLICY "tickets_insert_own" ON public.support_tickets FOR INSERT WITH CHECK (auth.uid() = user_id OR public.is_admin());
-
-DROP POLICY IF EXISTS "replies_select_own" ON public.ticket_replies;
-CREATE POLICY "replies_select_own" ON public.ticket_replies FOR SELECT USING (
-  public.is_admin() OR EXISTS (SELECT 1 FROM public.support_tickets t WHERE t.id = ticket_id AND t.user_id = auth.uid())
-);
-
-DROP POLICY IF EXISTS "replies_insert_own" ON public.ticket_replies;
-CREATE POLICY "replies_insert_own" ON public.ticket_replies FOR INSERT WITH CHECK (
-  public.is_admin() OR EXISTS (SELECT 1 FROM public.support_tickets t WHERE t.id = ticket_id AND t.user_id = auth.uid())
-);
 
 -- Secondary tables (batches, checker logs, referrals, bonus history)
 DROP POLICY IF EXISTS "deposit_batches_select_own" ON public.deposit_batches;
