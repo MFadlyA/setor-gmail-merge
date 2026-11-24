@@ -139,7 +139,7 @@ export async function GET(req: NextRequest) {
   } catch (err: any) {
     console.error("Transactions GET API error:", err);
     return NextResponse.json(
-      { success: false, error: err?.message || "Gagal memuat transaksi" },
+      { success: false, error: "Gagal memuat transaksi" },
       { status: 500 }
     );
   }
@@ -178,30 +178,61 @@ export async function PATCH(req: NextRequest) {
         );
       }
 
-      const updatePayload: any = {
-        status: newStatus,
-        updated_at: new Date().toISOString(),
+      const wdStatusMap: Record<string, { wd: string; tx: string }> = {
+        success: { wd: "berhasil", tx: "success" },
+        berhasil: { wd: "berhasil", tx: "success" },
+        rejected: { wd: "ditolak", tx: "failed" },
+        failed: { wd: "ditolak", tx: "failed" },
+        ditolak: { wd: "ditolak", tx: "failed" },
+        pending: { wd: "diproses", tx: "pending" },
+        diproses: { wd: "diproses", tx: "pending" },
       };
-      if (adminNote) updatePayload.admin_note = adminNote;
-      if (newStatus === "success") {
-        updatePayload.processed_at = new Date().toISOString();
+
+      const mapped = wdStatusMap[newStatus];
+      if (!mapped) {
+        return NextResponse.json(
+          { success: false, error: "Status penarikan tidak valid" },
+          { status: 400 }
+        );
       }
 
-      const { error: updErr } = await supabaseAdmin
+      const prevWdStatus = String(wd.status || "diproses");
+      const wasPending = ["diproses", "pending"].includes(prevWdStatus.toLowerCase());
+      const nowIso = new Date().toISOString();
+
+      const updatePayload: any = {
+        status: mapped.wd,
+        updated_at: nowIso,
+      };
+      if (adminNote) updatePayload.admin_note = adminNote;
+      if (mapped.wd === "berhasil") {
+        updatePayload.processed_at = nowIso;
+      }
+
+      // Atomic conditional update to prevent concurrent double-refund race condition
+      const { data: updatedWd, error: updErr } = await supabaseAdmin
         .from("withdrawals")
         .update(updatePayload)
-        .eq("id", id);
+        .eq("id", id)
+        .eq("status", prevWdStatus)
+        .select("id");
 
       if (updErr) throw updErr;
+      if (!updatedWd || updatedWd.length === 0) {
+        return NextResponse.json(
+          { success: false, error: "Status penarikan sudah berubah oleh permintaan lain." },
+          { status: 409 }
+        );
+      }
 
       // Also update matching transaction row if any
       await supabaseAdmin
         .from("transactions")
-        .update({ status: newStatus })
+        .update({ status: mapped.tx })
         .eq("reference_id", id);
 
-      // If rejected/failed, refund user's wallet balance
-      if ((newStatus === "failed" || newStatus === "rejected") && wd.status === "pending") {
+      // If rejected/failed from pending/diproses state, refund user's wallet balance atomically once
+      if (mapped.wd === "ditolak" && wasPending) {
         const { data: wallet } = await supabaseAdmin
           .from("wallets")
           .select("balance, total_withdrawn")
@@ -214,13 +245,13 @@ export async function PATCH(req: NextRequest) {
             .update({
               balance: Number(wallet.balance) + Number(wd.amount),
               total_withdrawn: Math.max(0, Number(wallet.total_withdrawn) - Number(wd.amount)),
-              updated_at: new Date().toISOString(),
+              updated_at: nowIso,
             })
             .eq("user_id", wd.user_id);
 
           await supabaseAdmin.from("transactions").insert({
             user_id: wd.user_id,
-            type: "deposit",
+            type: "refund",
             amount: wd.amount,
             title: "Pengembalian Dana Penarikan",
             description: `Refund penarikan #${wd.id.slice(0, 8)} (${adminNote || "Penarikan ditolak oleh Admin"})`,
@@ -237,16 +268,24 @@ export async function PATCH(req: NextRequest) {
         targetId: id,
         ip: auth.clientIp,
         country: auth.country,
-        details: { newStatus, adminNote, userId: wd.user_id, amount: wd.amount },
+        details: { prevStatus: prevWdStatus, newStatus: mapped.wd, adminNote, userId: wd.user_id, amount: wd.amount },
       });
 
       return NextResponse.json({
         success: true,
-        message: `Status penarikan berhasil diubah ke ${newStatus}`,
+        message: `Status penarikan berhasil diubah ke ${mapped.wd}`,
       });
     }
 
     // Default to transactions table
+    const ALLOWED_TX_STATUSES = ["success", "pending", "failed"];
+    if (!ALLOWED_TX_STATUSES.includes(newStatus)) {
+      return NextResponse.json(
+        { success: false, error: "Status transaksi tidak valid" },
+        { status: 400 }
+      );
+    }
+
     const { error: tErr } = await supabaseAdmin
       .from("transactions")
       .update({ status: newStatus })
@@ -261,7 +300,7 @@ export async function PATCH(req: NextRequest) {
   } catch (err: any) {
     console.error("Transactions PATCH API error:", err);
     return NextResponse.json(
-      { success: false, error: err?.message || "Gagal memperbarui status transaksi" },
+      { success: false, error: "Gagal memperbarui status transaksi" },
       { status: 500 }
     );
   }

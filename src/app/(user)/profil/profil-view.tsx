@@ -410,6 +410,10 @@ export function ProfilView() {
                 type="button"
                 onClick={async () => {
                   try {
+                    await fetch("/api/auth/logout", {
+                      method: "POST",
+                      headers: { "X-Requested-With": "XMLHttpRequest" },
+                    }).catch(() => {});
                     if (supabase) {
                       await supabase.auth.signOut();
                     }

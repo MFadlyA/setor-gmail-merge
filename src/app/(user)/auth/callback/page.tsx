@@ -7,14 +7,6 @@ import { safeDecodeParam } from "@/lib/security";
 import { isKnownAdminEmail } from "@/lib/admin-whitelist";
 import { Loader2, ShieldCheck } from "lucide-react";
 
-function syncAdminCookie(token?: string) {
-  if (typeof document === "undefined" || !token) return;
-  const isHttps = window.location.protocol === "https:";
-  document.cookie = `sb-access-token=${token}; Path=/; SameSite=Lax${
-    isHttps ? "; Secure" : ""
-  }; max-age=86400`;
-}
-
 function CallbackHandler() {
   const router = useRouter();
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
@@ -35,30 +27,21 @@ function CallbackHandler() {
       } catch {}
 
       const userEmail = (user.email || "").toLowerCase().trim();
-      const userRole = (
-        user.app_metadata?.role ||
-        user.user_metadata?.role ||
-        ""
-      ).toLowerCase();
-
-      let isAdmin = isKnownAdminEmail(userEmail) || userRole === "admin";
+      let isAdmin = isKnownAdminEmail(userEmail);
 
       if (token) {
-        syncAdminCookie(token);
-
         try {
           const res = await fetch("/api/auth/admin-check", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
               Authorization: `Bearer ${token}`,
+              "X-Requested-With": "XMLHttpRequest",
             },
           });
           if (res.ok) {
             const checkData = await res.json();
-            if (checkData.isAdmin) {
-              isAdmin = true;
-            }
+            isAdmin = Boolean(checkData.isAdmin);
           }
         } catch (apiErr) {
           console.warn("admin-check verification notice:", apiErr);
@@ -110,6 +93,10 @@ function CallbackHandler() {
         const accessToken = hashParams.get("access_token");
         const refreshToken = hashParams.get("refresh_token");
         if (accessToken && refreshToken) {
+          // Immediately scrub tokens from URL hash & browser history
+          try {
+            window.history.replaceState(null, "", window.location.pathname + window.location.search);
+          } catch {}
           const { data, error: setSessionError } =
             await supabase.auth.setSession({
               access_token: accessToken,

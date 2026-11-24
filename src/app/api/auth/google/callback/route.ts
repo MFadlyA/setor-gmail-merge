@@ -112,15 +112,15 @@ export async function GET(req: NextRequest) {
       maxAge: 0,
     });
 
-    // Pre-sync admin cookie if admin email
+    // Pre-sync admin cookie as HttpOnly if verified admin email
     const userEmail = (sbJson?.user?.email || "").toLowerCase().trim();
     if (isKnownAdminEmail(userEmail)) {
       response.cookies.set("sb-access-token", sbJson.access_token, {
-        httpOnly: false,
+        httpOnly: true,
         secure: origin.startsWith("https://"),
         sameSite: "lax",
         path: "/",
-        maxAge: 86400,
+        maxAge: 3600,
       });
     }
 

@@ -2,7 +2,8 @@ import net from "net";
 import dns from "dns/promises";
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { checkRateLimit } from "@/lib/security";
+import { checkRateLimit } from "@/lib/security/rate-limiter";
+import { validateCsrf } from "@/lib/security/csrf";
 import {
   type GmailProbeItem,
   validateGmailForProbe,
@@ -227,19 +228,22 @@ export async function POST(req: NextRequest) {
   const requestStart = Date.now();
 
   try {
-    const ip =
-      req.headers.get("cf-connecting-ip") ||
-      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-      "local-ip";
+    const csrf = validateCsrf(req);
+    if (!csrf.valid) {
+      return NextResponse.json(
+        { success: false, error: "Akses ditolak: Validasi keamanan permintaan gagal." },
+        { status: 403 }
+      );
+    }
 
-    const rate = checkRateLimit(`gmail-check:${ip}`, 20, 60_000);
-    if (!rate.allowed) {
+    const rate = checkRateLimit(req, { maxRequests: 20, windowMs: 60_000 }, "gmail_check");
+    if (!rate.success) {
       return NextResponse.json(
         {
           success: false,
           error: "Terlalu banyak permintaan cek Gmail. Silakan tunggu 1 menit.",
         },
-        { status: 429, headers: { "Retry-After": "60" } }
+        { status: 429, headers: { "Retry-After": String(rate.retryAfterSeconds) } }
       );
     }
 

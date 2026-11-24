@@ -22,7 +22,7 @@ import { PasswordStrength, type PasswordRule } from "@/components/ui/password-st
 import { GoogleButton } from "./google-button";
 import { Divider } from "./divider";
 
-import { supabase } from "@/lib/supabase";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { isKnownAdminEmail } from "@/lib/admin-whitelist";
 
 type AuthMode = "login" | "register" | "forgot";
@@ -56,34 +56,32 @@ export interface AuthCardProps {
   initialMode?: AuthMode;
 }
 
-function syncAdminCookie(token?: string) {
-  if (typeof document === "undefined" || !token) return;
-  const isHttps = window.location.protocol === "https:";
-  document.cookie = `sb-access-token=${token}; Path=/; SameSite=Lax${
-    isHttps ? "; Secure" : ""
-  }; max-age=86400`;
+async function syncServerAdminCookie(token?: string): Promise<boolean> {
+  if (!token) return false;
+  try {
+    const res = await fetch("/api/auth/admin-check", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        "X-Requested-With": "XMLHttpRequest",
+      },
+    });
+    if (res.ok) {
+      const json = await res.json();
+      return Boolean(json?.isAdmin);
+    }
+  } catch {}
+  return false;
 }
 
 async function getPostLoginRedirect(user?: any, token?: string): Promise<string> {
   if (!user) return "/";
-  if (token) syncAdminCookie(token);
   const userEmail = (user.email || "").toLowerCase().trim();
-  const userRole = (user.app_metadata?.role || user.user_metadata?.role || "").toLowerCase();
-  if (isKnownAdminEmail(userEmail) || userRole === "admin") {
+  if (isKnownAdminEmail(userEmail)) {
+    await syncServerAdminCookie(token);
     return "/admin";
   }
-  try {
-    if (supabase && user.id) {
-      const { data: prof } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .maybeSingle();
-      if (prof && prof.role?.toLowerCase() === "admin") {
-        return "/admin";
-      }
-    }
-  } catch {}
   return "/";
 }
 
@@ -146,27 +144,10 @@ export function AuthCard({
 
         if (data?.user) {
           const userEmail = (data.user.email || "").toLowerCase().trim();
-          const userRole = (data.user.app_metadata?.role || data.user.user_metadata?.role || "").toLowerCase();
-          const isAdmin = isKnownAdminEmail(userEmail) || userRole === "admin";
-
-          if (data.session?.access_token) {
-            syncAdminCookie(data.session.access_token);
-          }
+          const isAdmin = isKnownAdminEmail(userEmail);
 
           if (isAdmin) {
-            if (data.session?.access_token) {
-              try {
-                await fetch("/api/auth/admin-check", {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${data.session.access_token}`,
-                  },
-                });
-              } catch (e) {
-                console.warn("admin-check error:", e);
-              }
-            }
+            await syncServerAdminCookie(data.session?.access_token);
 
             try {
               localStorage.setItem("setorgmail_auth", "true");
@@ -193,16 +174,15 @@ export function AuthCard({
                 data.user.email?.split("@")[0] ||
                 "Pengguna";
 
-              await supabase.from("profiles").upsert({
-                id: data.user.id,
-                name: fullName,
-                email: data.user.email || "",
-                role: "user",
-              });
-              await supabase.from("wallets").upsert({
-                user_id: data.user.id,
-                balance: 0,
-              });
+              await supabase.from("profiles").upsert(
+                {
+                  id: data.user.id,
+                  name: fullName,
+                  email: data.user.email || "",
+                  role: "User",
+                },
+                { onConflict: "id", ignoreDuplicates: true }
+              );
             }
           } catch (profileErr) {
             console.warn("Profile init notice:", profileErr);
@@ -287,10 +267,9 @@ export function AuthCard({
           return;
         } else if (data?.user) {
           const userEmail = (data.user.email || "").toLowerCase().trim();
-          const userRole = (data.user.app_metadata?.role || data.user.user_metadata?.role || "").toLowerCase();
 
           // 2. Proteksi ganda jika akun admin mencoba login password
-          if (isKnownAdminEmail(userEmail) || userRole === "admin") {
+          if (isKnownAdminEmail(userEmail)) {
             await supabase.auth.signOut();
             try { localStorage.removeItem("setorgmail_auth"); } catch {}
             toast.error("Akses Khusus Akun Google", {
@@ -326,6 +305,12 @@ export function AuthCard({
         description: e?.message || "Terjadi kendala saat menghubungi server.",
       });
       setIsLoading(false);
+      return;
+    }
+
+    if (isSupabaseConfigured) {
+      setIsLoading(false);
+      toast.error("Gagal Masuk", { description: "Tidak dapat memverifikasi kredensial." });
       return;
     }
 
@@ -389,7 +374,7 @@ export function AuthCard({
           setIsLoading(false);
           return;
         } else if (data?.user) {
-          // Buat entri profil default jika belum ada
+          // Buat entri profil default jika belum ada (wallet dibuat otomatis oleh trigger DB)
           try {
             await supabase.from("profiles").upsert(
               {
@@ -400,14 +385,16 @@ export function AuthCard({
               },
               { onConflict: "id", ignoreDuplicates: true }
             );
-            await supabase.from("wallets").upsert(
-              {
-                user_id: data.user.id,
-                balance: 0,
-              },
-              { onConflict: "user_id", ignoreDuplicates: true }
-            );
           } catch { }
+
+          if (!data.session) {
+            setIsLoading(false);
+            toast.success("Pendaftaran berhasil!", {
+              description: "Silakan periksa email kamu untuk verifikasi atau masuk ke akun.",
+            });
+            switchMode("login");
+            return;
+          }
 
           try {
             localStorage.setItem("setorgmail_auth", "true");
@@ -430,6 +417,12 @@ export function AuthCard({
       }
     } catch (e) {
       console.warn("Supabase auth register fallback active:", e);
+    }
+
+    if (isSupabaseConfigured) {
+      setIsLoading(false);
+      toast.error("Pendaftaran Gagal", { description: "Tidak dapat menghubungi layanan autentikasi." });
+      return;
     }
 
     // Fallback
@@ -467,7 +460,10 @@ export function AuthCard({
       try {
         const checkRes = await fetch("/api/auth/check-email", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "X-Requested-With": "XMLHttpRequest",
+          },
           body: JSON.stringify({ email: cleanEmail }),
         });
         if (checkRes.ok) {

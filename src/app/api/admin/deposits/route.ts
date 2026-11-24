@@ -105,13 +105,17 @@ export async function GET(req: NextRequest) {
 
     // Stats calculations
     const allDeposits = depositsData || [];
+    const isAcceptedStatus = (s?: string) => ["accepted", "diterima"].includes((s || "").toLowerCase());
+    const isPendingStatus = (s?: string) => ["pending", "dicek"].includes((s || "").toLowerCase());
+    const isRejectedStatus = (s?: string) => ["rejected", "ditolak"].includes((s || "").toLowerCase());
+
     const stats = {
       total: allDeposits.length,
-      accepted: allDeposits.filter((d) => (d.status || "").toLowerCase() === "accepted").length,
-      pending: allDeposits.filter((d) => (d.status || "").toLowerCase() === "pending").length,
-      rejected: allDeposits.filter((d) => (d.status || "").toLowerCase() === "rejected").length,
+      accepted: allDeposits.filter((d) => isAcceptedStatus(d.status)).length,
+      pending: allDeposits.filter((d) => isPendingStatus(d.status)).length,
+      rejected: allDeposits.filter((d) => isRejectedStatus(d.status)).length,
       totalAmount: allDeposits
-        .filter((d) => (d.status || "").toLowerCase() === "accepted")
+        .filter((d) => isAcceptedStatus(d.status))
         .reduce((sum, d) => sum + (Number(d.amount) || 0), 0),
     };
 
@@ -124,7 +128,7 @@ export async function GET(req: NextRequest) {
   } catch (err: any) {
     console.error("Deposits GET API error:", err);
     return NextResponse.json(
-      { success: false, error: err?.message || "Gagal mengambil data setoran Gmail" },
+      { success: false, error: "Gagal mengambil data setoran Gmail" },
       { status: 500 }
     );
   }
@@ -147,8 +151,17 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
-    const ALLOWED_STATUSES = ["accepted", "rejected", "pending"];
-    if (!ALLOWED_STATUSES.includes(newStatus)) {
+    const STATUS_MAP: Record<string, string> = {
+      accepted: "diterima",
+      diterima: "diterima",
+      rejected: "ditolak",
+      ditolak: "ditolak",
+      pending: "pending",
+      dicek: "dicek",
+    };
+
+    const canonicalStatus = STATUS_MAP[newStatus];
+    if (!canonicalStatus) {
       return NextResponse.json(
         { success: false, error: "Status baru tidak valid" },
         { status: 400 }
@@ -169,12 +182,14 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
-    const prevStatus = deposit.status;
+    const prevStatus = String(deposit.status || "pending");
+    const prevLower = prevStatus.toLowerCase();
+    const wasAlreadyAccepted = prevLower === "accepted" || prevLower === "diterima";
     const nowStr = new Date().toISOString();
 
-    // 2. Update deposit
+    // 2. Atomic conditional update (prevents concurrent double-credit race condition)
     const updatePayload: any = {
-      status: newStatus,
+      status: canonicalStatus,
       checked_at: nowStr,
       updated_at: nowStr,
     };
@@ -182,18 +197,25 @@ export async function PATCH(req: NextRequest) {
       updatePayload.note = adminNote;
     }
 
-    const { error: updErr } = await supabaseAdmin
+    const { data: updatedRows, error: updErr } = await supabaseAdmin
       .from("deposits")
       .update(updatePayload)
-      .eq("id", id);
+      .eq("id", id)
+      .eq("status", prevStatus)
+      .select("id");
 
     if (updErr) throw updErr;
+    if (!updatedRows || updatedRows.length === 0) {
+      return NextResponse.json(
+        { success: false, error: "Status setoran sudah berubah oleh permintaan lain." },
+        { status: 409 }
+      );
+    }
 
-    // 3. If accepted and was pending, credit user's wallet & insert transaction
-    if (newStatus === "accepted" && prevStatus !== "accepted") {
-      const rewardAmount = Number(deposit.amount) || 4500;
+    // 3. If accepted and was NOT previously accepted, credit user's wallet & insert transaction
+    if (canonicalStatus === "diterima" && !wasAlreadyAccepted) {
+      const rewardAmount = Number(deposit.amount) || 1500;
 
-      // Update wallet
       const { data: wallet } = await supabaseAdmin
         .from("wallets")
         .select("balance, total_earned")
@@ -211,7 +233,6 @@ export async function PATCH(req: NextRequest) {
           .eq("user_id", deposit.user_id);
       }
 
-      // Record transaction
       await supabaseAdmin.from("transactions").insert({
         user_id: deposit.user_id,
         type: "deposit",
@@ -234,19 +255,19 @@ export async function PATCH(req: NextRequest) {
       details: {
         gmail: deposit.gmail,
         prevStatus,
-        newStatus,
+        newStatus: canonicalStatus,
         adminNote,
       },
     });
 
     return NextResponse.json({
       success: true,
-      message: `Status setoran Gmail berhasil diubah menjadi ${newStatus}`,
+      message: `Status setoran Gmail berhasil diubah menjadi ${canonicalStatus}`,
     });
   } catch (err: any) {
     console.error("Deposits PATCH API error:", err);
     return NextResponse.json(
-      { success: false, error: err?.message || "Gagal mengubah status setoran Gmail" },
+      { success: false, error: "Gagal mengubah status setoran Gmail" },
       { status: 500 }
     );
   }

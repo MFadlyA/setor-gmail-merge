@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { verifyIsAdmin } from "@/lib/auth-helpers";
 import { checkRateLimit, getClientIp, RATE_LIMITS } from "@/lib/security/rate-limiter";
+import { validateCsrf } from "@/lib/security/csrf";
 import { logAuditEvent } from "@/lib/security/audit-logger";
 
 export const dynamic = "force-dynamic";
@@ -10,6 +11,15 @@ export async function POST(req: NextRequest) {
   const clientIp = getClientIp(req);
   const country = req.headers.get("cf-ipcountry") || null;
   const userAgent = req.headers.get("user-agent") || null;
+
+  // 0. CSRF Validation
+  const csrf = validateCsrf(req);
+  if (!csrf.valid) {
+    return NextResponse.json(
+      { isAdmin: false, error: "Validasi keamanan permintaan gagal." },
+      { status: 403 }
+    );
+  }
 
   // 1. Rate Limiting Protection (anti-brute force / credential stuffing)
   const rateLimit = checkRateLimit(req, RATE_LIMITS.AUTH, "auth_check");
@@ -102,11 +112,32 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       isAdmin,
       profile: profile || null,
       email: userEmail,
     });
+
+    const isHttps = req.nextUrl.protocol === "https:";
+    if (isAdmin) {
+      response.cookies.set("sb-access-token", token, {
+        httpOnly: true,
+        secure: isHttps,
+        sameSite: "lax",
+        path: "/",
+        maxAge: 3600,
+      });
+    } else {
+      response.cookies.set("sb-access-token", "", {
+        httpOnly: true,
+        secure: isHttps,
+        sameSite: "lax",
+        path: "/",
+        maxAge: 0,
+      });
+    }
+
+    return response;
   } catch (err: any) {
     console.error("Admin check API error:", err);
     return NextResponse.json(

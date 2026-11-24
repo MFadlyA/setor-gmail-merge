@@ -422,7 +422,7 @@ export async function insertUserDeposits(
   userId: string,
   emails: string[],
   categoryId = "good",
-  amountPerAccount = 4500,
+  _amountPerAccount = 1500,
   note?: string
 ): Promise<{ success: boolean; insertedCount: number; error?: string }> {
   if (!isSupabaseConfigured) {
@@ -430,13 +430,15 @@ export async function insertUserDeposits(
   }
 
   try {
-    const user = await getCurrentAuthUser();
-    // A01/A07: Verify authenticated user
-    if (!user || user.id !== userId) {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    const user = session?.user || (await getCurrentAuthUser());
+
+    if (!user || user.id !== userId || !session?.access_token) {
       return { success: false, insertedCount: 0, error: "Akses ditolak: Sesi tidak sah." };
     }
 
-    // Rate Limit: max 6 deposit submissions per minute per user
     const rate = checkRateLimit(`deposit:${user.id}`, 6, 60000);
     if (!rate.allowed) {
       return {
@@ -454,95 +456,38 @@ export async function insertUserDeposits(
       return { success: false, insertedCount: 0, error: "Maksimal 10 Gmail per pengiriman setoran." };
     }
 
-    // A04: Fetch authoritative price from server app_settings instead of trusting client param
-    let authoritativePrice = Math.max(1000, Math.min(50000, Math.floor(Number(amountPerAccount) || 4500)));
-    try {
-      const { data: cfgRow } = await supabase
-        .from("app_settings")
-        .select("value")
-        .eq("key", "site_config")
-        .maybeSingle();
-      if (cfgRow?.value) {
-        const parsed = typeof cfgRow.value === "string" ? JSON.parse(cfgRow.value) : cfgRow.value;
-        const dbPrice = Number(categoryId === "bebas" ? parsed?.price_bebas : parsed?.price_per_gmail);
-        if (Number.isFinite(dbPrice) && dbPrice >= 500 && dbPrice <= 100000) {
-          authoritativePrice = Math.floor(dbPrice);
-        }
-      }
-    } catch {
-      // keep clamped fallback
-    }
-
-    const cleanCategory = categoryId === "bebas" ? "bebas" : "good";
-    const seenNormalized = new Set<string>();
-
-    const candidateRecords = emails
-      .filter((e) => isValidStrictGmail(e))
-      .map((email) => {
-        const clean = sanitizeInputText(email, 120).toLowerCase();
-        const atIdx = clean.lastIndexOf("@");
-        const normalized =
-          atIdx !== -1
-            ? clean.slice(0, atIdx).replace(/\./g, "") + clean.slice(atIdx)
-            : clean;
-
-        const cleanNote = note ? sanitizeInputText(note, 200) : undefined;
-        return {
-          user_id: user.id,
-          gmail: clean,
-          normalized_gmail: normalized,
-          category_id: cleanCategory,
-          status: "pending",
-          amount: authoritativePrice,
-          ...(cleanNote ? { note: cleanNote } : {}),
-        };
-      })
-      .filter((rec) => {
-        if (seenNormalized.has(rec.normalized_gmail)) return false;
-        seenNormalized.add(rec.normalized_gmail);
-        return true;
-      });
-
-    if (candidateRecords.length === 0) {
+    const validEmails = emails.filter((e) => isValidStrictGmail(e));
+    if (validEmails.length === 0) {
       return { success: false, insertedCount: 0, error: "Tidak ada email Gmail valid untuk disetor." };
     }
 
-    // Prevent duplicate submission of already-submitted normalized_gmail by this user
-    const normalizedList = candidateRecords.map((r) => r.normalized_gmail);
-    const { data: existingRows } = await supabase
-      .from("deposits")
-      .select("normalized_gmail")
-      .eq("user_id", user.id)
-      .in("normalized_gmail", normalizedList);
+    const res = await fetch("/api/user/deposits", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+        "X-Requested-With": "XMLHttpRequest",
+      },
+      body: JSON.stringify({
+        emails: validEmails,
+        categoryId: categoryId === "bebas" ? "bebas" : "good",
+        note: note ? sanitizeInputText(note, 200) : undefined,
+      }),
+    });
 
-    const existingSet = new Set(
-      (existingRows || []).map((row: { normalized_gmail?: string }) =>
-        (row.normalized_gmail || "").toLowerCase()
-      )
-    );
-
-    const records = candidateRecords.filter(
-      (r) => !existingSet.has(r.normalized_gmail.toLowerCase())
-    );
-
-    if (records.length === 0) {
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok || !json?.success) {
       return {
         success: false,
         insertedCount: 0,
-        error: "Semua akun Gmail tersebut sudah pernah disetorkan sebelumnya.",
+        error: json?.error || "Gagal menyimpan data setoran.",
       };
     }
 
-    const { data, error } = await supabase
-      .from("deposits")
-      .insert(records)
-      .select("id");
-
-    if (error) {
-      return { success: false, insertedCount: 0, error: sanitizeErrorMessage(error) };
-    }
-
-    return { success: true, insertedCount: data?.length || records.length };
+    return {
+      success: true,
+      insertedCount: Number(json.insertedCount) || validEmails.length,
+    };
   } catch (err: unknown) {
     return {
       success: false,
@@ -616,13 +561,14 @@ export async function insertWithdrawalRequest(
   }
 ): Promise<{ success: boolean; id?: string; error?: string }> {
   try {
-    // 1. A01/A07: Session verification
-    const user = await getCurrentAuthUser();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    const user = session?.user || (await getCurrentAuthUser());
     if (!user || user.id !== userId) {
       return { success: false, error: "Akses ditolak: Sesi tidak sah." };
     }
 
-    // 2. A03: Strict input validation on E-Wallet & Method
     const validMethods = ["DANA", "GOPAY", "OVO", "SHOPEEPAY"];
     const cleanMethod = sanitizeInputText(params.method, 20).toUpperCase();
     if (!validMethods.includes(cleanMethod)) {
@@ -641,120 +587,35 @@ export async function insertWithdrawalRequest(
       return { success: true, id: `w-${Date.now()}` };
     }
 
-    // 3. B1: Fraud Protection - 24 Hours Rate Limiting (Max 3 withdrawals per 24 hours)
-    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const { count: dailyCount, error: countErr } = await supabase
-      .from("withdrawals")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", user.id)
-      .gte("created_at", twentyFourHoursAgo);
-
-    if (countErr) {
-      console.warn("[RATE LIMIT CHECK WARN]", countErr);
-    } else if (typeof dailyCount === "number" && dailyCount >= MAX_WITHDRAWALS_PER_DAY) {
-      recordWithdrawalAttempt(user.id, false);
-      return {
-        success: false,
-        error: `Batas penarikan tercapai: Maksimal ${MAX_WITHDRAWALS_PER_DAY} kali penarikan dalam 24 jam untuk perlindungan keamanan akun.`,
-      };
+    if (!session?.access_token) {
+      return { success: false, error: "Akses ditolak: Token sesi tidak ditemukan." };
     }
 
-    // 4. A04: Fetch current wallet to check balance
-    const { data: currentWallet, error: walletFetchErr } = await supabase
-      .from("wallets")
-      .select("balance, total_withdrawn")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    if (walletFetchErr || !currentWallet) {
-      recordWithdrawalAttempt(user.id, false);
-      return { success: false, error: "Data dompet tidak ditemukan atau sistem sedang sibuk." };
-    }
-
-    const currentBalance = Number(currentWallet.balance) || 0;
-
-    // Validate amount boundaries (Min Rp5.000, Max Rp5.000.000, Positive Integer)
-    const amountVal = validateWithdrawalAmount(params.amount, currentBalance);
-    if (!amountVal.valid) {
-      recordWithdrawalAttempt(user.id, false);
-      return { success: false, error: amountVal.error };
-    }
-
-    const requestedAmount = amountVal.cleanAmount;
-    const currentWithdrawn = Number(currentWallet.total_withdrawn) || 0;
-    const newBalance = currentBalance - requestedAmount;
-    const newTotalWithdrawn = currentWithdrawn + requestedAmount;
-
-    // 5. A04: ATOMIC BALANCE DEDUCTION (Anti-Double Spending & Race Condition Guard)
-    // The query condition `.gte("balance", requestedAmount)` is evaluated atomically by PostgreSQL.
-    // If two concurrent requests try to withdraw at the exact same instant, only ONE will match the condition!
-    const { data: updatedWallet, error: updateErr } = await supabase
-      .from("wallets")
-      .update({
-        balance: newBalance,
-        total_withdrawn: newTotalWithdrawn,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("user_id", user.id)
-      .gte("balance", requestedAmount)
-      .select("balance");
-
-    if (updateErr || !updatedWallet || updatedWallet.length === 0) {
-      recordWithdrawalAttempt(user.id, false);
-      return {
-        success: false,
-        error: "Penarikan gagal: Terjadi perubahan saldo bersamaan atau saldo tidak mencukupi.",
-      };
-    }
-
-    // 6. Record withdrawal entry
-    const cleanTax = Math.max(0, Math.floor(Number(params.taxFee) || 0));
-    const cleanNet = Math.max(0, requestedAmount - cleanTax);
-
-    const { data: withdrawalData, error: withdrawalErr } = await supabase
-      .from("withdrawals")
-      .insert({
-        user_id: user.id,
-        amount: requestedAmount,
-        tax_fee: cleanTax,
-        net_amount: cleanNet,
+    const res = await fetch("/api/user/withdrawals", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+        "X-Requested-With": "XMLHttpRequest",
+      },
+      body: JSON.stringify({
+        amount: params.amount,
         method: cleanMethod,
-        account_number: phoneCheck.cleaned,
-        status: "diproses",
-      })
-      .select("id")
-      .single();
-
-    if (withdrawalErr || !withdrawalData) {
-      // Rollback deducted balance if recording fails
-      await supabase
-        .from("wallets")
-        .update({
-          balance: currentBalance,
-          total_withdrawn: currentWithdrawn,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("user_id", user.id);
-
-      recordWithdrawalAttempt(user.id, false);
-      return { success: false, error: sanitizeErrorMessage(withdrawalErr, "Gagal mencatat transaksi penarikan.") };
-    }
-
-    // 7. Record transaction entry
-    await supabase.from("transactions").insert({
-      user_id: user.id,
-      type: "withdrawal",
-      amount: requestedAmount,
-      title: "Penarikan Saldo",
-      description: `${cleanMethod} ${phoneCheck.cleaned}`,
-      status: "pending",
-      reference_id: withdrawalData.id,
+        accountNumber: phoneCheck.cleaned,
+      }),
     });
 
-    // Reset failed counter on success
-    recordWithdrawalAttempt(user.id, true);
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok || !json?.success) {
+      recordWithdrawalAttempt(user.id, false);
+      return {
+        success: false,
+        error: json?.error || "Gagal memproses penarikan saldo.",
+      };
+    }
 
-    return { success: true, id: withdrawalData.id };
+    recordWithdrawalAttempt(user.id, true);
+    return { success: true, id: json.id };
   } catch (err: unknown) {
     return {
       success: false,

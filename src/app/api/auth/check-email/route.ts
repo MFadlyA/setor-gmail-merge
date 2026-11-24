@@ -1,19 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-import { checkRateLimit } from "@/lib/security";
+import { supabaseAdmin, getSupabaseAdminConfig } from "@/lib/supabase/admin";
+import { checkRateLimit, getClientIp } from "@/lib/security/rate-limiter";
+import { validateCsrf } from "@/lib/security/csrf";
 
 export async function POST(req: NextRequest) {
   try {
-    const ip =
-      req.headers.get("cf-connecting-ip") ||
-      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-      "local-ip";
+    const csrf = validateCsrf(req);
+    if (!csrf.valid) {
+      return NextResponse.json(
+        { exists: false, error: "Validasi keamanan permintaan gagal." },
+        { status: 403 }
+      );
+    }
 
-    const rate = checkRateLimit(`check-email:${ip}`, 8, 60_000);
-    if (!rate.allowed) {
+    const rate = checkRateLimit(req, { maxRequests: 8, windowMs: 60_000 }, "check_email");
+    if (!rate.success) {
       return NextResponse.json(
         { exists: false, error: "Terlalu banyak percobaan. Silakan tunggu 1 menit." },
-        { status: 429, headers: { "Retry-After": "60" } }
+        { status: 429, headers: { "Retry-After": String(rate.retryAfterSeconds) } }
       );
     }
 
@@ -27,19 +31,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ exists: false, error: "Format email tidak valid" }, { status: 400 });
     }
 
-    const supabaseUrl =
-      process.env.NEXT_PUBLIC_SUPABASE_URL || "https://kdjoeeehyahdgwgsfyal.supabase.co";
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!serviceRoleKey) {
+    const { hasServiceRoleKey } = getSupabaseAdminConfig();
+    if (!hasServiceRoleKey) {
+      // Avoid disclosing account existence if service role key is absent
+      void getClientIp(req);
       return NextResponse.json({ exists: true });
     }
 
-    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
     const { data, error } = await supabaseAdmin
       .from("profiles")
       .select("id")
-      .ilike("email", cleanEmail)
+      .eq("email", cleanEmail)
       .limit(1);
 
     if (error) {

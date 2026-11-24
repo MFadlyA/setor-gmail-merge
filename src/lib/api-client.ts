@@ -18,14 +18,6 @@ export async function adminFetch(
     } = await supabase.auth.getSession();
     if (session?.access_token) {
       token = session.access_token;
-
-      // Keep cookie synchronized in browser for server-side verification fallback
-      if (typeof document !== "undefined") {
-        const isHttps = window.location.protocol === "https:";
-        document.cookie = `sb-access-token=${token}; Path=/; SameSite=Lax${
-          isHttps ? "; Secure" : ""
-        }; max-age=3600`;
-      }
     }
   } catch (err) {
     console.warn("Could not retrieve active session for adminFetch:", err);

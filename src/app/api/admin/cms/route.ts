@@ -19,7 +19,11 @@ export async function GET(req: NextRequest) {
       .maybeSingle();
 
     if (error) {
-      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      console.error("[CMS GET DB ERROR]", error);
+      return NextResponse.json(
+        { success: false, error: "Gagal mengambil konfigurasi CMS dari database." },
+        { status: 500 }
+      );
     }
 
     let parsedConfig: Partial<SiteConfig> | null = null;
@@ -50,8 +54,9 @@ export async function GET(req: NextRequest) {
       updatedAt: data?.updated_at || null,
     });
   } catch (err: any) {
+    console.error("[CMS GET ERROR]", err);
     return NextResponse.json(
-      { success: false, error: err?.message || "Internal server error" },
+      { success: false, error: "Terjadi kesalahan internal saat memuat konfigurasi CMS." },
       { status: 500 }
     );
   }
@@ -147,8 +152,9 @@ export async function POST(req: NextRequest) {
       );
 
     if (upsertError) {
+      console.error("[CMS UPSERT DB ERROR]", upsertError);
       return NextResponse.json(
-        { success: false, error: upsertError.message },
+        { success: false, error: "Gagal menyimpan konfigurasi CMS ke database." },
         { status: 500 }
       );
     }
@@ -195,8 +201,9 @@ export async function POST(req: NextRequest) {
       updatedAt: new Date().toISOString(),
     });
   } catch (err: any) {
+    console.error("[CMS GET ERROR]", err);
     return NextResponse.json(
-      { success: false, error: err?.message || "Internal server error" },
+      { success: false, error: "Terjadi kesalahan internal saat memuat konfigurasi CMS." },
       { status: 500 }
     );
   }

@@ -7,26 +7,23 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { isKnownAdminEmail } from "@/lib/admin-whitelist";
 import { Loader2 } from "lucide-react";
 
-async function getPostAuthDestination(user?: any): Promise<string> {
+async function getPostAuthDestination(user?: any, token?: string): Promise<string> {
   if (!user) return "/";
   const email = (user.email || "").toLowerCase().trim();
-  const role = (user.app_metadata?.role || user.user_metadata?.role || "").toLowerCase();
 
-  if (isKnownAdminEmail(email) || role === "admin") {
+  if (isKnownAdminEmail(email)) {
+    if (token) {
+      await fetch("/api/auth/admin-check", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+          "X-Requested-With": "XMLHttpRequest",
+        },
+      }).catch(() => {});
+    }
     return "/admin";
   }
-
-  try {
-    const { data: prof } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    if (prof && prof.role?.toLowerCase() === "admin") {
-      return "/admin";
-    }
-  } catch {}
 
   return "/";
 }
@@ -46,7 +43,7 @@ export function LoginViewClient() {
             try {
               localStorage.setItem("setorgmail_auth", "true");
             } catch {}
-            const dest = await getPostAuthDestination(data.session.user);
+            const dest = await getPostAuthDestination(data.session.user, data.session.access_token);
             window.location.href = dest;
             return;
           }
@@ -88,7 +85,7 @@ export function LoginViewClient() {
         try {
           const { data } = await supabase.auth.getSession();
           if (data?.session?.user) {
-            const dest = await getPostAuthDestination(data.session.user);
+            const dest = await getPostAuthDestination(data.session.user, data.session.access_token);
             window.location.href = dest;
             return;
           }

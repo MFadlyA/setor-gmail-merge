@@ -5,18 +5,28 @@ interface RateLimitRecord {
   resetAt: number;
 }
 
-// In-memory token bucket / sliding window for Edge and Node runtime
+// In-memory token bucket / fixed window for Cloudflare Workers & Node runtime
 const rateLimitStore = new Map<string, RateLimitRecord>();
+const MAX_RATE_LIMIT_ENTRIES = 5_000;
 
-// Clean up stale records periodically
-setInterval(() => {
-  const now = Date.now();
+function pruneRateLimitStore(now: number) {
+  if (rateLimitStore.size < MAX_RATE_LIMIT_ENTRIES) return;
   for (const [key, record] of rateLimitStore.entries()) {
     if (record.resetAt <= now) {
       rateLimitStore.delete(key);
     }
   }
-}, 60_000);
+  // Hard cap eviction (oldest entries first) against spoofed IP floods
+  if (rateLimitStore.size >= MAX_RATE_LIMIT_ENTRIES) {
+    const excess = rateLimitStore.size - MAX_RATE_LIMIT_ENTRIES + 500;
+    let removed = 0;
+    for (const key of rateLimitStore.keys()) {
+      rateLimitStore.delete(key);
+      removed += 1;
+      if (removed >= excess) break;
+    }
+  }
+}
 
 export interface RateLimitConfig {
   maxRequests: number; // Maximum requests allowed
@@ -75,6 +85,7 @@ export function checkRateLimit(
   const ip = getClientIp(req);
   const key = `${identifierPrefix}:${ip}`;
   const now = Date.now();
+  pruneRateLimitStore(now);
 
   const record = rateLimitStore.get(key);
 

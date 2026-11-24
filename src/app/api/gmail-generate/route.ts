@@ -1,13 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
-import { checkRateLimit } from "@/lib/security";
+import { checkRateLimit } from "@/lib/security/rate-limiter";
+import { validateCsrf } from "@/lib/security/csrf";
 import { generateGmailCandidates } from "@/lib/gmail-check-shared";
 
-// Required so `next build` with `output: "export"` succeeds cleanly;
-// in Cloudflare production, `src/worker.ts` intercepts `GET /api/gmail-generate` dynamically before static assets.
-export const dynamic = "force-static";
+export const dynamic = "force-dynamic";
 
-export async function GET() {
-  const { emails, timestampTail } = generateGmailCandidates(10);
+export async function GET(req: NextRequest) {
+  const rate = checkRateLimit(req, { maxRequests: 30, windowMs: 60_000 }, "gmail_generate_get");
+  if (!rate.success) {
+    return NextResponse.json(
+      { success: false, error: "Terlalu banyak permintaan generate. Coba lagi sebentar." },
+      { status: 429, headers: { "Retry-After": String(rate.retryAfterSeconds), "Cache-Control": "no-store" } }
+    );
+  }
+
+  const countParam = req.nextUrl.searchParams.get("count");
+  const count = countParam
+    ? Math.max(1, Math.min(10, parseInt(countParam, 10) || 10))
+    : 10;
+  const { emails, timestampTail } = generateGmailCandidates(count);
 
   return NextResponse.json(
     {
@@ -26,16 +37,19 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const ip =
-    req.headers.get("cf-connecting-ip") ||
-    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    "local-ip";
+  const csrf = validateCsrf(req);
+  if (!csrf.valid) {
+    return NextResponse.json(
+      { success: false, error: "Validasi keamanan permintaan gagal." },
+      { status: 403 }
+    );
+  }
 
-  const rate = checkRateLimit(`gmail-generate:${ip}`, 30, 60_000);
-  if (!rate.allowed) {
+  const rate = checkRateLimit(req, { maxRequests: 30, windowMs: 60_000 }, "gmail_generate_post");
+  if (!rate.success) {
     return NextResponse.json(
       { success: false, error: "Terlalu banyak permintaan generate. Coba lagi sebentar." },
-      { status: 429, headers: { "Retry-After": "60", "Cache-Control": "no-store" } }
+      { status: 429, headers: { "Retry-After": String(rate.retryAfterSeconds), "Cache-Control": "no-store" } }
     );
   }
 

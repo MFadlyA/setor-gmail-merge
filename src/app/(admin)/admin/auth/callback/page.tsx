@@ -3,6 +3,7 @@
 import React, { useEffect, useState, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
+import { safeDecodeParam } from "@/lib/security";
 import { Loader2, ShieldCheck, AlertCircle } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -26,8 +27,17 @@ function AuthCallbackContent() {
           hashParams.get("error");
 
         if (oauthError) {
-          setErrorMsg(oauthError);
+          setErrorMsg(safeDecodeParam(oauthError, 180) || "Otentikasi gagal.");
+          try {
+            window.history.replaceState(null, "", window.location.pathname);
+          } catch {}
           return;
+        }
+
+        if (window.location.hash) {
+          try {
+            window.history.replaceState(null, "", window.location.pathname + window.location.search);
+          } catch {}
         }
 
         // 2. If PKCE code exists in query params, exchange it
@@ -75,15 +85,8 @@ function AuthCallbackContent() {
       }
     };
 
-    const verifyAndRedirect = async (user: any, token?: string) => {
+    const verifyAndRedirect = async (_user: any, token?: string) => {
       try {
-        if (token && typeof document !== "undefined") {
-          const isHttps = window.location.protocol === "https:";
-          document.cookie = `sb-access-token=${token}; Path=/; SameSite=Lax${
-            isHttps ? "; Secure" : ""
-          }; max-age=3600`;
-        }
-
         const headers: Record<string, string> = {
           "Content-Type": "application/json",
           "X-Requested-With": "XMLHttpRequest",
@@ -98,10 +101,15 @@ function AuthCallbackContent() {
         const data = await res.json();
 
         if (data.isAdmin) {
-          // Authorized Admin -> navigate to intended path or dashboard root
+          // Authorized Admin -> navigate strictly to /admin subpaths (prevents /\evil.com open redirect)
           const urlParams = new URLSearchParams(window.location.search);
           const next = urlParams.get("next");
-          const destination = next && next.startsWith("/") && !next.startsWith("//") ? next : "/admin";
+          const isSafeAdminPath =
+            Boolean(next) &&
+            next!.startsWith("/admin") &&
+            !next!.startsWith("//") &&
+            !next!.includes("\\");
+          const destination = isSafeAdminPath ? next! : "/admin";
           window.location.href = destination;
         } else {
           // Authenticated but not an admin -> sign out and reject

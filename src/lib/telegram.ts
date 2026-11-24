@@ -49,12 +49,20 @@ export function buildReportMessage({
 /* Admin Notification & Security Alerts                               */
 /* ------------------------------------------------------------------ */
 
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
-const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID || "";
+import { readServerEnv } from "@/lib/supabase/admin";
+
+function escapeTelegramHtml(raw: string): string {
+  return String(raw || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
 
 export async function sendTelegramMessage(text: string): Promise<boolean> {
-  const token = process.env.TELEGRAM_BOT_TOKEN || TELEGRAM_BOT_TOKEN;
-  const chatId = process.env.TELEGRAM_CHAT_ID || TELEGRAM_CHAT_ID;
+  const token = readServerEnv("TELEGRAM_BOT_TOKEN");
+  const chatId = readServerEnv("TELEGRAM_CHAT_ID");
 
   if (!token || !chatId) {
     console.warn("Telegram bot token or chat ID is not configured.");
@@ -85,6 +93,7 @@ export async function sendTelegramMessage(text: string): Promise<boolean> {
 
 /**
  * Dispatches real-time security alerts (OWASP A09: Logging & Monitoring)
+ * Escapes all dynamic fields to prevent HTML injection or entity-parse alert suppression.
  */
 export async function notifySecurityAlert(params: {
   title: string;
@@ -104,14 +113,28 @@ export async function notifySecurityAlert(params: {
       ? "⚠️"
       : "🛡️";
 
+  const safeTitle = escapeTelegramHtml(params.title);
+  const safeAction = escapeTelegramHtml(params.action);
+  const safeIp = escapeTelegramHtml(params.ip);
+  const safeCountry = params.country ? `(${escapeTelegramHtml(params.country)})` : "";
+  const safeActor = escapeTelegramHtml(
+    params.email || params.userId || "Anonim / Tidak Terautentikasi"
+  );
+  const safeDetails = params.details
+    ? `<b>Detail:</b> <i>${escapeTelegramHtml(params.details.slice(0, 800))}</i>\n`
+    : "";
+  const safeUa = params.userAgent
+    ? `<b>User-Agent:</b> <code>${escapeTelegramHtml(params.userAgent.substring(0, 100))}</code>\n`
+    : "";
+
   const message = `
-<b>${icon} SECURITY ALERT: ${params.title} [${params.severity}]</b>
+<b>${icon} SECURITY ALERT: ${safeTitle} [${params.severity}]</b>
 ━━━━━━━━━━━━━━━━━━━━
-<b>Aksi:</b> <code>${params.action}</code>
+<b>Aksi:</b> <code>${safeAction}</code>
 <b>Waktu:</b> <code>${new Date().toISOString()}</code>
-<b>IP Klien:</b> <code>${params.ip}</code> ${params.country ? `(${params.country})` : ""}
-<b>Akun:</b> ${params.email || params.userId || "Anonim / Tidak Terautentikasi"}
-${params.details ? `<b>Detail:</b> <i>${params.details}</i>\n` : ""}${params.userAgent ? `<b>User-Agent:</b> <code>${params.userAgent.substring(0, 100)}</code>\n` : ""}
+<b>IP Klien:</b> <code>${safeIp}</code> ${safeCountry}
+<b>Akun:</b> ${safeActor}
+${safeDetails}${safeUa}
 <i>Admin Security Watchdog • setorgmail.com</i>
 `.trim();
 

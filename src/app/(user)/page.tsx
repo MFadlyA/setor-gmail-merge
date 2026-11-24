@@ -9,32 +9,35 @@ import { isKnownAdminEmail } from "@/lib/admin-whitelist";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
-function syncAdminCookie(token?: string) {
-  if (typeof document === "undefined" || !token) return;
-  const isHttps = window.location.protocol === "https:";
-  document.cookie = `sb-access-token=${token}; Path=/; SameSite=Lax${
-    isHttps ? "; Secure" : ""
-  }; max-age=86400`;
-}
-
-async function checkIsAdmin(user: any): Promise<boolean> {
-  if (!user) return false;
-  const email = (user.email || "").toLowerCase().trim();
-  const role = (user.app_metadata?.role || user.user_metadata?.role || "").toLowerCase();
-  if (isKnownAdminEmail(email) || role === "admin") {
-    return true;
-  }
+async function syncServerAdminSession(token?: string): Promise<boolean> {
+  if (!token) return false;
   try {
-    const { data: prof } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .maybeSingle();
-    if (prof?.role?.toLowerCase() === "admin") {
-      return true;
+    const res = await fetch("/api/auth/admin-check", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        "X-Requested-With": "XMLHttpRequest",
+      },
+    });
+    if (res.ok) {
+      const json = await res.json();
+      return Boolean(json?.isAdmin);
     }
   } catch {}
   return false;
+}
+
+async function checkIsAdmin(user: any, token?: string): Promise<boolean> {
+  if (!user) return false;
+  const email = (user.email || "").toLowerCase().trim();
+  if (!isKnownAdminEmail(email)) {
+    return false;
+  }
+  if (token) {
+    await syncServerAdminSession(token);
+  }
+  return true;
 }
 
 export default function HomePage() {
@@ -69,9 +72,8 @@ export default function HomePage() {
         if (isSupabaseConfigured) {
           const { data } = await supabase.auth.getSession();
           if (data?.session?.user) {
-            const isAdmin = await checkIsAdmin(data.session.user);
+            const isAdmin = await checkIsAdmin(data.session.user, data.session.access_token);
             if (isAdmin) {
-              syncAdminCookie(data.session.access_token);
               window.location.href = "/admin";
               return;
             }
@@ -124,9 +126,8 @@ export default function HomePage() {
     if (supabase) {
       const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
         if (session?.user) {
-          const isAdmin = await checkIsAdmin(session.user);
+          const isAdmin = await checkIsAdmin(session.user, session.access_token);
           if (isAdmin) {
-            syncAdminCookie(session.access_token);
             window.location.href = "/admin";
             return;
           }
@@ -169,9 +170,8 @@ export default function HomePage() {
         onAuthSuccess={async () => {
           const { data } = await supabase.auth.getSession();
           if (data?.session?.user) {
-            const isAdmin = await checkIsAdmin(data.session.user);
+            const isAdmin = await checkIsAdmin(data.session.user, data.session.access_token);
             if (isAdmin) {
-              syncAdminCookie(data.session.access_token);
               window.location.href = "/admin";
               return;
             }

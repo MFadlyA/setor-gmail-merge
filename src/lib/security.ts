@@ -3,9 +3,21 @@
  * OWASP Top 10 Hardening, Fraud Protection & Anti-Abuse
  */
 
-// Rate limiting & security tracking state (client/runtime cache)
+// Rate limiting & security tracking state (bounded runtime cache)
 const failedAttemptsTracker = new Map<string, { count: number; lastAttempt: number }>();
 const requestCounter = new Map<string, { count: number; windowStart: number }>();
+const MAX_SECURITY_CACHE_SIZE = 5_000;
+
+function trimMapCapacity<K, V>(map: Map<K, V>) {
+  if (map.size < MAX_SECURITY_CACHE_SIZE) return;
+  const toRemove = map.size - MAX_SECURITY_CACHE_SIZE + 500;
+  let removed = 0;
+  for (const k of map.keys()) {
+    map.delete(k);
+    removed += 1;
+    if (removed >= toRemove) break;
+  }
+}
 
 /**
  * 1. Strict Input Sanitization (XSS & Injection Protection)
@@ -254,7 +266,10 @@ export async function sendSecurityAlert(
 
       fetch("/api/telegram-report", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Requested-With": "XMLHttpRequest",
+        },
         body: JSON.stringify(alertPayload),
       }).catch(() => {
         // Silent catch to prevent alert loop
@@ -277,6 +292,7 @@ export function recordWithdrawalAttempt(userId: string, isSuccess: boolean): voi
     return;
   }
 
+  trimMapCapacity(failedAttemptsTracker);
   existing.count += 1;
   existing.lastAttempt = Date.now();
   failedAttemptsTracker.set(userId, existing);
@@ -303,6 +319,7 @@ export function checkRateLimit(
   const record = requestCounter.get(key);
 
   if (!record || now - record.windowStart > windowMs) {
+    trimMapCapacity(requestCounter);
     requestCounter.set(key, { count: 1, windowStart: now });
     return { allowed: true, remaining: maxRequests - 1 };
   }
