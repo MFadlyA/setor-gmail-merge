@@ -9,7 +9,6 @@ import {
   AlertTriangle,
   AlertCircle,
   CheckCircle2,
-  Clock,
 } from "lucide-react";
 import { Modal, ModalCloseButton } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
@@ -49,7 +48,6 @@ export function TarikSaldoModal({
   const { siteConfig, refreshSiteConfig } = useUserProfile();
   const isWithdrawalServiceActive = siteConfig?.is_withdrawal_active !== false;
   const effectiveMinimum = siteConfig?.min_withdrawal || minimum || 5000;
-  const maxWithdrawalsPerDay = siteConfig?.max_withdrawals_per_day ?? 3;
 
   const availableMethods = React.useMemo<EWalletMethod[]>(() => {
     const allMethods: { key: EWalletMethod; active: boolean }[] = [
@@ -384,16 +382,6 @@ export function TarikSaldoModal({
                 {formatIDR(effectiveMinimum)}
               </p>
             </div>
-          </div>
-
-          <div className="flex items-center justify-between rounded-xl border border-sky-400/20 bg-sky-500/10 px-3 py-1.5 text-[0.7rem] text-sky-200">
-            <span className="inline-flex items-center gap-1.5 font-medium">
-              <Clock className="size-3.5 text-sky-400 shrink-0" />
-              Batas frekuensi penarikan
-            </span>
-            <span className="font-extrabold text-white tabular-nums">
-              Maks. {maxWithdrawalsPerDay}x / hari
-            </span>
           </div>
 
           {/* Input Nominal Langsung pada Saldo Tersedia dengan Rp di samping input */}

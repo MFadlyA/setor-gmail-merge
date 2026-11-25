@@ -17,7 +17,6 @@ import {
   ChevronDown,
   Calendar,
   ShieldAlert,
-  AlertTriangle,
   UserCheck,
   KeyRound,
   Mail,
@@ -34,14 +33,32 @@ import {
   saveStoredCheckStatusMap,
 } from "@/lib/generated-storage";
 import { getCurrentAuthUser, insertUserDeposits } from "@/lib/supabase";
-import { secureRandomInt } from "@/lib/security";
+import { secureRandomInt, isValidStrictGmail } from "@/lib/security";
 import { useUserProfile } from "@/context/user-profile-context";
 
 export interface SetoranCheckItem {
   index: number;
   email: string;
-  status: "LIVE" | "UNREGISTERED" | "SUDAH DISETOR" | "DIABAIKAN" | "INVALID";
+  password?: string;
+  status:
+    | "LIVE"
+    | "UNREGISTERED"
+    | "SUDAH DISETOR"
+    | "DIABAIKAN"
+    | "TANPA PASSWORD"
+    | "INVALID";
   reason: string;
+}
+
+function parseSetorLine(rawLine: string): { email: string; password: string } {
+  const pipeIdx = rawLine.indexOf("|");
+  if (pipeIdx === -1) {
+    return { email: rawLine.trim().toLowerCase(), password: "" };
+  }
+  return {
+    email: rawLine.slice(0, pipeIdx).trim().toLowerCase(),
+    password: rawLine.slice(pipeIdx + 1).trim(),
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -120,8 +137,7 @@ function generateBatch(count: number, existingPool?: Set<string>): string[] {
 export function SetorView() {
   const [emails, setEmails] = React.useState("");
   const [depositMode, setDepositMode] = React.useState<"fresh" | "old">("fresh");
-  const [oldEmailPassword, setOldEmailPassword] = React.useState("");
-  const { refreshDeposits, refreshWallet, siteConfig } = useUserProfile();
+  const { deposits, refreshDeposits, refreshWallet, siteConfig } = useUserProfile();
   const activePassword = siteConfig?.default_password || defaultPassword;
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [copiedPassword, setCopiedPassword] = React.useState(false);
@@ -139,11 +155,11 @@ export function SetorView() {
   const [setoranCheckResults, setSetoranCheckResults] = React.useState<SetoranCheckItem[]>([]);
   const [hasCheckedSetoran, setHasCheckedSetoran] = React.useState(false);
 
-  // Submitted & Check Status Tracking
+  // Submitted & Check Status Tracking (synced with authoritative DB deposits)
   const [submittedSet, setSubmittedSet] = React.useState<Set<string>>(() => new Set());
   const [checkStatusMap, setCheckStatusMap] = React.useState<Record<string, "LIVE" | "UNREGISTERED">>({});
 
-  // Mount effect: load existing generated batch, submitted emails, and check statuses from localStorage
+  // Mount effect: load existing generated batch and check statuses from localStorage
   React.useEffect(() => {
     setIsMounted(true);
     const existing = getStoredGeneratedGmails();
@@ -151,15 +167,20 @@ export function SetorView() {
       setGeneratedList(existing);
       setGeneratedPool(new Set(existing.map((e) => e.toLowerCase())));
     }
-    const submitted = getStoredSubmittedGmails();
-    if (submitted.length > 0) {
-      setSubmittedSet(new Set(submitted.map((e) => e.toLowerCase())));
-    }
     const statusMap = getStoredCheckStatusMap();
     if (Object.keys(statusMap).length > 0) {
       setCheckStatusMap(statusMap);
     }
   }, []);
+
+  // Sync submittedSet strictly with real database deposits so unsubmitted emails are never falsely blocked
+  React.useEffect(() => {
+    if (Array.isArray(deposits)) {
+      const dbSet = new Set(deposits.map((d) => (d.gmail || "").toLowerCase()).filter(Boolean));
+      setSubmittedSet(dbSet);
+      saveStoredSubmittedGmails(Array.from(dbSet));
+    }
+  }, [deposits]);
 
   // Count unsubmitted generated emails based on actual submittedSet
   const unsubmittedCount = React.useMemo(() => {
@@ -273,10 +294,10 @@ export function SetorView() {
       return;
     }
     const capped = list.slice(0, 10);
-    setEmails(capped.join("\n"));
+    setEmails(capped.map((e) => `${e} | ${activePassword}`).join("\n"));
     setHasCheckedSetoran(false);
     setSetoranCheckResults([]);
-    toast.success(`${capped.length} Gmail hasil generate berhasil ditempel ke kolom checker!`);
+    toast.success(`${capped.length} Gmail beserta password berhasil ditempel ke kolom checker!`);
   };
 
   const handleClearEmails = () => {
@@ -290,7 +311,7 @@ export function SetorView() {
   /* Real-time Validation for Textarea                                  */
   /* ------------------------------------------------------------------ */
 
-  const { validCount, totalLines, isExceededMax, notGeneratedCount } =
+  const { validCount, totalLines, isExceededMax, notGeneratedCount, missingPasswordCount } =
     React.useMemo(() => {
       const rawLines = emails.split("\n");
       const cleanLines = rawLines.map((l) => l.trim()).filter(Boolean);
@@ -299,6 +320,7 @@ export function SetorView() {
       let valid = 0;
       let invalid = 0;
       let notGen = 0;
+      let missingPw = 0;
 
       const currentStored = typeof window !== "undefined" ? getStoredGeneratedGmails() : [];
       const historySet = typeof window !== "undefined" ? getStoredHistory() : new Set<string>();
@@ -309,12 +331,15 @@ export function SetorView() {
       ]);
 
       cleanLines.forEach((line) => {
-        const lower = line.toLowerCase();
-        const isGmail = /^[a-zA-Z0-9._%+-]+@gmail\.com$/.test(lower);
+        const parsed = parseSetorLine(line);
+        const lower = parsed.email;
+        const isGmail = isValidStrictGmail(lower);
 
         if (!isGmail || seen.has(lower)) {
           invalid++;
-        } else if (!combinedPool.has(lower)) {
+        } else if (!parsed.password) {
+          missingPw++;
+        } else if (depositMode === "fresh" && !combinedPool.has(lower)) {
           notGen++;
         } else {
           valid++;
@@ -328,8 +353,9 @@ export function SetorView() {
         isExceededMax: cleanLines.length > 10,
         invalidCount: invalid,
         notGeneratedCount: notGen,
+        missingPasswordCount: missingPw,
       };
-    }, [emails, generatedPool]);
+    }, [emails, generatedPool, depositMode]);
 
   // Block Enter when already at 10 lines
   const handleTextareaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -404,27 +430,51 @@ export function SetorView() {
     ]);
 
     const items: SetoranCheckItem[] = [];
-    const toQueryViaApi: { email: string; index: number }[] = [];
+    const toQueryViaApi: { email: string; password: string; index: number }[] = [];
+    const seenInBatch = new Set<string>();
 
     rawLines.forEach((line, idx) => {
-      const lower = line.toLowerCase();
-      const isGmail = /^[a-zA-Z0-9._%+-]+@gmail\.com$/.test(lower);
+      const parsed = parseSetorLine(line);
+      const lower = parsed.email;
+      const isGmail = isValidStrictGmail(lower);
 
       if (!isGmail) {
         items.push({
           index: idx + 1,
-          email: line,
+          email: parsed.email || line,
           status: "INVALID",
-          reason: "Format email tidak valid atau bukan domain @gmail.com",
+          reason: "Format email tidak valid (wajib @gmail.com, 6–30 karakter)",
         });
         return;
       }
 
-      // Email yang sudah disetor: TIDAK PERLU DICEK LAGI
+      if (seenInBatch.has(lower)) {
+        items.push({
+          index: idx + 1,
+          email: lower,
+          status: "INVALID",
+          reason: "Email duplikat di dalam daftar yang sama",
+        });
+        return;
+      }
+      seenInBatch.add(lower);
+
+      if (!parsed.password) {
+        items.push({
+          index: idx + 1,
+          email: lower,
+          status: "TANPA PASSWORD",
+          reason: "Wajib sertakan password (contoh: winterhere777@gmail.com | winter1212)",
+        });
+        return;
+      }
+
+      // Email yang sudah disetor di database: TIDAK PERLU DICEK LAGI
       if (submittedSet.has(lower)) {
         items.push({
           index: idx + 1,
-          email: line,
+          email: lower,
+          password: parsed.password,
           status: "SUDAH DISETOR",
           reason: "Email sudah disetor sebelumnya (tidak perlu dicek lagi)",
         });
@@ -438,7 +488,8 @@ export function SetorView() {
           // BUKAN HASIL GENERATE: ABAIKAN dan beri status
           items.push({
             index: idx + 1,
-            email: line,
+            email: lower,
+            password: parsed.password,
             status: "DIABAIKAN",
             reason: "Bukan hasil Generate Gmail (Diabaikan)",
           });
@@ -447,14 +498,17 @@ export function SetorView() {
       }
 
       // Masuk antrian cek status ke API
-      toQueryViaApi.push({ email: line, index: idx + 1 });
+      toQueryViaApi.push({ email: lower, password: parsed.password, index: idx + 1 });
     });
 
     if (toQueryViaApi.length > 0) {
       try {
         const res = await fetch("/api/gmail-check", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "X-Requested-With": "XMLHttpRequest",
+          },
           body: JSON.stringify({
             emails: toQueryViaApi.slice(0, 10).map((q) => q.email),
           }),
@@ -490,6 +544,7 @@ export function SetorView() {
               items.push({
                 index: q.index,
                 email: q.email,
+                password: q.password,
                 status: "SUDAH DISETOR",
                 reason: "Email sudah pernah disetor sebelumnya (tidak bisa disetor ulang)",
               });
@@ -502,6 +557,7 @@ export function SetorView() {
             items.push({
               index: q.index,
               email: q.email,
+              password: q.password,
               status: status,
               reason:
                 apiRes?.message ||
@@ -525,6 +581,7 @@ export function SetorView() {
             items.push({
               index: q.index,
               email: q.email,
+              password: q.password,
               status: "UNREGISTERED",
               reason: "Akun tidak terdaftar di Google",
             });
@@ -540,6 +597,7 @@ export function SetorView() {
           items.push({
             index: q.index,
             email: q.email,
+            password: q.password,
             status: "UNREGISTERED",
             reason: "Akun tidak terdaftar di Google",
           });
@@ -553,18 +611,29 @@ export function SetorView() {
     setSetoranCheckResults(items);
     setIsCheckingSetoran(false);
 
+    const noPassCount = items.filter((r) => r.status === "TANPA PASSWORD").length;
     const ignoredCount = items.filter((r) => r.status === "DIABAIKAN").length;
     const liveCount = items.filter((r) => r.status === "LIVE").length;
     const unregCount = items.filter((r) => r.status === "UNREGISTERED").length;
     const alreadySubmitted = items.filter((r) => r.status === "SUDAH DISETOR").length;
 
-    toast.success("Pemeriksaan Kolom Checker selesai!", {
-      description: `${liveCount} Live · ${unregCount} Unregistered · ${alreadySubmitted} Sudah Disetor · ${ignoredCount} Diabaikan`,
-    });
+    if (noPassCount > 0 && liveCount === 0) {
+      toast.error(`${noPassCount} email belum menyertakan password!`, {
+        description: "Gunakan format: winterhere777@gmail.com | winter1212",
+      });
+    } else {
+      toast.success("Pemeriksaan Kolom Checker selesai!", {
+        description: `${liveCount} Live · ${unregCount} Unregistered${
+          noPassCount > 0 ? ` · ${noPassCount} Tanpa Password` : ""
+        }${alreadySubmitted > 0 ? ` · ${alreadySubmitted} Sudah Disetor` : ""}${
+          ignoredCount > 0 ? ` · ${ignoredCount} Diabaikan` : ""
+        }`,
+      });
+    }
   };
 
   const liveResults = React.useMemo(() => {
-    return setoranCheckResults.filter((r) => r.status === "LIVE");
+    return setoranCheckResults.filter((r) => r.status === "LIVE" && Boolean(r.password));
   }, [setoranCheckResults]);
 
   const liveCount = liveResults.length;
@@ -613,14 +682,9 @@ export function SetorView() {
       return;
     }
     if (liveCount === 0) {
-      toast.error("Tidak ada email live untuk disetor", {
-        description: "Harap cek secara berkala, menunggu server google mencatat email yang kamu buat telah Aktif/Live.",
-      });
-      return;
-    }
-    if (depositMode === "old" && !oldEmailPassword.trim()) {
-      toast.error("Password email wajib diisi!", {
-        description: "Masukkan password akun Gmail lama yang disetor sebelum mengirim setoran.",
+      toast.error("Tidak ada email LIVE beserta password untuk disetor", {
+        description:
+          "Pastikan setiap baris menggunakan format email@gmail.com | password dan sudah berstatus LIVE.",
       });
       return;
     }
@@ -628,33 +692,42 @@ export function SetorView() {
     setIsSubmitting(true);
     const totalEarnings = liveCount * pricePerGmail;
     const liveEmailList = liveResults.map((r) => r.email.toLowerCase());
+    const liveItemsWithPassword = liveResults.map((r) => ({
+      email: r.email.toLowerCase(),
+      password: (r.password || "").trim(),
+    }));
 
     (async () => {
       try {
         const user = await getCurrentAuthUser();
-        if (user) {
-          const categoryId = depositMode === "old" ? "bebas" : "good";
-          const submittedPassword =
-            depositMode === "old" ? oldEmailPassword.trim() : activePassword;
-          const res = await insertUserDeposits(
-            user.id,
-            liveEmailList,
-            categoryId,
-            pricePerGmail,
-            undefined,
-            submittedPassword
-          );
-          if (!res.success) {
-            toast.error("Gagal menyetor Gmail", {
-              description: res.error || "Terjadi kendala saat menyimpan setoran.",
-            });
-            setIsSubmitting(false);
-            return;
-          }
+        if (!user) {
+          toast.error("Sesi login berakhir", {
+            description: "Silakan masuk kembali ke akun Anda sebelum menyetor Gmail.",
+          });
+          setIsSubmitting(false);
+          return;
         }
 
-        refreshDeposits();
-        refreshWallet();
+        const categoryId = depositMode === "old" ? "bebas" : "good";
+        const res = await insertUserDeposits(
+          user.id,
+          liveEmailList,
+          categoryId,
+          pricePerGmail,
+          undefined,
+          undefined,
+          liveItemsWithPassword
+        );
+        if (!res.success) {
+          toast.error("Gagal menyetor Gmail", {
+            description: res.error || "Terjadi kendala saat menyimpan setoran.",
+          });
+          setIsSubmitting(false);
+          return;
+        }
+
+        await refreshDeposits();
+        await refreshWallet();
 
         // Tandai akun LIVE sebagai sudah disetor
         const newSubmitted = new Set([...Array.from(submittedSet), ...liveEmailList]);
@@ -1226,58 +1299,23 @@ export function SetorView() {
               </div>
             )}
 
-            {/* Kolom Password Email & Caution Beda Password (Khusus Setor Email Lama) */}
-            {depositMode === "old" && (
-              <div className="mb-3 space-y-2.5">
-                <div>
-                  <label
-                    htmlFor="old-email-password"
-                    className="mb-1.5 flex items-center gap-1.5 text-xs font-bold text-zinc-200"
-                  >
-                    <KeyRound className="size-3.5 text-sky-400" />
-                    <span>Password Email</span>
-                    <span className="text-rose-400">*</span>
-                  </label>
-                  <input
-                    id="old-email-password"
-                    type="text"
-                    value={oldEmailPassword}
-                    onChange={(e) => setOldEmailPassword(e.target.value.slice(0, 120))}
-                    placeholder="Masukkan password akun Gmail lama yang disetor..."
-                    autoComplete="off"
-                    className="w-full h-10.5 rounded-xl border border-white/10 bg-black/40 px-3.5 font-mono text-xs sm:text-sm text-white placeholder:text-zinc-500 outline-none transition-all focus:border-sky-500/60 focus:bg-black/60 focus:ring-2 focus:ring-sky-500/20"
-                  />
-                </div>
-
-                {/* Caution: Setor > 1 dengan password berbeda wajib setor 1 per 1 */}
-                <div
-                  className={cn(
-                    "flex items-start gap-2.5 rounded-xl border px-3.5 py-2.5 text-xs leading-relaxed transition-all",
-                    totalLines > 1
-                      ? "border-amber-400/55 bg-amber-500/15 text-amber-100 shadow-sm shadow-amber-500/10"
-                      : "border-amber-500/30 bg-amber-950/35 text-amber-200/95"
-                  )}
-                >
-                  <AlertTriangle className="size-4 shrink-0 text-amber-400 mt-0.5" aria-hidden="true" />
-                  <p>
-                    <strong className="font-extrabold text-amber-300">Caution:</strong>{" "}
-                    Apabila menyetor <strong className="text-white">lebih dari 1 email</strong> dan{" "}
-                    <strong className="text-white">password-nya berbeda-beda</strong>, setornya{" "}
-                    <span className="inline-flex items-center rounded-md border border-amber-400/40 bg-amber-500/20 px-1.5 py-0.5 font-extrabold text-amber-200">
-                      1 per 1 (satu-satu)
-                    </span>{" "}
-                    yaa! Kolom setor sekaligus hanya untuk email yang memiliki password sama.
-                  </p>
-                </div>
-              </div>
-            )}
+            {/* Petunjuk Format Wajib Email | Password */}
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-sky-400/25 bg-sky-500/10 px-3.5 py-2 text-xs text-sky-200">
+              <span className="inline-flex items-center gap-1.5 font-semibold">
+                <KeyRound className="size-3.5 shrink-0 text-sky-400" />
+                <span>Wajib sertakan password di setiap baris:</span>
+              </span>
+              <code className="rounded-lg border border-sky-400/30 bg-black/50 px-2.5 py-0.5 font-mono text-[0.73rem] font-bold text-white select-all">
+                winterhere777@gmail.com | {activePassword}
+              </code>
+            </div>
 
             <textarea
               rows={9}
               value={emails}
               onChange={handleTextareaChange}
               onKeyDown={handleTextareaKeyDown}
-              placeholder={"contoh1@gmail.com\ncontoh2@gmail.com"}
+              placeholder={`winterhere777@gmail.com | ${activePassword}\ncontohkedua88@gmail.com | sandiemail2`}
               spellCheck={false}
               autoCapitalize="none"
               autoCorrect="off"
@@ -1313,6 +1351,11 @@ export function SetorView() {
                         {setoranCheckResults.filter((r) => r.status === "SUDAH DISETOR").length} Sudah Disetor
                       </span>
                     )}
+                    {setoranCheckResults.filter((r) => r.status === "TANPA PASSWORD").length > 0 && (
+                      <span className="rounded-full bg-amber-500/20 border border-amber-500/40 px-2.5 py-0.5 font-bold text-amber-300 text-[0.7rem]">
+                        {setoranCheckResults.filter((r) => r.status === "TANPA PASSWORD").length} Tanpa Password
+                      </span>
+                    )}
                     {setoranCheckResults.filter((r) => r.status === "DIABAIKAN").length > 0 && (
                       <span className="rounded-full bg-amber-500/20 border border-amber-500/40 px-2.5 py-0.5 font-bold text-amber-300 text-[0.7rem]">
                         {setoranCheckResults.filter((r) => r.status === "DIABAIKAN").length} Diabaikan
@@ -1336,6 +1379,11 @@ export function SetorView() {
                           <span className="font-mono text-xs text-zinc-200 font-medium truncate select-all">
                             {item.email}
                           </span>
+                          {item.password && (
+                            <span className="font-mono text-[0.7rem] text-sky-300 bg-sky-500/10 border border-sky-500/25 px-1.5 py-0.2 rounded truncate max-w-[130px]">
+                              | {item.password}
+                            </span>
+                          )}
                         </div>
 
                         <div className="flex items-center gap-2 shrink-0">
@@ -1346,6 +1394,7 @@ export function SetorView() {
                               item.status === "UNREGISTERED" && "bg-rose-500/20 text-rose-300 border-rose-500/40",
                               item.status === "SUDAH DISETOR" && "bg-sky-500/20 text-sky-300 border-sky-500/40",
                               item.status === "DIABAIKAN" && "bg-amber-500/20 text-amber-300 border-amber-500/40",
+                              item.status === "TANPA PASSWORD" && "bg-amber-500/20 text-amber-300 border-amber-500/40",
                               item.status === "INVALID" && "bg-rose-500/20 text-rose-300 border-rose-500/40"
                             )}
                           >
@@ -1364,6 +1413,17 @@ export function SetorView() {
                     );
                   })}
                 </div>
+
+                {setoranCheckResults.some((r) => r.status === "TANPA PASSWORD") && (
+                  <p className="mt-2 text-[0.72rem] text-amber-300 bg-amber-950/40 rounded-xl p-2.5 border border-amber-500/30 leading-relaxed">
+                    ⚠️ <strong>Wajib menyertakan password setiap email!</strong> Gunakan pemisah{" "}
+                    <code className="bg-black/50 px-1.5 py-0.5 rounded font-mono text-white">|</code> seperti contoh:{" "}
+                    <code className="bg-black/50 px-1.5 py-0.5 rounded font-mono text-white">
+                      winterhere777@gmail.com | winter1212
+                    </code>
+                    .
+                  </p>
+                )}
 
                 {setoranCheckResults.some((r) => r.status === "DIABAIKAN") && (
                   <p className="mt-2 text-[0.72rem] text-amber-300 bg-amber-950/40 rounded-xl p-2.5 border border-amber-500/30 leading-relaxed">
@@ -1418,11 +1478,21 @@ export function SetorView() {
                     </>
                   ) : depositMode === "old" ? (
                     <>
-                      Terdeteksi: <strong className="font-bold text-white">{totalLines}</strong> baris Gmail siap dicek
+                      Siap dicek: <strong className="font-bold text-white">{validCount}</strong> akun lengkap dengan password
+                      {missingPasswordCount > 0 && (
+                        <span className="text-amber-400 font-semibold ml-1.5">
+                          ({missingPasswordCount} belum ada | password)
+                        </span>
+                      )}
                     </>
                   ) : (
                     <>
-                      Terdeteksi: <strong className="font-bold text-white">{validCount}</strong> baris Gmail hasil generate
+                      Terdeteksi: <strong className="font-bold text-white">{validCount}</strong> baris Gmail hasil generate + password
+                      {missingPasswordCount > 0 && (
+                        <span className="text-amber-400 font-semibold ml-1.5">
+                          ({missingPasswordCount} belum ada | password)
+                        </span>
+                      )}
                       {notGeneratedCount > 0 && (
                         <span className="text-amber-400 font-medium ml-1.5">
                           ({notGeneratedCount} diabaikan)

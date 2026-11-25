@@ -73,7 +73,7 @@ export async function GET(req: NextRequest) {
       fetchAllRows((from, to) =>
         supabaseAdmin
           .from("deposits")
-          .select("id, user_id, gmail, normalized_gmail, category_id, status, amount, note, checked_at, created_at")
+          .select("*")
           .order("created_at", { ascending: false })
           .order("id", { ascending: true })
           .range(from, to)
@@ -159,8 +159,8 @@ export async function GET(req: NextRequest) {
       : allTransactionsRaw;
 
     // Withdrawal metrics sesuai timeframe
-    const successWithdrawals = filteredWithdrawals.filter(
-      (w) => (w.status || "").toLowerCase() === "success"
+    const successWithdrawals = filteredWithdrawals.filter((w) =>
+      ["success", "berhasil"].includes((w.status || "").toLowerCase())
     );
     let totalWithdrawnInPeriod = 0;
     successWithdrawals.forEach((w) => {
@@ -237,7 +237,7 @@ export async function GET(req: NextRequest) {
     let pendingWithdrawals = 0;
     let pendingWithdrawalsAmount = 0;
     (withdrawals || []).forEach((w) => {
-      if ((w.status || "").toLowerCase() === "pending") {
+      if (["pending", "diproses"].includes((w.status || "").toLowerCase())) {
         pendingWithdrawals++;
         pendingWithdrawalsAmount += Number(w.amount) || 0;
       }
@@ -315,14 +315,13 @@ export async function GET(req: NextRequest) {
 
     // List Setoran: Tampilkan setoran periode jika ada, atau fallback ke seluruh riwayat jika periode kosong
     const depositsListSource = hasPeriodDeposits || isAllTime ? filteredDeposits : allDepositsRaw;
-    const recentDepositsWithUser = depositsListSource.slice(0, 500).map((d) => {
+    const recentDepositsWithUser = depositsListSource.slice(0, 500).map((d: any) => {
       const rawNote = String(d.note || "").trim();
       const passwordMatch = rawNote.match(/^Password:\s*(.+)$/i);
-      const emailPassword = passwordMatch
-        ? passwordMatch[1].trim()
-        : (d.category_id || "good") === "good"
-        ? defaultPassword
-        : "-";
+      const emailPassword =
+        (typeof d.password === "string" && d.password.trim()) ||
+        (passwordMatch ? passwordMatch[1].trim() : "") ||
+        ((d.category_id || "good") === "good" ? defaultPassword : "-");
 
       return {
         id: d.id,
@@ -333,16 +332,16 @@ export async function GET(req: NextRequest) {
         password: emailPassword,
         status: d.status || "pending",
         category_id: d.category_id || "good",
-        categoryLabel: d.category_id === "good" ? "Gmail Good" : "Gmail Bebas",
+        categoryLabel: d.category_id === "good" ? "Gmail Fresh" : "Gmail Bebas",
         amount: Number(d.amount) || (d.category_id === "good" ? (cfgPricePerGmail || 1500) : 1000),
-        note: d.note || "-",
+        note: passwordMatch ? "-" : d.note || "-",
         created_at: d.created_at,
       };
     });
 
     // Recent withdrawals needing review
     const pendingWithdrawalsList = (withdrawals || [])
-      .filter((w) => (w.status || "").toLowerCase() === "pending")
+      .filter((w) => ["pending", "diproses"].includes((w.status || "").toLowerCase()))
       .slice(0, 5)
       .map((w) => ({
         ...w,

@@ -14,7 +14,6 @@ import {
   Sparkles,
   Target,
   Zap,
-  Clock,
   type LucideIcon,
 } from "lucide-react";
 import { Card, SectionHeading } from "@/components/ui/card";
@@ -89,7 +88,6 @@ export function DashboardView() {
 
   const pricePerGmail = siteConfig?.price_per_gmail || 1500;
   const minWithdrawal = siteConfig?.min_withdrawal || wallet.minimumWithdrawal || 5000;
-  const maxWithdrawalsPerDay = siteConfig?.max_withdrawals_per_day ?? 3;
 
   const firstName = React.useMemo(() => {
     const raw = (userProfile?.name || "").trim();
@@ -188,7 +186,7 @@ export function DashboardView() {
                       </span>
                     </div>
 
-                    {/* Rate, Min Withdrawal & Daily Limit inline */}
+                    {/* Rate & Min Withdrawal inline */}
                     <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2">
                       <div>
                         <div className="flex items-center gap-1.5 text-[0.65rem] font-bold uppercase tracking-wider text-sky-300/85">
@@ -207,16 +205,6 @@ export function DashboardView() {
                         </div>
                         <p className="mt-0.5 text-sm sm:text-base font-black text-white tabular-nums">
                           {formatIDR(minWithdrawal)}
-                        </p>
-                      </div>
-                      <div className="h-7 w-[1px] bg-white/10 hidden sm:block" aria-hidden="true" />
-                      <div>
-                        <div className="flex items-center gap-1.5 text-[0.65rem] font-bold uppercase tracking-wider text-zinc-400">
-                          <Clock className="size-3 text-sky-400 shrink-0" aria-hidden="true" />
-                          <span>Maks. Tarik</span>
-                        </div>
-                        <p className="mt-0.5 text-sm sm:text-base font-black text-white tabular-nums">
-                          {maxWithdrawalsPerDay}x / Hari
                         </p>
                       </div>
                     </div>

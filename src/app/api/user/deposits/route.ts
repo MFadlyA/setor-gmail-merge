@@ -94,15 +94,22 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const rawEmails = Array.isArray(body.emails) ? body.emails : [];
-    if (rawEmails.length === 0) {
+    const rawItemsInput = Array.isArray(body.items) ? body.items : null;
+    const rawEmails = Array.isArray(body.emails)
+      ? body.emails
+      : rawItemsInput
+      ? rawItemsInput.map((it: any) => it?.email)
+      : [];
+
+    if (rawEmails.length === 0 && (!rawItemsInput || rawItemsInput.length === 0)) {
       return NextResponse.json(
         { success: false, insertedCount: 0, error: "Daftar email tidak boleh kosong." },
         { status: 400 }
       );
     }
 
-    if (rawEmails.length > 10) {
+    const entryCount = rawItemsInput ? rawItemsInput.length : rawEmails.length;
+    if (entryCount > 10) {
       return NextResponse.json(
         { success: false, insertedCount: 0, error: "Maksimal 10 Gmail per pengiriman setoran." },
         { status: 400 }
@@ -119,7 +126,6 @@ export async function POST(req: NextRequest) {
         ? sanitizeInputText(body.note.trim(), 200)
         : undefined;
 
-    // Backward-compatible extraction if legacy client sent "Password: xxx" in note
     const legacyNotePassword =
       !rawPasswordInput && rawNoteInput && /^Password:\s*/i.test(rawNoteInput)
         ? rawNoteInput.replace(/^Password:\s*/i, "").trim()
@@ -130,7 +136,6 @@ export async function POST(req: NextRequest) {
 
     // 5. Fetch authoritative CMS settings (maintenance, feature flag, default_password, and server-side price)
     let authoritativePrice = cleanCategory === "bebas" ? 1000 : 1500;
-    let authoritativeDefaultPassword = "winter1212";
     const { data: cfgRow } = await supabaseAdmin
       .from("app_settings")
       .select("value")
@@ -156,9 +161,6 @@ export async function POST(req: NextRequest) {
             { status: 403 }
           );
         }
-        if (typeof parsed?.default_password === "string" && parsed.default_password.trim()) {
-          authoritativeDefaultPassword = sanitizeInputText(parsed.default_password.trim(), 120);
-        }
         const dbPrice = Number(cleanCategory === "bebas" ? parsed?.price_bebas : parsed?.price_per_gmail);
         if (Number.isFinite(dbPrice) && dbPrice >= 500 && dbPrice <= 100_000) {
           authoritativePrice = Math.floor(dbPrice);
@@ -168,14 +170,29 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const resolvedPassword =
-      cleanCategory === "bebas"
-        ? rawPasswordInput || legacyNotePassword || ""
-        : authoritativeDefaultPassword;
+    const fallbackBatchPassword = rawPasswordInput || legacyNotePassword || "";
 
-    if (cleanCategory === "bebas" && !resolvedPassword) {
+    // Build validated { email, password } pairs — every single email MUST have a password
+    const rawPairs: Array<{ email: unknown; password: string }> = rawItemsInput
+      ? rawItemsInput.map((it: any) => ({
+          email: it?.email,
+          password:
+            typeof it?.password === "string" && it.password.trim()
+              ? sanitizeInputText(it.password.trim(), 120)
+              : fallbackBatchPassword,
+        }))
+      : rawEmails.map((em: unknown) => ({
+          email: em,
+          password: fallbackBatchPassword,
+        }));
+
+    if (rawPairs.some((p) => !p.password)) {
       return NextResponse.json(
-        { success: false, insertedCount: 0, error: "Password email wajib diisi untuk Setor Email Lama." },
+        {
+          success: false,
+          insertedCount: 0,
+          error: "Wajib menyertakan password untuk setiap akun Gmail (contoh: winterhere777@gmail.com | winter1212).",
+        },
         { status: 400 }
       );
     }
@@ -188,12 +205,18 @@ export async function POST(req: NextRequest) {
         price: authoritativePrice,
         is_active: true,
       },
-      { onConflict: "id", ignoreDuplicates: true }
+      { onConflict: "id" }
     );
 
-    // Ensure user profile exists before inserting deposit
-    await supabaseAdmin.from("profiles").upsert(
-      {
+    // Ensure user profile exists safely before inserting deposit
+    const { data: existingProfile } = await supabaseAdmin
+      .from("profiles")
+      .select("id")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (!existingProfile) {
+      await supabaseAdmin.from("profiles").insert({
         id: user.id,
         name:
           user.user_metadata?.full_name ||
@@ -202,16 +225,15 @@ export async function POST(req: NextRequest) {
           "Pengguna",
         email: user.email || `${user.id}@setorgmail.local`,
         role: "User",
-      },
-      { onConflict: "id", ignoreDuplicates: true }
-    );
+      });
+    }
 
     // 6. Normalize & deduplicate candidate emails
     const seenNormalized = new Set<string>();
-    const candidateRecords = rawEmails
-      .filter((e: unknown) => isValidStrictGmail(e))
-      .map((email: string) => {
-        const clean = sanitizeInputText(email, 120).toLowerCase();
+    const candidateRecords = rawPairs
+      .filter((pair) => isValidStrictGmail(pair.email))
+      .map((pair) => {
+        const clean = sanitizeInputText(String(pair.email), 120).toLowerCase();
         const atIdx = clean.lastIndexOf("@");
         const normalized =
           atIdx !== -1
@@ -222,7 +244,7 @@ export async function POST(req: NextRequest) {
           user_id: user.id,
           gmail: clean,
           normalized_gmail: normalized,
-          password: resolvedPassword,
+          password: pair.password,
           category_id: cleanCategory,
           status: "pending",
           amount: authoritativePrice,
@@ -287,6 +309,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (insertErr) {
+      console.error("[USER DEPOSITS INSERT ERROR]", insertErr);
       return NextResponse.json(
         { success: false, insertedCount: 0, error: sanitizeErrorMessage(insertErr, "Gagal menyimpan data setoran.") },
         { status: 500 }

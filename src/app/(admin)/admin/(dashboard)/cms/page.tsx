@@ -819,14 +819,17 @@ export default function CmsPage() {
                     </div>
                   </div>
 
-                  {/* Card 4: Batas Penarikan Harian (Maks. X kali / hari) */}
+                  {/* Card 4: Batas Penarikan Harian (Proteksi Keamanan Internal - Tersembunyi dari User) */}
                   <div className="flex flex-col justify-between rounded-2xl border border-zinc-800/90 bg-zinc-950/65 p-3.5 space-y-2.5">
                     <div className="flex items-center justify-between gap-2">
                       <label className="text-xs font-bold text-zinc-200 truncate">
                         Batas Penarikan / Hari
                       </label>
-                      <span className="shrink-0 rounded-md border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-bold text-amber-300">
-                        Kuota Harian
+                      <span
+                        className="shrink-0 rounded-md border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-bold text-amber-300"
+                        title="Hanya aktif di backend keamanan, tidak ditampilkan ke user"
+                      >
+                        Proteksi Internal
                       </span>
                     </div>
                     <div className="relative flex items-center">
@@ -1872,20 +1875,13 @@ export default function CmsPage() {
                         </div>
                       ) : (
                         <div className="pt-2.5 border-t border-white/10 space-y-2">
-                          <div className="text-[10px] font-bold text-zinc-200 flex items-center gap-1">
-                            <span>Password Email</span>
-                            <span className="text-rose-400">*</span>
+                          <div className="text-[10px] font-bold text-zinc-200 flex items-center justify-between">
+                            <span>Kolom Checker &amp; Setoran (Email | Password)</span>
+                            <span className="text-[9px] text-sky-400 font-mono">Wajib sertakan password</span>
                           </div>
-                          <div className="rounded-lg border border-white/10 bg-black/40 px-2.5 py-1.5 font-mono text-[10px] text-zinc-500">
-                            Masukkan password akun Gmail lama yang disetor...
-                          </div>
-                          <div className="flex items-start gap-2 rounded-xl border border-amber-400/45 bg-amber-500/15 px-2.5 py-2 text-[9.5px] leading-relaxed text-amber-100">
-                            <AlertCircle className="size-3.5 shrink-0 text-amber-400 mt-0.5" />
-                            <p>
-                              <strong className="text-amber-300">Caution:</strong> Apabila setor{" "}
-                              <strong>lebih dari 1 email</strong> dan <strong>beda-beda password</strong>, setornya{" "}
-                              <strong className="text-amber-200 underline">1 per 1</strong> yaa!
-                            </p>
+                          <div className="rounded-xl border border-white/10 bg-black/45 px-3 py-2 font-mono text-[10px] text-zinc-300 space-y-1">
+                            <div>winterhere777@gmail.com | {config.default_password}</div>
+                            <div className="text-zinc-500">contohkedua88@gmail.com | sandiemail2</div>
                           </div>
                         </div>
                       )}
@@ -1915,8 +1911,8 @@ export default function CmsPage() {
                         </span>
                       </div>
 
-                      {/* Inline Stats Persis Dashboard (Harga, Min. Penarikan, Maks. Tarik) */}
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                      {/* Inline Stats Persis Dashboard (Harga & Min. Penarikan — batas harian disembunyikan dari user) */}
+                      <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
                         <div>
                           <div className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-sky-300/85">
                             <Zap className="size-3 text-sky-400" />
@@ -1936,16 +1932,6 @@ export default function CmsPage() {
                             Rp{config.min_withdrawal.toLocaleString("id-ID")}
                           </p>
                         </div>
-                        <div className="h-6 w-[1px] bg-white/10" aria-hidden="true" />
-                        <div>
-                          <div className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-zinc-400">
-                            <Clock className="size-3 text-sky-400" />
-                            <span>Maks. Tarik</span>
-                          </div>
-                          <p className="mt-0.5 text-xs sm:text-sm font-black text-white tabular-nums">
-                            {config.max_withdrawals_per_day}x / Hari
-                          </p>
-                        </div>
                       </div>
 
                       <div className="grid grid-cols-2 gap-2">
@@ -1962,14 +1948,8 @@ export default function CmsPage() {
 
                     {/* Preview Pilihan E-Wallet & Pajak Penarikan */}
                     <div className="rounded-2xl border border-white/10 bg-[#11131c]/90 p-3.5 space-y-2.5">
-                      <div className="flex flex-wrap items-center justify-between gap-2 text-[10px]">
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-white">Simulasi Tarik Rp20.000</span>
-                          <span className="inline-flex items-center gap-1 rounded-full border border-sky-400/25 bg-sky-500/10 px-2 py-0.5 text-[9px] font-bold text-sky-300">
-                            <Clock className="size-2.5 text-sky-400" />
-                            Maks. {config.max_withdrawals_per_day}x / hari
-                          </span>
-                        </div>
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="font-bold text-white">Simulasi Tarik Rp20.000</span>
                         {activeEwallets.length > 0 ? (
                           <span className={previewTax > 0 ? "text-amber-400 font-bold" : "text-emerald-400 font-bold"}>
                             {previewTax > 0

@@ -424,10 +424,15 @@ export async function insertUserDeposits(
   categoryId = "good",
   _amountPerAccount = 1500,
   note?: string,
-  password?: string
+  password?: string,
+  items?: Array<{ email: string; password: string }>
 ): Promise<{ success: boolean; insertedCount: number; error?: string }> {
   if (!isSupabaseConfigured) {
-    return { success: true, insertedCount: emails.length };
+    return {
+      success: false,
+      insertedCount: 0,
+      error: "Konfigurasi database belum aktif.",
+    };
   }
 
   try {
@@ -449,17 +454,35 @@ export async function insertUserDeposits(
       };
     }
 
-    if (!Array.isArray(emails) || emails.length === 0) {
-      return { success: false, insertedCount: 0, error: "Daftar email tidak boleh kosong." };
+    const normalizedItems: Array<{ email: string; password: string }> =
+      Array.isArray(items) && items.length > 0
+        ? items
+            .filter((it) => isValidStrictGmail(it?.email))
+            .map((it) => ({
+              email: it.email.trim().toLowerCase(),
+              password: sanitizeInputText(it.password || "", 120),
+            }))
+        : (emails || [])
+            .filter((e) => isValidStrictGmail(e))
+            .map((e) => ({
+              email: e.trim().toLowerCase(),
+              password: sanitizeInputText(password || "", 120),
+            }));
+
+    if (normalizedItems.length === 0) {
+      return { success: false, insertedCount: 0, error: "Tidak ada email Gmail valid untuk disetor." };
     }
 
-    if (emails.length > 10) {
+    if (normalizedItems.length > 10) {
       return { success: false, insertedCount: 0, error: "Maksimal 10 Gmail per pengiriman setoran." };
     }
 
-    const validEmails = emails.filter((e) => isValidStrictGmail(e));
-    if (validEmails.length === 0) {
-      return { success: false, insertedCount: 0, error: "Tidak ada email Gmail valid untuk disetor." };
+    if (normalizedItems.some((it) => !it.password)) {
+      return {
+        success: false,
+        insertedCount: 0,
+        error: "Setiap akun Gmail wajib menyertakan password (format: email@gmail.com | password).",
+      };
     }
 
     const res = await fetch("/api/user/deposits", {
@@ -470,7 +493,8 @@ export async function insertUserDeposits(
         "X-Requested-With": "XMLHttpRequest",
       },
       body: JSON.stringify({
-        emails: validEmails,
+        emails: normalizedItems.map((it) => it.email),
+        items: normalizedItems,
         categoryId: categoryId === "bebas" ? "bebas" : "good",
         password: password ? sanitizeInputText(password, 120) : undefined,
         note: note ? sanitizeInputText(note, 200) : undefined,
@@ -488,7 +512,7 @@ export async function insertUserDeposits(
 
     return {
       success: true,
-      insertedCount: Number(json.insertedCount) || validEmails.length,
+      insertedCount: Number(json.insertedCount) || normalizedItems.length,
     };
   } catch (err: unknown) {
     return {

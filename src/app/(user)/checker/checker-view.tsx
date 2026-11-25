@@ -122,7 +122,7 @@ export function CheckerView() {
       });
       return;
     }
-    const rawLines = splitLines(input);
+    const rawLines = splitLines(input).map((l) => l.split("|")[0].trim()).filter(Boolean);
     if (rawLines.length === 0) {
       toast.error("Tidak ada email untuk dicek", {
         description: "Masukkan minimal satu alamat @gmail.com untuk diperiksa.",

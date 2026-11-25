@@ -51,7 +51,9 @@ export default function DashboardOverviewPage() {
 
   // State untuk Tab List Setor Gmail & Transaksi (Filter Rentang Tanggal & Sort)
   const [depositSearch, setDepositSearch] = useState("");
+  const [depositCategoryFilter, setDepositCategoryFilter] = useState<"all" | "good" | "bebas">("all");
   const [depositStatusFilter, setDepositStatusFilter] = useState<"all" | "accepted" | "pending" | "rejected">("all");
+  const [isUpdatingDepositId, setIsUpdatingDepositId] = useState<string | null>(null);
   const [depositDateFrom, setDepositDateFrom] = useState("");
   const [depositDateTo, setDepositDateTo] = useState("");
   const [depositSortOrder, setDepositSortOrder] = useState<"desc" | "asc">("desc");
@@ -134,6 +136,31 @@ export default function DashboardOverviewPage() {
     }
   };
 
+  const handleUpdateDeposit = async (id: string, newStatus: "accepted" | "rejected") => {
+    setIsUpdatingDepositId(id);
+    try {
+      const res = await adminFetch("/api/admin/deposits", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id,
+          newStatus,
+          adminNote: newStatus === "accepted" ? "Disetujui Admin" : "Ditolak Admin",
+        }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        fetchStats(false, timeframe);
+      } else {
+        alert(json.error || "Gagal memperbarui status setoran Gmail");
+      }
+    } catch (err: any) {
+      alert(err?.message || "Terjadi kesalahan");
+    } finally {
+      setIsUpdatingDepositId(null);
+    }
+  };
+
   const copyToClipboard = (text: string, id: string) => {
     if (navigator?.clipboard) {
       navigator.clipboard.writeText(text);
@@ -192,6 +219,9 @@ export default function DashboardOverviewPage() {
 
   const filteredDepositsList = React.useMemo(() => {
     let list = [...(data?.recentDeposits || [])];
+    if (depositCategoryFilter !== "all") {
+      list = list.filter((d: any) => (d.category_id || "good") === depositCategoryFilter);
+    }
     if (depositStatusFilter !== "all") {
       list = list.filter((d: any) => {
         const s = (d.status || "").toLowerCase();
@@ -232,7 +262,7 @@ export default function DashboardOverviewPage() {
       return depositSortOrder === "asc" ? ta - tb : tb - ta;
     });
     return list;
-  }, [data?.recentDeposits, depositStatusFilter, depositSearch, depositDateFrom, depositDateTo, depositSortOrder]);
+  }, [data?.recentDeposits, depositCategoryFilter, depositStatusFilter, depositSearch, depositDateFrom, depositDateTo, depositSortOrder]);
 
   const filteredTransactionsList = React.useMemo(() => {
     let list = [...(data?.recentTransactions || [])];
@@ -842,6 +872,28 @@ export default function DashboardOverviewPage() {
                       )}
                     </div>
 
+                    {/* Filter Kategori: Semua / Fresh / Bebas */}
+                    <div className="flex items-center gap-1 bg-zinc-950/80 border border-zinc-800 rounded-xl p-1">
+                      {[
+                        { id: "all" as const, label: "Semua Kategori" },
+                        { id: "good" as const, label: "Gmail Fresh" },
+                        { id: "bebas" as const, label: "Gmail Bebas" },
+                      ].map((cat) => (
+                        <button
+                          key={cat.id}
+                          type="button"
+                          onClick={() => setDepositCategoryFilter(cat.id)}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
+                            depositCategoryFilter === cat.id
+                              ? "bg-sky-500/20 text-sky-300 border border-sky-500/40"
+                              : "text-zinc-400 hover:text-zinc-200 border border-transparent"
+                          }`}
+                        >
+                          {cat.label}
+                        </button>
+                      ))}
+                    </div>
+
                     {/* Sort Tanggal Setor (Terbaru / Terlama) */}
                     <button
                       type="button"
@@ -916,12 +968,13 @@ export default function DashboardOverviewPage() {
                             )}
                           </span>
                         </th>
+                        <th className="py-2.5 px-3 text-right">Aksi</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-zinc-800/60">
                       {isLoading ? (
                         <tr>
-                          <td colSpan={6} className="py-8 text-center text-zinc-500">
+                          <td colSpan={7} className="py-8 text-center text-zinc-500">
                             <div className="flex items-center justify-center gap-2">
                               <RefreshCw className="w-4 h-4 animate-spin text-sky-400" />
                               <span>Memuat list setoran Gmail...</span>
@@ -930,7 +983,7 @@ export default function DashboardOverviewPage() {
                         </tr>
                       ) : filteredDepositsList.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="py-8 text-center text-zinc-500">
+                          <td colSpan={7} className="py-8 text-center text-zinc-500">
                             Belum ada setoran Gmail yang sesuai filter pada rentang waktu ini.
                           </td>
                         </tr>
@@ -1000,10 +1053,16 @@ export default function DashboardOverviewPage() {
 
                               {/* Kategori & Nominal */}
                               <td className="py-2.5 px-3">
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-zinc-900 border border-zinc-800 text-zinc-300">
-                                  {d.categoryLabel || "Gmail Good"}
+                                <span
+                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold border ${
+                                    d.category_id === "bebas"
+                                      ? "bg-sky-500/10 border-sky-500/30 text-sky-300"
+                                      : "bg-zinc-900 border-zinc-800 text-zinc-300"
+                                  }`}
+                                >
+                                  {d.categoryLabel || "Gmail Fresh"}
                                   <span className="text-emerald-400 font-mono">
-                                    • Rp {Number(d.amount || 4500).toLocaleString("id-ID")}
+                                    • Rp {Number(d.amount || 1500).toLocaleString("id-ID")}
                                   </span>
                                 </span>
                               </td>
@@ -1037,6 +1096,36 @@ export default function DashboardOverviewPage() {
                                   hour: "2-digit",
                                   minute: "2-digit",
                                 })}
+                              </td>
+
+                              {/* Aksi Verifikasi Admin */}
+                              <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                                {isDicek ? (
+                                  <div className="inline-flex items-center gap-1.5">
+                                    <button
+                                      type="button"
+                                      disabled={isUpdatingDepositId === d.id}
+                                      onClick={() => handleUpdateDeposit(d.id, "accepted")}
+                                      className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 px-2.5 py-1 text-[11px] font-bold text-white transition-colors cursor-pointer disabled:opacity-50"
+                                      title="Terima & Cairkan Saldo"
+                                    >
+                                      <Check className="w-3 h-3" />
+                                      <span>Terima</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={isUpdatingDepositId === d.id}
+                                      onClick={() => handleUpdateDeposit(d.id, "rejected")}
+                                      className="inline-flex items-center gap-1 rounded-lg border border-rose-500/35 bg-rose-600/20 hover:bg-rose-600 px-2 py-1 text-[11px] font-bold text-rose-300 hover:text-white transition-colors cursor-pointer disabled:opacity-50"
+                                      title="Tolak Setoran"
+                                    >
+                                      <X className="w-3 h-3" />
+                                      <span>Tolak</span>
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <span className="text-[11px] text-zinc-500">Selesai</span>
+                                )}
                               </td>
                             </tr>
                           );

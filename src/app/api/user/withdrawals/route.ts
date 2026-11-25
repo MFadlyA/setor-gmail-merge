@@ -188,7 +188,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: `Batas penarikan harian tercapai: Maksimal ${authoritativeMaxWithdrawalsPerDay}x penarikan per hari. Silakan coba kembali besok.`,
+          error:
+            "Batas frekuensi penarikan harian untuk akun Anda telah tercapai demi keamanan. Silakan coba kembali besok.",
         },
         { status: 429 }
       );
