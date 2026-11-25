@@ -12,11 +12,18 @@ import {
   Copy,
   Check,
   KeyRound,
+  AlertTriangle,
+  RotateCcw,
 } from "lucide-react";
 import { Button } from "@/components/admin/ui/button";
 import { Modal } from "@/components/admin/ui/modal";
 import { Textarea } from "@/components/admin/ui/input";
 import { adminFetch } from "@/lib/api-client";
+import {
+  isPendingDepositStatus,
+  isIssueDepositStatus,
+  getDepositStatusAdminMeta,
+} from "@/lib/mock-data";
 
 export default function DepositsPage() {
   // Gmail Deposits State
@@ -25,6 +32,7 @@ export default function DepositsPage() {
     total: 0,
     accepted: 0,
     pending: 0,
+    problematic: 0,
     rejected: 0,
     totalAmount: 0,
   });
@@ -117,9 +125,8 @@ export default function DepositsPage() {
     }
   };
 
-  const isAcceptedStatus = (s?: string) => ["accepted", "diterima"].includes((s || "").toLowerCase());
-  const isRejectedStatus = (s?: string) => ["rejected", "ditolak"].includes((s || "").toLowerCase());
-  const isPendingStatus = (s?: string) => ["pending", "dicek"].includes((s || "").toLowerCase());
+  const isPendingStatus = (s?: string) => isPendingDepositStatus(s);
+  const isProblematicStatus = (s?: string) => isIssueDepositStatus(s);
 
   const freshCatPrice = categories.find((c) => c.id === "good")?.price || 1500;
   const bebasCatPrice = categories.find((c) => c.id === "bebas")?.price || 1000;
@@ -152,10 +159,10 @@ export default function DepositsPage() {
         </div>
       </div>
 
-      {/* 4 KPI Summary Cards for Gmail Submissions - Centered Text & Numbers */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* 5 KPI Summary Cards for Gmail Submissions - Centered Text & Numbers */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {/* Total Setoran */}
-        <div className="p-4 rounded-2xl bg-zinc-900/80 border border-zinc-800 shadow-sm flex flex-col items-center justify-center text-center hover:border-zinc-700/80 transition-all">
+        <div className="p-4 rounded-2xl bg-zinc-900/80 border border-zinc-800 shadow-sm flex flex-col items-center justify-center text-center hover:border-zinc-700/80 transition-all col-span-2 sm:col-span-1">
           <div className="w-9 h-9 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center mb-2 shadow-sm">
             <Mail className="w-4 h-4" />
           </div>
@@ -180,14 +187,26 @@ export default function DepositsPage() {
 
         {/* Menunggu Cek */}
         <div className="p-4 rounded-2xl bg-zinc-900/80 border border-zinc-800 shadow-sm flex flex-col items-center justify-center text-center hover:border-zinc-700/80 transition-all">
-          <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center mb-2 shadow-sm">
+          <div className="w-9 h-9 rounded-xl bg-sky-500/10 border border-sky-500/20 text-sky-400 flex items-center justify-center mb-2 shadow-sm">
             <Clock className="w-4 h-4" />
           </div>
           <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Menunggu Cek</span>
-          <div className="text-2xl font-black text-amber-400 tracking-tight mt-1">
+          <div className="text-2xl font-black text-sky-400 tracking-tight mt-1">
             {depositStats.pending.toLocaleString("id-ID")}
           </div>
-          <p className="text-[11px] text-zinc-500 mt-0.5">Butuh verifikasi admin</p>
+          <p className="text-[11px] text-zinc-500 mt-0.5">Dalam antrean cek</p>
+        </div>
+
+        {/* Butuh Tindakan / Bermasalah */}
+        <div className="p-4 rounded-2xl bg-zinc-900/80 border border-zinc-800 shadow-sm flex flex-col items-center justify-center text-center hover:border-amber-500/40 transition-all">
+          <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-400 flex items-center justify-center mb-2 shadow-sm">
+            <AlertTriangle className="w-4 h-4" />
+          </div>
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Butuh Tindakan</span>
+          <div className="text-2xl font-black text-amber-400 tracking-tight mt-1">
+            {(depositStats.problematic || 0).toLocaleString("id-ID")}
+          </div>
+          <p className="text-[11px] text-zinc-500 mt-0.5">2FA / Captcha / Verif HP</p>
         </div>
 
         {/* Reward Diberikan */}
@@ -215,11 +234,10 @@ export default function DepositsPage() {
             <button
               key={tab.value}
               onClick={() => setDepositCategoryFilter(tab.value)}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${
-                depositCategoryFilter === tab.value
-                  ? "bg-emerald-600 text-white shadow-sm"
-                  : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800"
-              }`}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${depositCategoryFilter === tab.value
+                ? "bg-emerald-600 text-white shadow-sm"
+                : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800"
+                }`}
             >
               {tab.label}
             </button>
@@ -245,7 +263,12 @@ export default function DepositsPage() {
             className="bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-zinc-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 w-full sm:w-auto"
           >
             <option value="all">Semua Status ({depositStats.total})</option>
-            <option value="pending">Menunggu Verifikasi ({depositStats.pending})</option>
+            <option value="pending">Menunggu Cek ({depositStats.pending})</option>
+            <option value="problematic">Butuh Tindakan ({depositStats.problematic || 0})</option>
+            <option value="need_2fa">↳ Butuh 2FA</option>
+            <option value="need_phone_verify">↳ Butuh Verifikasi HP</option>
+            <option value="captcha_checkpoint">↳ Terkena Captcha</option>
+            <option value="unknown">↳ Tidak Diketahui</option>
             <option value="accepted">Diterima ({depositStats.accepted})</option>
             <option value="rejected">Ditolak ({depositStats.rejected})</option>
           </select>
@@ -359,11 +382,10 @@ export default function DepositsPage() {
 
                     <td className="py-3 px-4">
                       <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold border ${
-                          dep.category_id === "good"
-                            ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                            : "bg-blue-500/10 text-blue-400 border-blue-500/20"
-                        }`}
+                        className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold border ${dep.category_id === "good"
+                          ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                          : "bg-blue-500/10 text-blue-400 border-blue-500/20"
+                          }`}
                       >
                         {dep.category_label}
                       </span>
@@ -374,21 +396,17 @@ export default function DepositsPage() {
                     </td>
 
                     <td className="py-3 px-4 text-center whitespace-nowrap">
-                      <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider ${
-                          isAcceptedStatus(dep.status)
-                            ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                            : isRejectedStatus(dep.status)
-                            ? "bg-rose-500/10 text-rose-400 border-rose-500/20"
-                            : "bg-amber-500/10 text-amber-400 border-amber-500/20"
-                        }`}
-                      >
-                        {isAcceptedStatus(dep.status)
-                          ? "Diterima"
-                          : isRejectedStatus(dep.status)
-                          ? "Ditolak"
-                          : "Menunggu Cek"}
-                      </span>
+                      {(() => {
+                        const statusInfo = getDepositStatusAdminMeta(dep.status);
+                        return (
+                          <span
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider ${statusInfo.badgeClass}`}
+                          >
+                            <span className={`w-1.5 h-1.5 rounded-full ${statusInfo.dotClass}`} />
+                            {statusInfo.label}
+                          </span>
+                        );
+                      })()}
                     </td>
 
                     <td className="py-3 px-4 max-w-xs text-zinc-400 truncate">
@@ -397,11 +415,12 @@ export default function DepositsPage() {
 
                     <td className="py-3 px-4 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1.5">
-                        {isPendingStatus(dep.status) ? (
+                        {isPendingStatus(dep.status) || isProblematicStatus(dep.status) ? (
                           <>
                             <Button
                               variant="success"
                               size="sm"
+                              disabled={isUpdatingDeposit}
                               onClick={() => handleUpdateDepositStatus(dep, "accepted", "Disetujui Admin")}
                               className="px-2 py-1 text-[11px] flex items-center gap-1"
                             >
@@ -411,9 +430,10 @@ export default function DepositsPage() {
                             <Button
                               variant="danger"
                               size="sm"
+                              disabled={isUpdatingDeposit}
                               onClick={() => {
                                 setSelectedDeposit(dep);
-                                setDepositAdminNote("");
+                                setDepositAdminNote(dep.note !== "-" ? dep.note : "");
                                 setDepositModalOpen(true);
                               }}
                               className="px-2 py-1 text-[11px] flex items-center gap-1"
@@ -421,6 +441,25 @@ export default function DepositsPage() {
                               <XCircle className="w-3 h-3" />
                               <span>Tolak</span>
                             </Button>
+                            {isProblematicStatus(dep.status) && (
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                disabled={isUpdatingDeposit}
+                                onClick={() =>
+                                  handleUpdateDepositStatus(
+                                    dep,
+                                    "pending",
+                                    "Direset ke Pending oleh Admin"
+                                  )
+                                }
+                                title="Kembalikan status ke Pending untuk dicek ulang"
+                                className="px-2 py-1 text-[11px] flex items-center gap-1 text-sky-300 border-sky-500/30 hover:text-white"
+                              >
+                                <RotateCcw className="w-3 h-3" />
+                                <span>Reset ke Pending</span>
+                              </Button>
+                            )}
                           </>
                         ) : (
                           <Button
@@ -465,30 +504,48 @@ export default function DepositsPage() {
               >
                 Tutup
               </Button>
-              {isPendingStatus(selectedDeposit?.status) && (
-                <>
-                  <Button
-                    variant="danger"
-                    onClick={() => handleUpdateDepositStatus(selectedDeposit, "rejected")}
-                    isLoading={isUpdatingDeposit}
-                  >
-                    Tolak Setoran
-                  </Button>
-                  <Button
-                    variant="success"
-                    onClick={() =>
-                      handleUpdateDepositStatus(
-                        selectedDeposit,
-                        "accepted",
-                        depositAdminNote.trim() || "Disetujui Admin"
-                      )
-                    }
-                    isLoading={isUpdatingDeposit}
-                  >
-                    Terima & Tambah Saldo
-                  </Button>
-                </>
-              )}
+              {(isPendingStatus(selectedDeposit?.status) ||
+                isProblematicStatus(selectedDeposit?.status)) && (
+                  <>
+                    {isProblematicStatus(selectedDeposit?.status) && (
+                      <Button
+                        variant="secondary"
+                        onClick={() =>
+                          handleUpdateDepositStatus(
+                            selectedDeposit,
+                            "pending",
+                            depositAdminNote.trim() || "Direset ke Pending oleh Admin"
+                          )
+                        }
+                        isLoading={isUpdatingDeposit}
+                        className="flex items-center gap-1 text-sky-300 border-sky-500/30"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>Reset ke Pending</span>
+                      </Button>
+                    )}
+                    <Button
+                      variant="danger"
+                      onClick={() => handleUpdateDepositStatus(selectedDeposit, "rejected")}
+                      isLoading={isUpdatingDeposit}
+                    >
+                      Tolak Setoran
+                    </Button>
+                    <Button
+                      variant="success"
+                      onClick={() =>
+                        handleUpdateDepositStatus(
+                          selectedDeposit,
+                          "accepted",
+                          depositAdminNote.trim() || "Disetujui Admin"
+                        )
+                      }
+                      isLoading={isUpdatingDeposit}
+                    >
+                      Terima & Tambah Saldo
+                    </Button>
+                  </>
+                )}
             </div>
           </div>
         }
@@ -559,21 +616,17 @@ export default function DepositsPage() {
             </div>
             <div className="flex items-center justify-between">
               <span className="text-zinc-500">Status Saat Ini:</span>
-              <span
-                className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider ${
-                  isAcceptedStatus(selectedDeposit?.status)
-                    ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                    : isRejectedStatus(selectedDeposit?.status)
-                    ? "bg-rose-500/10 text-rose-400 border-rose-500/20"
-                    : "bg-amber-500/10 text-amber-400 border-amber-500/20"
-                }`}
-              >
-                {isAcceptedStatus(selectedDeposit?.status)
-                  ? "Diterima"
-                  : isRejectedStatus(selectedDeposit?.status)
-                  ? "Ditolak"
-                  : "Menunggu Cek"}
-              </span>
+              {(() => {
+                const modalStatusInfo = getDepositStatusAdminMeta(selectedDeposit?.status);
+                return (
+                  <span
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider ${modalStatusInfo.badgeClass}`}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full ${modalStatusInfo.dotClass}`} />
+                    {modalStatusInfo.label}
+                  </span>
+                );
+              })()}
             </div>
           </div>
 

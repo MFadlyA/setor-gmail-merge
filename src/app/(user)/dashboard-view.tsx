@@ -116,6 +116,12 @@ export function DashboardView() {
         svgType: "blur4",
       },
       {
+        title: "Butuh Tindakan",
+        value: userStats.bermasalah ?? 0,
+        bg: "bg-amber-600",
+        svgType: "blur4",
+      },
+      {
         title: "Ditolak",
         value: userStats.ditolak,
         bg: "bg-rose-600",

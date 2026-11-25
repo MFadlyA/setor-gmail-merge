@@ -9,16 +9,23 @@ import {
   ScanSearch,
   ChevronRight,
   ShieldCheck,
+  AlertTriangle,
+  Smartphone,
+  ShieldAlert,
+  HelpCircle,
 } from "lucide-react";
 import { Card, SectionHeading } from "@/components/ui/card";
 import { StatusSummaryGrid, type StatusCardItem } from "@/components/ui/status-summary-cards";
-import { StatusBadge } from "@/components/ui/status";
+import { StatusBadge, type Tone } from "@/components/ui/status";
 import { PageShell, Reveal, EmptyState } from "@/components/layout/page-shell";
 import {
   timeRanges,
   type DepositRecord,
-  type DepositStatus,
   type TimeRange,
+  isAcceptedDepositStatus,
+  isPendingDepositStatus,
+  isRejectedDepositStatus,
+  isIssueDepositStatus,
 } from "@/lib/mock-data";
 import { cn, formatDateTime, formatIDR } from "@/lib/utils";
 import { useUserProfile } from "@/context/user-profile-context";
@@ -28,29 +35,68 @@ import { Skeleton } from "@/components/ui/skeleton";
 /* Constants                                                           */
 /* ------------------------------------------------------------------ */
 
-const statusMeta: Record<
-  Exclude<DepositStatus, "semua">,
-  { label: string; tone: "success" | "warning" | "info" | "danger"; icon: React.ReactNode }
-> = {
+type StatusMetaEntry = {
+  label: string;
+  tone: Tone;
+  icon: React.ReactNode;
+};
+
+const FALLBACK_STATUS_META: StatusMetaEntry = {
+  label: "Tidak Diketahui",
+  tone: "neutral",
+  icon: <HelpCircle className="size-3" aria-hidden="true" />,
+};
+
+const statusMeta: Record<string, StatusMetaEntry> = {
   diterima: {
-    label: "DITERIMA",
+    label: "Diterima",
+    tone: "success",
+    icon: <CircleCheck className="size-3" aria-hidden="true" />,
+  },
+  accepted: {
+    label: "Diterima",
     tone: "success",
     icon: <CircleCheck className="size-3" aria-hidden="true" />,
   },
   pending: {
-    label: "DI CEK",
+    label: "Di Cek",
     tone: "info",
     icon: <ScanSearch className="size-3" aria-hidden="true" />,
   },
   dicek: {
-    label: "DI CEK",
+    label: "Di Cek",
     tone: "info",
     icon: <ScanSearch className="size-3" aria-hidden="true" />,
   },
   ditolak: {
-    label: "DITOLAK",
+    label: "Ditolak",
     tone: "danger",
     icon: <CircleX className="size-3" aria-hidden="true" />,
+  },
+  rejected: {
+    label: "Ditolak",
+    tone: "danger",
+    icon: <CircleX className="size-3" aria-hidden="true" />,
+  },
+  need_2fa: {
+    label: "Butuh 2FA",
+    tone: "warning",
+    icon: <AlertTriangle className="size-3" aria-hidden="true" />,
+  },
+  need_phone_verify: {
+    label: "Butuh Verifikasi HP",
+    tone: "warning",
+    icon: <Smartphone className="size-3" aria-hidden="true" />,
+  },
+  captcha_checkpoint: {
+    label: "Terkena Captcha",
+    tone: "warning",
+    icon: <ShieldAlert className="size-3" aria-hidden="true" />,
+  },
+  unknown: {
+    label: "Tidak Diketahui",
+    tone: "neutral",
+    icon: <HelpCircle className="size-3" aria-hidden="true" />,
   },
 };
 
@@ -72,8 +118,14 @@ function withinRange(iso: string, range: TimeRange): boolean {
 /* ------------------------------------------------------------------ */
 
 function DepositRow({ record, index }: { record: DepositRecord; index: number }) {
-  const meta = statusMeta[record.status];
-  const isRejected = record.status === "ditolak";
+  const statusKey = String(record.status || "").toLowerCase().trim();
+  const meta = statusMeta[statusKey] ?? FALLBACK_STATUS_META;
+  const isAccepted = isAcceptedDepositStatus(statusKey);
+  const isPending = isPendingDepositStatus(statusKey);
+  const isRejected = isRejectedDepositStatus(statusKey);
+  const isIssue = isIssueDepositStatus(statusKey);
+  const cleanNote =
+    record.note && !/^Password:\s*/i.test(record.note.trim()) ? record.note.trim() : "";
 
   return (
     <div
@@ -83,9 +135,13 @@ function DepositRow({ record, index }: { record: DepositRecord; index: number })
       <span
         className={cn(
           "flex size-10 shrink-0 items-center justify-center rounded-2xl transition-transform duration-300 group-hover:scale-105 md:size-11",
-          record.status === "diterima" && "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
-          (record.status === "pending" || record.status === "dicek") && "bg-sky-500/10 text-sky-400 border border-sky-500/20",
-          record.status === "ditolak" && "bg-rose-500/10 text-rose-400 border border-rose-500/20",
+          isAccepted && "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20",
+          isPending && "bg-sky-500/10 text-sky-400 border border-sky-500/20",
+          isRejected && "bg-rose-500/10 text-rose-400 border border-rose-500/20",
+          isIssue &&
+            (statusKey === "unknown"
+              ? "bg-zinc-500/15 text-zinc-300 border border-zinc-500/25"
+              : "bg-amber-500/10 text-amber-400 border border-amber-500/25"),
         )}
       >
         <Mail className="size-4.5" strokeWidth={2.1} aria-hidden="true" />
@@ -98,9 +154,14 @@ function DepositRow({ record, index }: { record: DepositRecord; index: number })
         <p className="mt-0.5 truncate text-[0.7rem] text-zinc-400">
           {formatDateTime(record.createdAt)} · {record.category === "good" ? "Good" : "Bebas"}
         </p>
-        {isRejected && record.note && (
-          <p className="mt-1 truncate text-[0.7rem] font-medium text-rose-400">
-            {record.note}
+        {(isRejected || isIssue) && cleanNote && (
+          <p
+            className={cn(
+              "mt-1 truncate text-[0.7rem] font-medium",
+              isRejected ? "text-rose-400" : "text-amber-400",
+            )}
+          >
+            {cleanNote}
           </p>
         )}
       </div>
@@ -109,7 +170,7 @@ function DepositRow({ record, index }: { record: DepositRecord; index: number })
         <span className="text-[0.85rem] font-bold tracking-tight text-white tabular-nums">
           {formatIDR(record.amount)}
         </span>
-        <StatusBadge tone={meta.tone} icon={meta.icon} dot pulse={record.status === "pending" || record.status === "dicek"}>
+        <StatusBadge tone={meta.tone} icon={meta.icon} dot pulse={isPending}>
           {meta.label}
         </StatusBadge>
       </div>
@@ -132,16 +193,24 @@ export function RiwayatView() {
   }, [deposits, range]);
 
   const counts = React.useMemo(() => {
-    const base: Record<string, number> = { semua: 0, diterima: 0, dicek: 0, ditolak: 0 };
+    const base: Record<string, number> = {
+      semua: 0,
+      diterima: 0,
+      dicek: 0,
+      bermasalah: 0,
+      ditolak: 0,
+    };
     for (const d of deposits) {
       if (withinRange(d.createdAt, range)) {
         base.semua += 1;
-        if (d.status === "dicek" || d.status === "pending") {
+        if (isPendingDepositStatus(d.status)) {
           base.dicek += 1;
-        } else if (d.status === "diterima") {
+        } else if (isAcceptedDepositStatus(d.status)) {
           base.diterima += 1;
-        } else if (d.status === "ditolak") {
+        } else if (isRejectedDepositStatus(d.status)) {
           base.ditolak += 1;
+        } else if (isIssueDepositStatus(d.status)) {
+          base.bermasalah += 1;
         }
       }
     }
@@ -166,6 +235,12 @@ export function RiwayatView() {
         title: "Di Cek",
         value: counts.dicek,
         bg: "bg-sky-600",
+        svgType: "blur4",
+      },
+      {
+        title: "Butuh Tindakan",
+        value: counts.bermasalah,
+        bg: "bg-amber-600",
         svgType: "blur4",
       },
       {

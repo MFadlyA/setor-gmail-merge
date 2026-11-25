@@ -432,12 +432,24 @@ export default function UserManagementPage() {
                           </span>
                           <span className="text-zinc-600">•</span>
                           <span
-                            className="inline-flex items-center gap-1 text-amber-400 font-mono"
+                            className="inline-flex items-center gap-1 text-sky-400 font-mono"
                             title="Dicek"
                           >
-                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block shrink-0"></span>
+                            <span className="w-1.5 h-1.5 rounded-full bg-sky-400 inline-block shrink-0"></span>
                             {u.deposits_count?.dicek || 0} dicek
                           </span>
+                          {(u.deposits_count?.bermasalah || 0) > 0 && (
+                            <>
+                              <span className="text-zinc-600">•</span>
+                              <span
+                                className="inline-flex items-center gap-1 text-amber-400 font-mono"
+                                title="Butuh Tindakan (2FA / Captcha / Verifikasi HP)"
+                              >
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block shrink-0"></span>
+                                {u.deposits_count?.bermasalah} masalah
+                              </span>
+                            </>
+                          )}
                           <span className="text-zinc-600">•</span>
                           <span
                             className="inline-flex items-center gap-1 text-rose-400 font-mono"

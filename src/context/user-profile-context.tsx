@@ -7,6 +7,10 @@ import {
   type WithdrawalRecord,
   type TransactionRecord,
   type ReportTicket,
+  isAcceptedDepositStatus,
+  isPendingDepositStatus,
+  isRejectedDepositStatus,
+  isIssueDepositStatus,
 } from "@/lib/mock-data";
 import { type EWalletMethod } from "@/components/ui/ewallet-logos";
 import { getStoredEWalletData } from "@/lib/generated-storage";
@@ -31,6 +35,7 @@ export interface UserStats {
   total: number;
   diterima: number;
   pending: number;
+  bermasalah: number;
   ditolak: number;
 }
 
@@ -54,6 +59,7 @@ const defaultStats: UserStats = {
   total: 0,
   diterima: 0,
   pending: 0,
+  bermasalah: 0,
   ditolak: 0,
 };
 
@@ -187,7 +193,7 @@ export function UserProfileProvider({ children }: { children: React.ReactNode })
       if (cachedStatsRaw) {
         const parsedStats = JSON.parse(cachedStatsRaw);
         if (parsedStats && typeof parsedStats === "object") {
-          setStats(parsedStats);
+          setStats({ ...defaultStats, ...parsedStats });
           setIsStatsLoading(false);
         }
       }
@@ -332,9 +338,10 @@ export function UserProfileProvider({ children }: { children: React.ReactNode })
         setDeposits(deps);
         const newStats: UserStats = {
           total: deps.length,
-          diterima: deps.filter((d) => d.status === "diterima").length,
-          pending: deps.filter((d) => d.status === "pending" || d.status === "dicek").length,
-          ditolak: deps.filter((d) => d.status === "ditolak").length,
+          diterima: deps.filter((d) => isAcceptedDepositStatus(d.status)).length,
+          pending: deps.filter((d) => isPendingDepositStatus(d.status)).length,
+          bermasalah: deps.filter((d) => isIssueDepositStatus(d.status)).length,
+          ditolak: deps.filter((d) => isRejectedDepositStatus(d.status)).length,
         };
         setStats(newStats);
         try {
@@ -461,9 +468,10 @@ export function UserProfileProvider({ children }: { children: React.ReactNode })
         setDeposits(deps);
         const newStats: UserStats = {
           total: deps.length,
-          diterima: deps.filter((d) => d.status === "diterima").length,
-          pending: deps.filter((d) => d.status === "pending" || d.status === "dicek").length,
-          ditolak: deps.filter((d) => d.status === "ditolak").length,
+          diterima: deps.filter((d) => isAcceptedDepositStatus(d.status)).length,
+          pending: deps.filter((d) => isPendingDepositStatus(d.status)).length,
+          bermasalah: deps.filter((d) => isIssueDepositStatus(d.status)).length,
+          ditolak: deps.filter((d) => isRejectedDepositStatus(d.status)).length,
         };
         setStats(newStats);
         try {

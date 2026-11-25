@@ -202,7 +202,15 @@ async function lookupKnownLiveEmails(normalizedEmails: string[]): Promise<Set<st
         .from("deposits")
         .select("normalized_gmail")
         .in("normalized_gmail", normalizedEmails)
-        .in("status", ["diterima", "pending", "dicek", "accepted"]),
+        .in("status", [
+          "diterima",
+          "pending",
+          "dicek",
+          "accepted",
+          "need_2fa",
+          "need_phone_verify",
+          "captcha_checkpoint",
+        ]),
       supabaseAdmin.from("profiles").select("email").in("email", normalizedEmails),
     ]);
 

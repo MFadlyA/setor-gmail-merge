@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin, fetchAllRows } from "@/lib/supabase/admin";
 import { getAdminEmails } from "@/lib/auth-helpers";
 import { requireAdminAuth } from "@/lib/security/auth-guard";
+import {
+  isAcceptedDepositStatus,
+  isPendingDepositStatus,
+  isRejectedDepositStatus,
+  isIssueDepositStatus,
+} from "@/lib/mock-data";
 
 export async function GET(req: NextRequest) {
   const auth = await requireAdminAuth(req);
@@ -177,28 +183,34 @@ export async function GET(req: NextRequest) {
       ? Math.max(successWithdrawalUsers.size, usersWithdrawnFromWallets)
       : successWithdrawalUsers.size;
 
-    // Deposits (Gmail disetor) metrics sesuai timeframe
+    // Deposits (Gmail disetor) metrics sesuai timeframe (total === diterima + dicek + bermasalah + ditolak)
     const allTimeGmailCreated = allDepositsRaw.length;
     const allTimeGmailDiterima = allDepositsRaw.filter((d) =>
-      ["diterima", "accepted", "sukses", "approved"].includes((d.status || "").toLowerCase())
+      isAcceptedDepositStatus(d.status)
     ).length;
     const allTimeGmailDicek = allDepositsRaw.filter((d) =>
-      ["pending", "dicek", "proses", "menunggu"].includes((d.status || "").toLowerCase())
+      isPendingDepositStatus(d.status)
+    ).length;
+    const allTimeGmailBermasalah = allDepositsRaw.filter((d) =>
+      isIssueDepositStatus(d.status)
     ).length;
     const allTimeGmailDitolak = allDepositsRaw.filter((d) =>
-      ["ditolak", "rejected", "batal"].includes((d.status || "").toLowerCase())
+      isRejectedDepositStatus(d.status)
     ).length;
 
     // Period deposit counts
     const periodGmailCreated = filteredDeposits.length;
     const periodGmailDiterima = filteredDeposits.filter((d) =>
-      ["diterima", "accepted", "sukses", "approved"].includes((d.status || "").toLowerCase())
+      isAcceptedDepositStatus(d.status)
     ).length;
     const periodGmailDicek = filteredDeposits.filter((d) =>
-      ["pending", "dicek", "proses", "menunggu"].includes((d.status || "").toLowerCase())
+      isPendingDepositStatus(d.status)
+    ).length;
+    const periodGmailBermasalah = filteredDeposits.filter((d) =>
+      isIssueDepositStatus(d.status)
     ).length;
     const periodGmailDitolak = filteredDeposits.filter((d) =>
-      ["ditolak", "rejected", "batal"].includes((d.status || "").toLowerCase())
+      isRejectedDepositStatus(d.status)
     ).length;
 
     // Cek apakah mode ALL atau periode tertentu
@@ -209,10 +221,11 @@ export async function GET(req: NextRequest) {
     const totalGmailCreated = isAllTime ? allTimeGmailCreated : periodGmailCreated;
     const gmailDiterima = isAllTime ? allTimeGmailDiterima : periodGmailDiterima;
     const gmailDicek = isAllTime ? allTimeGmailDicek : periodGmailDicek;
+    const gmailBermasalah = isAllTime ? allTimeGmailBermasalah : periodGmailBermasalah;
     const gmailDitolak = isAllTime ? allTimeGmailDitolak : periodGmailDitolak;
 
     const acceptedDeposits = (isAllTime || hasPeriodDeposits ? filteredDeposits : allDepositsRaw).filter((d) =>
-      ["diterima", "accepted", "sukses", "approved"].includes((d.status || "").toLowerCase())
+      isAcceptedDepositStatus(d.status)
     );
     const usersWithGmailSuccess = new Set(
       acceptedDeposits.map((d) => d.user_id)
@@ -379,10 +392,12 @@ export async function GET(req: NextRequest) {
         totalGmailCreated,
         gmailDiterima,
         gmailDicek,
+        gmailBermasalah,
         gmailDitolak,
         allTimeGmailCreated,
         allTimeGmailDiterima,
         allTimeGmailDicek,
+        allTimeGmailBermasalah,
         allTimeGmailDitolak,
         isDepositsHistoricalFallback,
         usersWithGmailSuccess,

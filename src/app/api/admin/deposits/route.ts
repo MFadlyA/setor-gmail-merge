@@ -3,6 +3,13 @@ import { supabaseAdmin, fetchAllRows } from "@/lib/supabase/admin";
 import { requireAdminAuth } from "@/lib/security/auth-guard";
 import { sanitizeString } from "@/lib/security/sanitize";
 import { logAuditEvent } from "@/lib/security/audit-logger";
+import {
+  ISSUE_DEPOSIT_STATUSES,
+  isAcceptedDepositStatus,
+  isPendingDepositStatus,
+  isRejectedDepositStatus,
+  isIssueDepositStatus,
+} from "@/lib/mock-data";
 
 export async function GET(req: NextRequest) {
   const auth = await requireAdminAuth(req);
@@ -43,6 +50,8 @@ export async function GET(req: NextRequest) {
           q = q.in("status", ["rejected", "ditolak"]);
         } else if (filterStatus === "pending" || filterStatus === "dicek") {
           q = q.in("status", ["pending", "dicek"]);
+        } else if (filterStatus === "problematic" || filterStatus === "bermasalah") {
+          q = q.in("status", [...ISSUE_DEPOSIT_STATUSES]);
         } else if (filterStatus !== "all") {
           q = q.eq("status", filterStatus);
         }
@@ -139,17 +148,15 @@ export async function GET(req: NextRequest) {
 
     // Stats calculations
     const allDeposits = depositsData || [];
-    const isAcceptedStatus = (s?: string) => ["accepted", "diterima"].includes((s || "").toLowerCase());
-    const isPendingStatus = (s?: string) => ["pending", "dicek"].includes((s || "").toLowerCase());
-    const isRejectedStatus = (s?: string) => ["rejected", "ditolak"].includes((s || "").toLowerCase());
 
     const stats = {
       total: allDeposits.length,
-      accepted: allDeposits.filter((d) => isAcceptedStatus(d.status)).length,
-      pending: allDeposits.filter((d) => isPendingStatus(d.status)).length,
-      rejected: allDeposits.filter((d) => isRejectedStatus(d.status)).length,
+      accepted: allDeposits.filter((d) => isAcceptedDepositStatus(d.status)).length,
+      pending: allDeposits.filter((d) => isPendingDepositStatus(d.status)).length,
+      problematic: allDeposits.filter((d) => isIssueDepositStatus(d.status)).length,
+      rejected: allDeposits.filter((d) => isRejectedDepositStatus(d.status)).length,
       totalAmount: allDeposits
-        .filter((d) => isAcceptedStatus(d.status))
+        .filter((d) => isAcceptedDepositStatus(d.status))
         .reduce((sum, d) => sum + (Number(d.amount) || 0), 0),
     };
 
@@ -221,10 +228,21 @@ export async function PATCH(req: NextRequest) {
     const wasAlreadyAccepted = prevLower === "accepted" || prevLower === "diterima";
     const nowStr = new Date().toISOString();
 
+    // Prevent reverting an already accepted & credited deposit to avoid double-crediting later
+    if (wasAlreadyAccepted && canonicalStatus !== "diterima") {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Setoran yang sudah diterima dan dicairkan saldonya tidak dapat diubah kembali.",
+        },
+        { status: 400 }
+      );
+    }
+
     // 2. Atomic conditional update (prevents concurrent double-credit race condition)
     const updatePayload: any = {
       status: canonicalStatus,
-      checked_at: nowStr,
+      checked_at: canonicalStatus === "pending" ? null : nowStr,
       updated_at: nowStr,
     };
     if (adminNote !== undefined) {

@@ -3,6 +3,12 @@ import { supabaseAdmin, fetchAllRows, listAllAuthUsers } from "@/lib/supabase/ad
 import { requireAdminAuth } from "@/lib/security/auth-guard";
 import { sanitizeString, sanitizeNumber } from "@/lib/security/sanitize";
 import { logAuditEvent } from "@/lib/security/audit-logger";
+import {
+  isAcceptedDepositStatus,
+  isPendingDepositStatus,
+  isRejectedDepositStatus,
+  isIssueDepositStatus,
+} from "@/lib/mock-data";
 
 export async function GET(req: NextRequest) {
   const auth = await requireAdminAuth(req);
@@ -81,24 +87,31 @@ export async function GET(req: NextRequest) {
       bannedMap[u.id] = isBanned;
     });
 
-    // 5. Build deposits count map per user (total, diterima, dicek, ditolak)
+    // 5. Build deposits count map per user (total, diterima, dicek, bermasalah, ditolak)
     const depositStatsMap: Record<
       string,
-      { total: number; diterima: number; dicek: number; ditolak: number }
+      { total: number; diterima: number; dicek: number; bermasalah: number; ditolak: number }
     > = {};
     (deposits || []).forEach((d: any) => {
       if (!d.user_id) return;
       if (!depositStatsMap[d.user_id]) {
-        depositStatsMap[d.user_id] = { total: 0, diterima: 0, dicek: 0, ditolak: 0 };
+        depositStatsMap[d.user_id] = {
+          total: 0,
+          diterima: 0,
+          dicek: 0,
+          bermasalah: 0,
+          ditolak: 0,
+        };
       }
-      const s = (d.status || "").toLowerCase();
       depositStatsMap[d.user_id].total++;
-      if (["accepted", "diterima", "sukses", "approved"].includes(s)) {
+      if (isAcceptedDepositStatus(d.status)) {
         depositStatsMap[d.user_id].diterima++;
-      } else if (["pending", "dicek", "proses", "menunggu"].includes(s)) {
+      } else if (isPendingDepositStatus(d.status)) {
         depositStatsMap[d.user_id].dicek++;
-      } else if (["rejected", "ditolak", "batal"].includes(s)) {
+      } else if (isRejectedDepositStatus(d.status)) {
         depositStatsMap[d.user_id].ditolak++;
+      } else if (isIssueDepositStatus(d.status)) {
+        depositStatsMap[d.user_id].bermasalah++;
       }
     });
 
@@ -131,6 +144,7 @@ export async function GET(req: NextRequest) {
         total: 0,
         diterima: 0,
         dicek: 0,
+        bermasalah: 0,
         ditolak: 0,
       };
 

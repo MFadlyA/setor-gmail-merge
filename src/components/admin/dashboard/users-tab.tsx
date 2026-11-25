@@ -577,12 +577,24 @@ export const UsersTab = React.memo(function UsersTab({
                           </span>
                           <span className="text-zinc-600">•</span>
                           <span
-                            className="inline-flex items-center gap-1 text-amber-400 font-mono"
+                            className="inline-flex items-center gap-1 text-sky-400 font-mono"
                             title="Dicek"
                           >
-                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block shrink-0"></span>
+                            <span className="w-1.5 h-1.5 rounded-full bg-sky-400 inline-block shrink-0"></span>
                             {u.deposits_count?.dicek || 0} dicek
                           </span>
+                          {(u.deposits_count?.bermasalah || 0) > 0 && (
+                            <>
+                              <span className="text-zinc-600">•</span>
+                              <span
+                                className="inline-flex items-center gap-1 text-amber-400 font-mono"
+                                title="Butuh Tindakan (2FA / Captcha / Verifikasi HP)"
+                              >
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block shrink-0"></span>
+                                {u.deposits_count?.bermasalah} masalah
+                              </span>
+                            </>
+                          )}
                           <span className="text-zinc-600">•</span>
                           <span
                             className="inline-flex items-center gap-1 text-rose-400 font-mono"
@@ -724,17 +736,23 @@ export const UsersTab = React.memo(function UsersTab({
                   Total: {detailUser.deposits_count?.total || 0} Akun
                 </span>
               </div>
-              <div className="grid grid-cols-3 gap-2 text-center text-xs">
+              <div className="grid grid-cols-4 gap-2 text-center text-xs">
                 <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
                   <span className="text-[10px] text-emerald-400 block font-medium">Diterima</span>
                   <span className="text-sm font-bold font-mono text-emerald-400">
                     {detailUser.deposits_count?.diterima || 0}
                   </span>
                 </div>
-                <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
-                  <span className="text-[10px] text-amber-400 block font-medium">Dicek</span>
-                  <span className="text-sm font-bold font-mono text-amber-400">
+                <div className="p-2 rounded-lg bg-sky-500/10 border border-sky-500/20">
+                  <span className="text-[10px] text-sky-400 block font-medium">Dicek</span>
+                  <span className="text-sm font-bold font-mono text-sky-400">
                     {detailUser.deposits_count?.dicek || 0}
+                  </span>
+                </div>
+                <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                  <span className="text-[10px] text-amber-400 block font-medium">Masalah</span>
+                  <span className="text-sm font-bold font-mono text-amber-400">
+                    {detailUser.deposits_count?.bermasalah || 0}
                   </span>
                 </div>
                 <div className="p-2 rounded-lg bg-rose-500/10 border border-rose-500/20">

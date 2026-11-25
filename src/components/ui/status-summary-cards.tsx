@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Inbox, CheckCircle2, Clock, XCircle } from 'lucide-react';
+import { Inbox, CheckCircle2, Clock, XCircle, AlertTriangle } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export interface StatusCardItem {
@@ -15,9 +15,11 @@ export interface StatusCardItem {
 export function StatusSummaryCardItem({
   item,
   index,
+  totalItems = 4,
 }: {
   item: StatusCardItem;
   index: number;
+  totalItems?: number;
 }) {
   const titleLower = item.title.toLowerCase();
   const theme = titleLower.includes('terima')
@@ -40,6 +42,16 @@ export function StatusSummaryCardItem({
         iconWrap: 'bg-sky-500/15 border-sky-500/30 text-sky-400',
         Icon: Clock,
       }
+    : titleLower.includes('tindakan') || titleLower.includes('masalah') || titleLower.includes('kendala')
+    ? {
+        wrapper:
+          'bg-gradient-to-br from-amber-950/50 via-[#12151e]/92 to-[#0a0c12]/95 border-amber-500/30 hover:border-amber-400/60 shadow-lg shadow-amber-950/25',
+        topBar: 'via-amber-400/70',
+        title: 'text-amber-200/90',
+        value: 'text-amber-400 drop-shadow-[0_0_12px_rgba(251,191,36,0.3)]',
+        iconWrap: 'bg-amber-500/15 border-amber-500/30 text-amber-400',
+        Icon: AlertTriangle,
+      }
     : titleLower.includes('tolak') || titleLower.includes('gagal')
     ? {
         wrapper:
@@ -61,10 +73,11 @@ export function StatusSummaryCardItem({
       };
 
   const StatusIcon = theme.Icon;
+  const spanFirstOnMobile = totalItems === 5 && index === 0 ? 'col-span-2 sm:col-span-1' : '';
 
   return (
     <div
-      className={`group relative overflow-hidden rounded-2xl border p-4 backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl ${theme.wrapper}`}
+      className={`group relative overflow-hidden rounded-2xl border p-4 backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl ${theme.wrapper} ${spanFirstOnMobile}`}
     >
       <div
         aria-hidden="true"
@@ -116,13 +129,23 @@ export function StatusSummaryGrid({
   items: StatusCardItem[];
   isLoading?: boolean;
 }) {
+  const gridColsClass =
+    items.length === 5
+      ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5'
+      : 'grid-cols-2 sm:grid-cols-4';
+
   return (
-    <div className="mt-3.5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+    <div className={`mt-3.5 grid gap-3 ${gridColsClass}`}>
       {isLoading ? (
         <StatusSummaryCardsSkeleton count={items.length || 4} />
       ) : (
         items.map((item, index) => (
-          <StatusSummaryCardItem key={item.title} item={item} index={index} />
+          <StatusSummaryCardItem
+            key={item.title}
+            item={item}
+            index={index}
+            totalItems={items.length}
+          />
         ))
       )}
     </div>

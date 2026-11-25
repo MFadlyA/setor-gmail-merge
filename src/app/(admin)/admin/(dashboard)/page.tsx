@@ -6,7 +6,6 @@ import {
   Wallet,
   ArrowLeftRight,
   RefreshCw,
-  CheckCircle2,
   AlertTriangle,
   TrendingUp,
   Check,
@@ -19,12 +18,20 @@ import {
   Calendar,
   ArrowUp,
   ArrowDown,
+  RotateCcw,
 } from "lucide-react";
 import { StatusBadge } from "@/components/admin/ui/badge";
 import { adminFetch } from "@/lib/api-client";
 import { Button } from "@/components/admin/ui/button";
 import { LineChart9 } from "@/components/admin/ui/demo";
 import { UsersTab } from "@/components/admin/dashboard/users-tab";
+import {
+  isAcceptedDepositStatus,
+  isPendingDepositStatus,
+  isRejectedDepositStatus,
+  isIssueDepositStatus,
+  getDepositStatusAdminMeta,
+} from "@/lib/mock-data";
 
 export default function DashboardOverviewPage() {
   const [data, setData] = useState<any>(null);
@@ -52,7 +59,9 @@ export default function DashboardOverviewPage() {
   // State untuk Tab List Setor Gmail & Transaksi (Filter Rentang Tanggal & Sort)
   const [depositSearch, setDepositSearch] = useState("");
   const [depositCategoryFilter, setDepositCategoryFilter] = useState<"all" | "good" | "bebas">("all");
-  const [depositStatusFilter, setDepositStatusFilter] = useState<"all" | "accepted" | "pending" | "rejected">("all");
+  const [depositStatusFilter, setDepositStatusFilter] = useState<
+    "all" | "accepted" | "pending" | "problematic" | "rejected"
+  >("all");
   const [isUpdatingDepositId, setIsUpdatingDepositId] = useState<string | null>(null);
   const [depositDateFrom, setDepositDateFrom] = useState("");
   const [depositDateTo, setDepositDateTo] = useState("");
@@ -136,7 +145,10 @@ export default function DashboardOverviewPage() {
     }
   };
 
-  const handleUpdateDeposit = async (id: string, newStatus: "accepted" | "rejected") => {
+  const handleUpdateDeposit = async (
+    id: string,
+    newStatus: "accepted" | "rejected" | "pending"
+  ) => {
     setIsUpdatingDepositId(id);
     try {
       const res = await adminFetch("/api/admin/deposits", {
@@ -145,7 +157,12 @@ export default function DashboardOverviewPage() {
         body: JSON.stringify({
           id,
           newStatus,
-          adminNote: newStatus === "accepted" ? "Disetujui Admin" : "Ditolak Admin",
+          adminNote:
+            newStatus === "accepted"
+              ? "Disetujui Admin"
+              : newStatus === "pending"
+                ? "Direset ke Pending oleh Admin"
+                : "Ditolak Admin",
         }),
       });
       const json = await res.json();
@@ -199,6 +216,7 @@ export default function DashboardOverviewPage() {
     allTimeGmailCreated: 0,
     gmailDiterima: 0,
     gmailDicek: 0,
+    gmailBermasalah: 0,
     gmailDitolak: 0,
     usersWithGmailSuccess: 0,
     totalEarned: 0,
@@ -224,16 +242,10 @@ export default function DashboardOverviewPage() {
     }
     if (depositStatusFilter !== "all") {
       list = list.filter((d: any) => {
-        const s = (d.status || "").toLowerCase();
-        if (depositStatusFilter === "accepted") {
-          return ["accepted", "diterima", "sukses", "approved"].includes(s);
-        }
-        if (depositStatusFilter === "pending") {
-          return ["pending", "dicek", "proses", "menunggu"].includes(s);
-        }
-        if (depositStatusFilter === "rejected") {
-          return ["rejected", "ditolak", "batal"].includes(s);
-        }
+        if (depositStatusFilter === "accepted") return isAcceptedDepositStatus(d.status);
+        if (depositStatusFilter === "pending") return isPendingDepositStatus(d.status);
+        if (depositStatusFilter === "problematic") return isIssueDepositStatus(d.status);
+        if (depositStatusFilter === "rejected") return isRejectedDepositStatus(d.status);
         return true;
       });
     }
@@ -472,25 +484,32 @@ export default function DashboardOverviewPage() {
               </div>
             </div>
 
-            <div className="border-t border-zinc-800/80 pt-3 mt-3.5 flex-1 flex items-center justify-between gap-1.5 text-[11px]">
-              {/* Diterima (Kiri) */}
-              <div className="flex-1 flex items-center justify-center gap-1.5 bg-emerald-500/10 border border-emerald-500/20 py-2 rounded-lg">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                <span className="text-zinc-400">Diterima:</span>
+            <div className="border-t border-zinc-800/80 pt-3 mt-3.5 flex-1 grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-[11px]">
+              {/* Diterima */}
+              <div className="flex items-center justify-center gap-1 bg-emerald-500/10 border border-emerald-500/20 py-2 px-1.5 rounded-lg">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                <span className="text-zinc-400 truncate">Terima:</span>
                 <b className="text-emerald-400 font-mono">{isBalanceHidden ? "***" : (stats.gmailDiterima || 0)}</b>
               </div>
 
-              {/* Dicek (Tengah) */}
-              <div className="flex-1 flex items-center justify-center gap-1.5 bg-amber-500/10 border border-amber-500/20 py-2 rounded-lg">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                <span className="text-zinc-400">Dicek:</span>
-                <b className="text-amber-400 font-mono">{isBalanceHidden ? "***" : (stats.gmailDicek || 0)}</b>
+              {/* Dicek */}
+              <div className="flex items-center justify-center gap-1 bg-sky-500/10 border border-sky-500/20 py-2 px-1.5 rounded-lg">
+                <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse shrink-0" />
+                <span className="text-zinc-400 truncate">Dicek:</span>
+                <b className="text-sky-400 font-mono">{isBalanceHidden ? "***" : (stats.gmailDicek || 0)}</b>
               </div>
 
-              {/* Ditolak (Kanan) */}
-              <div className="flex-1 flex items-center justify-center gap-1.5 bg-rose-500/10 border border-rose-500/20 py-2 rounded-lg">
-                <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
-                <span className="text-zinc-400">Ditolak:</span>
+              {/* Bermasalah */}
+              <div className="flex items-center justify-center gap-1 bg-amber-500/10 border border-amber-500/20 py-2 px-1.5 rounded-lg">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+                <span className="text-zinc-400 truncate">Masalah:</span>
+                <b className="text-amber-400 font-mono">{isBalanceHidden ? "***" : (stats.gmailBermasalah || 0)}</b>
+              </div>
+
+              {/* Ditolak */}
+              <div className="flex items-center justify-center gap-1 bg-rose-500/10 border border-rose-500/20 py-2 px-1.5 rounded-lg">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0" />
+                <span className="text-zinc-400 truncate">Ditolak:</span>
                 <b className="text-rose-400 font-mono">{isBalanceHidden ? "***" : (stats.gmailDitolak || 0)}</b>
               </div>
             </div>
@@ -508,11 +527,10 @@ export default function DashboardOverviewPage() {
               <button
                 type="button"
                 onClick={() => setActiveTab("users")}
-                className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-t-lg border-b-2 transition-colors cursor-pointer ${
-                  activeTab === "users"
-                    ? "border-blue-500 text-blue-400 bg-zinc-900/60"
-                    : "border-transparent text-zinc-400 hover:text-zinc-200"
-                }`}
+                className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-t-lg border-b-2 transition-colors cursor-pointer ${activeTab === "users"
+                  ? "border-blue-500 text-blue-400 bg-zinc-900/60"
+                  : "border-transparent text-zinc-400 hover:text-zinc-200"
+                  }`}
               >
                 <Users className="w-3.5 h-3.5" />
                 <span>Daftar Pengguna</span>
@@ -525,11 +543,10 @@ export default function DashboardOverviewPage() {
               <button
                 type="button"
                 onClick={() => setActiveTab("deposits")}
-                className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-t-lg border-b-2 transition-colors cursor-pointer ${
-                  activeTab === "deposits"
-                    ? "border-sky-500 text-sky-400 bg-zinc-900/60"
-                    : "border-transparent text-zinc-400 hover:text-zinc-200"
-                }`}
+                className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-t-lg border-b-2 transition-colors cursor-pointer ${activeTab === "deposits"
+                  ? "border-sky-500 text-sky-400 bg-zinc-900/60"
+                  : "border-transparent text-zinc-400 hover:text-zinc-200"
+                  }`}
               >
                 <Mail className="w-3.5 h-3.5" />
                 <span>Setor Gmail</span>
@@ -542,11 +559,10 @@ export default function DashboardOverviewPage() {
               <button
                 type="button"
                 onClick={() => setActiveTab("transactions")}
-                className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-t-lg border-b-2 transition-colors cursor-pointer ${
-                  activeTab === "transactions"
-                    ? "border-emerald-500 text-emerald-400 bg-zinc-900/60"
-                    : "border-transparent text-zinc-400 hover:text-zinc-200"
-                }`}
+                className={`flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-t-lg border-b-2 transition-colors cursor-pointer ${activeTab === "transactions"
+                  ? "border-emerald-500 text-emerald-400 bg-zinc-900/60"
+                  : "border-transparent text-zinc-400 hover:text-zinc-200"
+                  }`}
               >
                 <ArrowLeftRight className="w-3.5 h-3.5" />
                 <span>Transaksi</span>
@@ -779,11 +795,10 @@ export default function DashboardOverviewPage() {
 
                           <div className="text-right shrink-0">
                             <span
-                              className={`text-xs font-bold font-mono ${
-                                tx.type === "deposit" || tx.type === "manual_credit"
-                                  ? "text-emerald-400"
-                                  : "text-rose-400"
-                              }`}
+                              className={`text-xs font-bold font-mono ${tx.type === "deposit" || tx.type === "manual_credit"
+                                ? "text-emerald-400"
+                                : "text-rose-400"
+                                }`}
                             >
                               {tx.type === "deposit" || tx.type === "manual_credit" ? "+" : "-"}
                               Rp {Number(tx.amount).toLocaleString("id-ID")}
@@ -883,11 +898,10 @@ export default function DashboardOverviewPage() {
                           key={cat.id}
                           type="button"
                           onClick={() => setDepositCategoryFilter(cat.id)}
-                          className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${
-                            depositCategoryFilter === cat.id
-                              ? "bg-sky-500/20 text-sky-300 border border-sky-500/40"
-                              : "text-zinc-400 hover:text-zinc-200 border border-transparent"
-                          }`}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${depositCategoryFilter === cat.id
+                            ? "bg-sky-500/20 text-sky-300 border border-sky-500/40"
+                            : "text-zinc-400 hover:text-zinc-200 border border-transparent"
+                            }`}
                         >
                           {cat.label}
                         </button>
@@ -916,6 +930,7 @@ export default function DashboardOverviewPage() {
                         { id: "all", label: "Semua", count: (data?.recentDeposits || []).length },
                         { id: "accepted", label: "Diterima", count: stats.gmailDiterima },
                         { id: "pending", label: "Dicek", count: stats.gmailDicek },
+                        { id: "problematic", label: "Butuh Tindakan", count: stats.gmailBermasalah || 0 },
                         { id: "rejected", label: "Ditolak", count: stats.gmailDitolak },
                       ] as const
                     ).map((f) => (
@@ -923,17 +938,18 @@ export default function DashboardOverviewPage() {
                         key={f.id}
                         type="button"
                         onClick={() => setDepositStatusFilter(f.id)}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 ${
-                          depositStatusFilter === f.id
-                            ? f.id === "accepted"
-                              ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
-                              : f.id === "pending"
-                              ? "bg-amber-500/20 text-amber-400 border border-amber-500/40"
-                              : f.id === "rejected"
-                              ? "bg-rose-500/20 text-rose-400 border border-rose-500/40"
-                              : "bg-sky-500/20 text-sky-400 border border-sky-500/40"
-                            : "bg-zinc-950 text-zinc-400 hover:text-zinc-200 border border-zinc-800"
-                        }`}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5 ${depositStatusFilter === f.id
+                          ? f.id === "accepted"
+                            ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
+                            : f.id === "pending"
+                              ? "bg-sky-500/20 text-sky-400 border border-sky-500/40"
+                              : f.id === "problematic"
+                                ? "bg-amber-500/20 text-amber-400 border border-amber-500/40"
+                                : f.id === "rejected"
+                                  ? "bg-rose-500/20 text-rose-400 border border-rose-500/40"
+                                  : "bg-sky-500/20 text-sky-400 border border-sky-500/40"
+                          : "bg-zinc-950 text-zinc-400 hover:text-zinc-200 border border-zinc-800"
+                          }`}
                       >
                         <span>{f.label}</span>
                         <span className="text-[10px] font-mono bg-zinc-800/80 px-1.5 py-0.2 rounded-full">
@@ -989,9 +1005,9 @@ export default function DashboardOverviewPage() {
                         </tr>
                       ) : (
                         filteredDepositsList.map((d: any) => {
-                          const statusStr = (d.status || "").toLowerCase();
-                          const isDiterima = ["accepted", "diterima", "sukses", "approved"].includes(statusStr);
-                          const isDicek = ["pending", "dicek", "proses", "menunggu"].includes(statusStr);
+                          const isDicek = isPendingDepositStatus(d.status);
+                          const isMasalah = isIssueDepositStatus(d.status);
+                          const statusMeta = getDepositStatusAdminMeta(d.status);
                           const emailPass = d.password || "-";
                           return (
                             <tr key={d.id} className="hover:bg-zinc-800/30 transition-colors">
@@ -1054,11 +1070,10 @@ export default function DashboardOverviewPage() {
                               {/* Kategori & Nominal */}
                               <td className="py-2.5 px-3">
                                 <span
-                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold border ${
-                                    d.category_id === "bebas"
-                                      ? "bg-sky-500/10 border-sky-500/30 text-sky-300"
-                                      : "bg-zinc-900 border-zinc-800 text-zinc-300"
-                                  }`}
+                                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold border ${d.category_id === "bebas"
+                                    ? "bg-sky-500/10 border-sky-500/30 text-sky-300"
+                                    : "bg-zinc-900 border-zinc-800 text-zinc-300"
+                                    }`}
                                 >
                                   {d.categoryLabel || "Gmail Fresh"}
                                   <span className="text-emerald-400 font-mono">
@@ -1067,24 +1082,14 @@ export default function DashboardOverviewPage() {
                                 </span>
                               </td>
 
-                              {/* Status Email: Diterima / Dicek / Ditolak */}
-                              <td className="py-2.5 px-3">
-                                {isDiterima ? (
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                                    Diterima
-                                  </span>
-                                ) : isDicek ? (
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                                    Dicek
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
-                                    Ditolak
-                                  </span>
-                                )}
+                              {/* Status Email */}
+                              <td className="py-2.5 px-3 whitespace-nowrap">
+                                <span
+                                  className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${statusMeta.badgeClass}`}
+                                >
+                                  <span className={`w-1.5 h-1.5 rounded-full ${statusMeta.dotClass}`} />
+                                  {statusMeta.label}
+                                </span>
                               </td>
 
                               {/* Waktu Setor */}
@@ -1100,7 +1105,7 @@ export default function DashboardOverviewPage() {
 
                               {/* Aksi Verifikasi Admin */}
                               <td className="py-2.5 px-3 text-right whitespace-nowrap">
-                                {isDicek ? (
+                                {isDicek || isMasalah ? (
                                   <div className="inline-flex items-center gap-1.5">
                                     <button
                                       type="button"
@@ -1122,6 +1127,18 @@ export default function DashboardOverviewPage() {
                                       <X className="w-3 h-3" />
                                       <span>Tolak</span>
                                     </button>
+                                    {isMasalah && (
+                                      <button
+                                        type="button"
+                                        disabled={isUpdatingDepositId === d.id}
+                                        onClick={() => handleUpdateDeposit(d.id, "pending")}
+                                        className="inline-flex items-center gap-1 rounded-lg border border-sky-500/35 bg-sky-500/15 hover:bg-sky-600 px-2 py-1 text-[11px] font-bold text-sky-300 hover:text-white transition-colors cursor-pointer disabled:opacity-50"
+                                        title="Reset ke Pending"
+                                      >
+                                        <RotateCcw className="w-3 h-3" />
+                                        <span>Reset Pending</span>
+                                      </button>
+                                    )}
                                   </div>
                                 ) : (
                                   <span className="text-[11px] text-zinc-500">Selesai</span>
