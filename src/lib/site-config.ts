@@ -37,6 +37,7 @@ export interface SiteConfig {
   platform_badge: string;         // Default: "Platform Setor Gmail Terpercaya 2026"
   badge_status_text: string;      // Default: "Platform sedang dalam tahap pengembangan"
   badge_status_active: boolean;   // Default: true
+  landing_video_url: string;      // Default: "/cara-kerja.mp4"
   marquee_text: string;           // Default: "PROSES CEPAT • AMAN TERPERCAYA • PENCAIRAN INSTAN • SETOR SEKARANG •"
 
   // 4. Kontak & Komunitas
@@ -87,10 +88,11 @@ export const DEFAULT_CONFIG: SiteConfig = {
   hero_headline_2: "Gmail Jadi",
   hero_headline_3: "Penghasilan",
   hero_subheadline:
-    "Setor akun Gmail dan dapatkan saldo\nPencairan instan via E-wallet dan Bank",
+    "Setor Gmail dan dapatkan saldo\nPencairan instan via DANA",
   platform_badge: "Platform Setor Gmail Terpercaya 2026",
   badge_status_text: "Platform sedang dalam tahap pengembangan",
   badge_status_active: true,
+  landing_video_url: "/cara-kerja.mp4",
   marquee_text:
     "PROSES CEPAT • AMAN TERPERCAYA • PENCAIRAN INSTAN • SETOR SEKARANG •",
 

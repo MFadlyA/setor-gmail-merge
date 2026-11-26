@@ -128,6 +128,12 @@ export async function POST(req: NextRequest) {
       platform_badge: sanitizeString(config.platform_badge, 300) || DEFAULT_CONFIG.platform_badge,
       badge_status_text: sanitizeString(config.badge_status_text, 300) || DEFAULT_CONFIG.badge_status_text,
       badge_status_active: Boolean(config.badge_status_active),
+      landing_video_url: (() => {
+        const raw = sanitizeString(config.landing_video_url, 500);
+        if (!raw) return DEFAULT_CONFIG.landing_video_url;
+        if (raw.startsWith("/") || raw.startsWith("https://")) return raw;
+        return DEFAULT_CONFIG.landing_video_url;
+      })(),
       marquee_text: sanitizeString(config.marquee_text, 300) || DEFAULT_CONFIG.marquee_text,
       whatsapp_channel_url: sanitizeString(config.whatsapp_channel_url, 300) || DEFAULT_CONFIG.whatsapp_channel_url,
       telegram_admin_username: sanitizeString(config.telegram_admin_username, 300).replace("@", "") || DEFAULT_CONFIG.telegram_admin_username,

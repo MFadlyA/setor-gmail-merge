@@ -828,7 +828,7 @@ export function CheckerView() {
                 className="border-white/10 bg-[#11131c]/85"
                 icon={<Inbox className="size-5 text-sky-400" aria-hidden="true" />}
                 title="Belum ada hasil pemeriksaan"
-                description="Tempel daftar @gmail.com lalu tekan 'Mulai Live Checker'."
+                description="Tempel Gmail lalu tekan 'Mulai Live Checker'."
               />
             </Reveal>
           )}

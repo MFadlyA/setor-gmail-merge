@@ -293,10 +293,58 @@ export const MarqueeItem = ({ text }: { text?: string }) => {
 
 const LIVE_FEED_ITEMS = [
   { amount: "Rp 90.000 Cair", detail: "DANA · 2 menit lalu" },
-  { amount: "Rp 45.000 Cair", detail: "GoPay · Baru saja" },
-  { amount: "Rp 135.000 Cair", detail: "ShopeePay · 4 menit lalu" },
-  { amount: "Rp 67.500 Cair", detail: "OVO · 1 menit lalu" },
+  { amount: "Rp 45.000 Cair", detail: "DANA · Baru saja" },
+  { amount: "Rp 135.000 Cair", detail: "DANA · 4 menit lalu" },
+  { amount: "Rp 67.500 Cair", detail: "DANA · 1 menit lalu" },
 ];
+
+function getYoutubeEmbedUrl(url: string): string | null {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.replace(/^www\./, "").toLowerCase();
+    if (host === "youtu.be") {
+      const id = parsed.pathname.slice(1).split("/")[0];
+      return id ? `https://www.youtube-nocookie.com/embed/${id}?rel=0` : null;
+    }
+    if (host === "youtube.com" || host === "m.youtube.com") {
+      const id = parsed.searchParams.get("v");
+      if (id) return `https://www.youtube-nocookie.com/embed/${id}?rel=0`;
+      const parts = parsed.pathname.split("/").filter(Boolean);
+      if ((parts[0] === "embed" || parts[0] === "shorts") && parts[1]) {
+        return `https://www.youtube-nocookie.com/embed/${parts[1]}?rel=0`;
+      }
+    }
+  } catch {}
+  return null;
+}
+
+function DanaLogoInline() {
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 rounded-full bg-[#118EEA]/15 border border-[#118EEA]/45 px-2.5 py-0.5 align-middle shadow-[0_0_16px_rgba(17,142,234,0.28)]"
+      aria-label="DANA"
+    >
+      <svg
+        className="h-3.5 w-auto shrink-0"
+        viewBox="0 0 28 20"
+        fill="none"
+        aria-hidden="true"
+      >
+        <path
+          d="M2.5 5.2C6.8 2.6 12.2 2.6 16.5 5.2C19.8 7.2 23.1 7.2 25.5 5.7V11.3C23.1 12.8 19.8 12.8 16.5 10.8C12.2 8.2 6.8 8.2 2.5 10.8V5.2Z"
+          fill="#118EEA"
+        />
+        <path
+          d="M2.5 11.4C6.8 8.8 12.2 8.8 16.5 11.4C19.8 13.4 23.1 13.4 25.5 11.9V15.4C23.1 16.9 19.8 16.9 16.5 14.9C12.2 12.3 6.8 12.3 2.5 14.9V11.4Z"
+          fill="#38BDF8"
+        />
+      </svg>
+      <span className="text-xs sm:text-sm font-black tracking-wide text-[#38bdf8]">
+        DANA
+      </span>
+    </span>
+  );
+}
 
 export interface CinematicFooterProps {
   singlePage?: boolean;
@@ -335,10 +383,13 @@ export function CinematicFooter({
   const handleLogin = onPill1Click || onOpenLogin;
   const handleRegister = onPill2Click || onOpenRegister;
 
-  const isLegacySubheadline =
+  const isDefaultDanaSubheadline =
     !cfg.hero_subheadline ||
-    cfg.hero_subheadline.trim() ===
-      "Buat akun Gmail dan dapatkan saldo. Pencairan instan via E-wallet dan Bank.";
+    cfg.hero_subheadline.toLowerCase().includes("e-wallet") ||
+    cfg.hero_subheadline.toLowerCase().includes("via dana");
+
+  const videoUrl = (cfg.landing_video_url || "/cara-kerja.mp4").trim() || "/cara-kerja.mp4";
+  const youtubeEmbedUrl = getYoutubeEmbedUrl(videoUrl);
 
   // Rotate live payout feed card smoothly
   useEffect(() => {
@@ -466,18 +517,20 @@ export function CinematicFooter({
 
             {/* Subtitle */}
             <p className="text-sm sm:text-base text-zinc-300/90 max-w-lg mb-7 leading-relaxed whitespace-pre-line">
-              {isLegacySubheadline ? (
+              {isDefaultDanaSubheadline ? (
                 <>
-                  Setor akun Gmail dan dapatkan saldo
-                  <br />
-                  Pencairan instan via E-wallet dan Bank
+                  <span>Setor Gmail dan dapatkan saldo</span>
+                  <span className="mt-1.5 flex flex-wrap items-center justify-center lg:justify-start gap-2">
+                    <span>Pencairan instan via</span>
+                    <DanaLogoInline />
+                  </span>
                 </>
               ) : (
                 cfg.hero_subheadline
               )}
             </p>
 
-            {/* Action Buttons: Daftar Gratis (Primary), Login (Glass), Cara Kerja */}
+            {/* Action Buttons: Daftar Gratis (Primary) & Masuk (Glass) */}
             <div className="flex flex-wrap items-center justify-center lg:justify-start gap-3.5 w-full">
               <MagneticButton
                 as={handleRegister ? "button" : "a"}
@@ -501,57 +554,44 @@ export function CinematicFooter({
                 <LogIn className="w-4.5 h-4.5 text-sky-400 group-hover:text-white transition-colors" />
                 <span>Masuk</span>
               </MagneticButton>
-
-              {onTutorialClick && (
-                <button
-                  type="button"
-                  onClick={onTutorialClick}
-                  className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] hover:bg-white/[0.08] hover:border-white/25 px-4 py-3 text-xs sm:text-sm font-semibold text-zinc-300 hover:text-white transition-all cursor-pointer active:scale-95"
-                >
-                  <PlayCircle className="size-4 text-sky-400" />
-                  <span>Cara Kerja</span>
-                </button>
-              )}
             </div>
           </div>
 
-          {/* SISI KANAN: Interactive Showcase */}
+          {/* SISI KANAN: Interactive Video Cara Kerja Showcase */}
           <div
             ref={heroRightRef}
             className="lg:col-span-6 relative flex items-center justify-center py-8 sm:py-12 pb-12 sm:pb-12"
           >
-            <div className="relative w-full max-w-[390px] sm:max-w-[440px] mx-auto px-2 sm:px-0">
-              {/* Center Main Card */}
-              <div className="floating-showcase-card rounded-3xl px-6 sm:px-8 py-10 sm:py-12 flex flex-col items-center text-center relative z-10">
-                {/* Brand Emblem */}
-                <div className="relative mb-3.5">
-                  <div
-                    aria-hidden="true"
-                    className="pointer-events-none absolute -inset-2 rounded-3xl bg-sky-500/25 blur-xl"
-                  />
-                  <div className="relative flex size-15 sm:size-18 items-center justify-center rounded-2xl bg-gradient-to-tr from-sky-500 via-sky-400 to-blue-600 shadow-xl shadow-sky-500/30 p-2 overflow-hidden transition-transform duration-300 hover:scale-105">
-                    <img
-                      src="/envelope-icon.png"
-                      alt="Logo Setor Gmail"
-                      className="size-full object-contain drop-shadow-[0_4px_10px_rgba(0,0,0,0.3)]"
+            <div className="relative w-full max-w-[440px] sm:max-w-[500px] mx-auto px-2 sm:px-0">
+              {/* Center Main Card: Video Cara Kerja */}
+              <div className="floating-showcase-card rounded-3xl p-3 sm:p-4 flex flex-col items-center text-center relative z-10">
+                <div className="w-full aspect-video rounded-2xl overflow-hidden bg-[#07080d] border border-white/10 shadow-2xl relative">
+                  {youtubeEmbedUrl ? (
+                    <iframe
+                      src={youtubeEmbedUrl}
+                      title="Video Cara Kerja Setor Gmail"
+                      className="h-full w-full"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
                     />
-                  </div>
+                  ) : (
+                    <video
+                      key={videoUrl}
+                      src={videoUrl}
+                      controls
+                      autoPlay
+                      muted
+                      loop
+                      playsInline
+                      preload="metadata"
+                      className="h-full w-full object-cover"
+                    />
+                  )}
                 </div>
-
-                <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-                  Setor Gmail
-                </h3>
-                <p className="mt-1.5 text-xs sm:text-sm text-zinc-400 flex flex-wrap items-center justify-center gap-1.5">
-                  <span>Generate nama</span>
-                  <span className="text-sky-400 font-bold">✦</span>
-                  <span>Buat akun</span>
-                  <span className="text-sky-400 font-bold">✦</span>
-                  <span>Langsung cair</span>
-                </p>
 
                 {/* Badge Status */}
                 {cfg.badge_status_active !== false && (
-                  <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-amber-400/35 bg-gradient-to-r from-amber-950/80 via-amber-900/50 to-amber-950/80 px-3.5 py-1.5 text-xs font-bold text-amber-300 shadow-[0_0_20px_-4px_rgba(245,158,11,0.35)] backdrop-blur-md">
+                  <div className="mt-3.5 inline-flex items-center gap-2 rounded-full border border-amber-400/35 bg-gradient-to-r from-amber-950/80 via-amber-900/50 to-amber-950/80 px-3.5 py-1.5 text-xs font-bold text-amber-300 shadow-[0_0_20px_-4px_rgba(245,158,11,0.35)] backdrop-blur-md">
                     <span className="relative flex size-2 shrink-0">
                       <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
                       <span className="relative inline-flex size-2 rounded-full bg-amber-400" />
@@ -574,8 +614,8 @@ export function CinematicFooter({
                   <div className="text-[11px] sm:text-xs font-extrabold text-white">
                     Cair Instan
                   </div>
-                  <div className="text-[10px] font-semibold text-zinc-400">
-                    E-Wallet &amp; Bank
+                  <div className="text-[10px] font-semibold text-sky-400">
+                    Khusus via DANA
                   </div>
                 </div>
               </div>
@@ -630,35 +670,93 @@ export function CinematicFooter({
       </div>
 
       {/* 3. Bottom Bar */}
-      <div className="relative z-20 w-full pb-7 px-6 md:px-12 flex flex-wrap justify-center sm:justify-end items-center gap-2.5">
-        <div className="footer-glass-pill px-4 py-2 rounded-full flex items-center gap-2 cursor-default border-white/10 shadow-lg">
-          <svg
-            className="size-4 shrink-0"
-            viewBox="0 0 64 32"
-            fill="none"
-            aria-hidden="true"
-          >
-            <path
-              d="M44.3 25.4H14.5c-4.3 0-7.8-3.4-7.8-7.7 0-3.8 2.8-7 6.5-7.6C14.7 5.7 19 2.6 24 2.6c5.8 0 10.6 4.4 11.2 10 .9-.4 1.9-.6 3-.6 3.7 0 6.7 2.8 7 6.4 3 .5 5.3 3.1 5.3 6.2 0 .3 0 .5-.1.8H44.3z"
-              fill="#F38020"
+      <div className="relative z-20 w-full pb-6 px-5 md:px-10 flex flex-col sm:flex-row justify-between items-center gap-4">
+        {/* Pojok Kiri Bawah: Brand Setor Gmail (dipindahkan dari tengah) */}
+        <div className="footer-glass-pill px-4 py-2.5 rounded-2xl flex items-center gap-3 cursor-default border-white/10 shadow-lg">
+          <div className="relative flex size-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-tr from-sky-500 via-sky-400 to-blue-600 shadow-md shadow-sky-500/30 p-1.5 overflow-hidden">
+            <img
+              src="/envelope-icon.png"
+              alt="Logo Setor Gmail"
+              className="size-full object-contain drop-shadow-[0_2px_6px_rgba(0,0,0,0.3)]"
             />
-            <path
-              d="M47.4 18.6c-.4 0-.9.1-1.3.2-.5-3.3-3.4-5.8-6.8-5.8-1 0-2 .2-2.8.6-.4.2-.7.6-.6 1.1l.4 2.6c.1.7.7 1.2 1.4 1.2h10.8c2.2 0 4 1.7 4.2 3.9h3.9c.1-.3.1-.6.1-.9 0-3.5-2.8-6.3-6.3-6.3-1.1 0-2.1.3-3 .8v2.6z"
-              fill="#FAAE40"
-            />
-          </svg>
-          <span className="text-zinc-200 text-xs font-bold tracking-wide">
-            Cloudflare
-          </span>
+          </div>
+          <div className="text-left">
+            <div className="text-sm font-black text-white tracking-tight leading-none">
+              Setor Gmail
+            </div>
+            <div className="mt-1 text-[10px] text-zinc-400 flex items-center gap-1 leading-none">
+              <span>Generate nama</span>
+              <span className="text-sky-400 font-bold">✦</span>
+              <span>Buat akun</span>
+              <span className="text-sky-400 font-bold">✦</span>
+              <span>Langsung cair</span>
+            </div>
+          </div>
         </div>
 
-        <div className="footer-glass-pill px-5 py-2 rounded-full flex items-center gap-1.5 cursor-default border-white/10 shadow-lg">
-          <span className="text-zinc-400 text-[10px] md:text-xs font-semibold uppercase tracking-wider">
-            Crafted by
-          </span>
-          <span className="font-black text-xs md:text-sm tracking-normal ml-0.5 bg-gradient-to-r from-sky-300 to-blue-400 bg-clip-text text-transparent">
-            {craftedByText}
-          </span>
+        {/* Pojok Kanan Bawah: Tech Stack Logos + Crafted by */}
+        <div className="flex flex-wrap justify-center sm:justify-end items-center gap-2">
+          {/* Cloudflare */}
+          <div className="footer-glass-pill px-3.5 py-2 rounded-full flex items-center gap-1.5 cursor-default border-white/10 shadow-lg">
+            <svg className="size-4 shrink-0" viewBox="0 0 64 32" fill="none" aria-hidden="true">
+              <path
+                d="M44.3 25.4H14.5c-4.3 0-7.8-3.4-7.8-7.7 0-3.8 2.8-7 6.5-7.6C14.7 5.7 19 2.6 24 2.6c5.8 0 10.6 4.4 11.2 10 .9-.4 1.9-.6 3-.6 3.7 0 6.7 2.8 7 6.4 3 .5 5.3 3.1 5.3 6.2 0 .3 0 .5-.1.8H44.3z"
+                fill="#F38020"
+              />
+              <path
+                d="M47.4 18.6c-.4 0-.9.1-1.3.2-.5-3.3-3.4-5.8-6.8-5.8-1 0-2 .2-2.8.6-.4.2-.7.6-.6 1.1l.4 2.6c.1.7.7 1.2 1.4 1.2h10.8c2.2 0 4 1.7 4.2 3.9h3.9c.1-.3.1-.6.1-.9 0-3.5-2.8-6.3-6.3-6.3-1.1 0-2.1.3-3 .8v2.6z"
+                fill="#FAAE40"
+              />
+            </svg>
+            <span className="text-zinc-200 text-xs font-bold tracking-wide">Cloudflare</span>
+          </div>
+
+          {/* Supabase */}
+          <div className="footer-glass-pill px-3.5 py-2 rounded-full flex items-center gap-1.5 cursor-default border-white/10 shadow-lg">
+            <svg className="size-3.5 shrink-0" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M13.5 21.3c-.6.7-1.8.3-1.8-.6V13h7.1c1 0 1.6 1.2.9 2l-6.2 6.3Z"
+                fill="#3ECF8E"
+              />
+              <path
+                d="M10.5 2.7c.6-.7 1.8-.3 1.8.6V11H5.2c-1 0-1.6-1.2-.9-2l6.2-6.3Z"
+                fill="#24B47E"
+              />
+            </svg>
+            <span className="text-zinc-200 text-xs font-bold tracking-wide">Supabase</span>
+          </div>
+
+          {/* Google Cloud */}
+          <div className="footer-glass-pill px-3.5 py-2 rounded-full flex items-center gap-1.5 cursor-default border-white/10 shadow-lg">
+            <svg className="size-4 shrink-0" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M12.2 6.8a4.6 4.6 0 0 1 3.3 1.4l2.1-2.1A7.5 7.5 0 0 0 5.4 9.5l2.8.8a4.6 4.6 0 0 1 4-3.5Z" fill="#EA4335" />
+              <path d="M18.6 10.6a4.4 4.4 0 0 0-1-4.5l-2.1 2.1a2.6 2.6 0 0 1 .7 1.8v.4h1.6a2.4 2.4 0 0 1 0 4.8h-5.6v2.8h5.6a5.2 5.2 0 0 0 .8-10.3Z" fill="#4285F4" />
+              <path d="M7.6 18h4.6v-2.8H7.6a2.3 2.3 0 0 1-1.6-.7l-2 2A5.1 5.1 0 0 0 7.6 18Z" fill="#34A853" />
+              <path d="M7.6 10.4a2.4 2.4 0 0 0-.6.1L5.4 9.5a5.1 5.1 0 0 0-1.4 7l2-2a2.3 2.3 0 0 1 1.6-4.1Z" fill="#FBBC05" />
+            </svg>
+            <span className="text-zinc-200 text-xs font-bold tracking-wide">Google Cloud</span>
+          </div>
+
+          {/* Resend */}
+          <div className="footer-glass-pill px-3.5 py-2 rounded-full flex items-center gap-1.5 cursor-default border-white/10 shadow-lg">
+            <svg className="size-3.5 shrink-0" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M5 4h8.2a5.3 5.3 0 0 1 2.4 10L20 20h-4.1l-3.9-5.3H8.5V20H5V4Zm3.5 3.1v4.6h4.4a2.3 2.3 0 1 0 0-4.6H8.5Z"
+                fill="#FFFFFF"
+              />
+            </svg>
+            <span className="text-zinc-200 text-xs font-bold tracking-wide">Resend</span>
+          </div>
+
+          {/* Crafted by */}
+          <div className="footer-glass-pill px-4 py-2 rounded-full flex items-center gap-1.5 cursor-default border-white/10 shadow-lg">
+            <span className="text-zinc-400 text-[10px] md:text-xs font-semibold uppercase tracking-wider">
+              Crafted by
+            </span>
+            <span className="font-black text-xs md:text-sm tracking-normal ml-0.5 bg-gradient-to-r from-sky-300 to-blue-400 bg-clip-text text-transparent">
+              {craftedByText}
+            </span>
+          </div>
         </div>
       </div>
     </footer>

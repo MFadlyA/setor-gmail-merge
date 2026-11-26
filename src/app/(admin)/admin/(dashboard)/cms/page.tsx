@@ -567,6 +567,27 @@ export default function CmsPage() {
                       </div>
                     )}
                   </div>
+
+                  {/* Video Cara Kerja Landing Page */}
+                  <div className="p-3.5 rounded-xl bg-zinc-950/60 border border-zinc-800/80 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-zinc-200">
+                        URL Video Cara Kerja (Landing Page)
+                      </label>
+                      <span className="text-[10px] font-mono text-sky-400">MP4 / YouTube</span>
+                    </div>
+                    <input
+                      type="text"
+                      maxLength={500}
+                      value={config.landing_video_url || ""}
+                      onChange={(e) => updateField("landing_video_url", e.target.value.slice(0, 500))}
+                      placeholder="/cara-kerja.mp4 atau https://youtu.be/..."
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs font-mono text-sky-300 focus:outline-none focus:border-emerald-500"
+                    />
+                    <p className="text-[10px] text-zinc-500 leading-relaxed">
+                      Default: <code className="text-zinc-300">/cara-kerja.mp4</code>. Anda dapat menggantinya dengan tautan langsung file video (.mp4/.webm) atau tautan YouTube.
+                    </p>
+                  </div>
                 </div>
               </div>
             )}

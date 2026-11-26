@@ -233,7 +233,6 @@ export type QuickMenuItem = {
 
 export const quickMenuItems: QuickMenuItem[] = [
   { key: "setor", label: "Setor", href: "/setor", iconName: "send" },
-  { key: "rules", label: "Rules", action: "rules", iconName: "scale" },
   { key: "checker", label: "Checker", href: "/checker", iconName: "shield-check" },
   { key: "laporan", label: "Laporan", href: "/laporan", iconName: "file-text" },
 ];

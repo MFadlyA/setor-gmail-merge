@@ -764,6 +764,7 @@ export interface SiteConfig {
   platform_badge: string;
   badge_status_text: string;
   badge_status_active: boolean;
+  landing_video_url: string;
   marquee_text: string;
   whatsapp_channel_url: string;
   telegram_admin_username: string;
@@ -806,10 +807,11 @@ export const DEFAULT_SITE_CONFIG: SiteConfig = {
   hero_headline_2: "Gmail Jadi",
   hero_headline_3: "Penghasilan",
   hero_subheadline:
-    "Setor akun Gmail dan dapatkan saldo\nPencairan instan via E-wallet dan Bank",
+    "Setor Gmail dan dapatkan saldo\nPencairan instan via DANA",
   platform_badge: "Platform Setor Gmail Terpercaya 2026",
   badge_status_text: "Platform sedang dalam tahap pengembangan",
   badge_status_active: true,
+  landing_video_url: "/cara-kerja.mp4",
   marquee_text:
     "PROSES CEPAT • AMAN TERPERCAYA • PENCAIRAN INSTAN • SETOR SEKARANG •",
   whatsapp_channel_url:

@@ -55,7 +55,6 @@ export function LandingView({
         giantText="SETOR GMAIL"
         onPill1Click={() => openAuth("login")}
         onPill2Click={() => openAuth("register")}
-        onTutorialClick={() => setIsTutorialOpen(true)}
         craftedByText="Winter"
         siteConfig={siteConfig}
       />

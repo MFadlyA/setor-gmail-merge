@@ -255,18 +255,13 @@ export function DashboardView() {
                 />
 
                 <div className="relative min-w-0">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-400/35 bg-sky-500/15 px-2.5 py-1 text-[0.68rem] font-extrabold tracking-wide uppercase text-sky-300">
-                      <Sparkles className="size-3 text-sky-400" aria-hidden="true" />
-                      Aksi Cepat
-                    </span>
-                  </div>
-
-                  <p className="mt-3 text-lg leading-tight font-black sm:text-xl text-white tracking-tight">
+                  <p className="text-lg leading-tight font-black sm:text-xl text-white tracking-tight">
                     Siap Setor Gmail?
                   </p>
                   <p className="mt-1.5 text-[0.78rem] leading-relaxed text-zinc-300">
-                    Generate Gmail dan setor sekarang. Proses cepat, saldo langsung masuk setelah Gmail diterima.
+                    Buat Gmail dan setor sekarang.
+                    <br />
+                    Proses cepat, saldo langsung masuk dan bisa ditarik.
                   </p>
                 </div>
 
@@ -296,7 +291,7 @@ export function DashboardView() {
               icon={<Sparkles className="size-4 text-sky-400" aria-hidden="true" />}
             />
             <div className="mt-3.5 rounded-3xl border border-white/10 bg-[#11131c]/88 p-3.5 sm:p-5 shadow-2xl backdrop-blur-2xl">
-              <div className="grid grid-cols-4 gap-2 sm:gap-4">
+              <div className="grid grid-cols-3 gap-2 sm:gap-4">
                 {quickMenuItems.map((item, index) => {
                   const Icon = iconMap[item.iconName];
                   const theme = quickMenuThemes[item.key] || {
