@@ -3,6 +3,10 @@ import { SetorView } from "./setor-view";
 
 export const metadata: Metadata = {
   title: "Setor Gmail",
+  robots: {
+    index: false,
+    follow: false,
+  },
 };
 
 export default function SetorPage() {

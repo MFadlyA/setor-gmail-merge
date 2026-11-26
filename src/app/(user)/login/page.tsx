@@ -2,9 +2,12 @@ import type { Metadata } from "next";
 import { LoginViewClient } from "./login-view-client";
 
 export const metadata: Metadata = {
-  title: "Masuk & Daftar | Setor Gmail by Winter",
+  title: "Masuk & Daftar",
   alternates: {
     canonical: "https://www.setorgmail.com/login",
+  },
+  openGraph: {
+    url: "https://www.setorgmail.com/login",
   },
 };
 

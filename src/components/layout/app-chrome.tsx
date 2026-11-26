@@ -130,7 +130,7 @@ export function AppChrome({
   // Hide nav on auth routes or homepage when not authenticated
   const isAuthScreen =
     hideNavOn.some((route) => pathname.startsWith(route)) ||
-    (pathname === "/" && isAuthenticated === false);
+    (pathname === "/" && isAuthenticated !== true);
 
   const showNav = !isAuthScreen;
 

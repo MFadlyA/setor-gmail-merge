@@ -138,6 +138,19 @@ async function verifyTokenWithSupabase(
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
+  // Enforce canonical www host on public/UI routes without interrupting /api/* webhooks
+  const rawHost = (req.headers.get("host") || req.nextUrl.hostname || "")
+    .toLowerCase()
+    .replace(/:\d+$/, "");
+  if (rawHost === "setorgmail.com" && !pathname.startsWith("/api/")) {
+    const canonicalUrl = new URL(
+      `${pathname}${req.nextUrl.search}`,
+      "https://www.setorgmail.com"
+    );
+    const status = req.method === "GET" || req.method === "HEAD" ? 301 : 308;
+    return applySecurityHeaders(NextResponse.redirect(canonicalUrl, status));
+  }
+
   // Redirect legacy /admin/login directly to standard /login
   if (pathname === "/admin/login" || pathname.startsWith("/admin/login")) {
     const loginUrl = new URL("/login", req.url);

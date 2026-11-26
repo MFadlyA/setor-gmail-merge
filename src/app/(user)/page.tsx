@@ -41,12 +41,19 @@ async function checkIsAdmin(user: any, token?: string): Promise<boolean> {
 }
 
 export default function HomePage() {
-  const [isAuthenticated, setIsAuthenticated] = React.useState<boolean | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = React.useState<boolean>(false);
+  const [isRestoringSession, setIsRestoringSession] = React.useState<boolean>(false);
 
   React.useEffect(() => {
     let isSubscribed = true;
 
     if (typeof window !== "undefined") {
+      try {
+        if (localStorage.getItem("setorgmail_auth") === "true") {
+          setIsRestoringSession(true);
+        }
+      } catch {}
+
       const searchParams = new URLSearchParams(window.location.search);
       const rawHash = window.location.hash.startsWith("#")
         ? window.location.hash.slice(1)
@@ -81,7 +88,10 @@ export default function HomePage() {
             try {
               localStorage.setItem("setorgmail_auth", "true");
             } catch {}
-            if (isSubscribed) setIsAuthenticated(true);
+            if (isSubscribed) {
+              setIsAuthenticated(true);
+              setIsRestoringSession(false);
+            }
             return;
           }
 
@@ -97,7 +107,10 @@ export default function HomePage() {
                 window.location.href = "/admin";
                 return;
               }
-              if (isSubscribed) setIsAuthenticated(true);
+              if (isSubscribed) {
+                setIsAuthenticated(true);
+                setIsRestoringSession(false);
+              }
               return;
             }
           }
@@ -105,18 +118,30 @@ export default function HomePage() {
           try {
             localStorage.removeItem("setorgmail_auth");
           } catch {}
-          if (isSubscribed) setIsAuthenticated(false);
+          if (isSubscribed) {
+            setIsAuthenticated(false);
+            setIsRestoringSession(false);
+          }
           return;
         }
 
         const localAuth = localStorage.getItem("setorgmail_auth");
         if (localAuth === "true") {
-          if (isSubscribed) setIsAuthenticated(true);
+          if (isSubscribed) {
+            setIsAuthenticated(true);
+            setIsRestoringSession(false);
+          }
           return;
         }
-        if (isSubscribed) setIsAuthenticated(false);
+        if (isSubscribed) {
+          setIsAuthenticated(false);
+          setIsRestoringSession(false);
+        }
       } catch {
-        if (isSubscribed) setIsAuthenticated(false);
+        if (isSubscribed) {
+          setIsAuthenticated(false);
+          setIsRestoringSession(false);
+        }
       }
     }
 
@@ -134,12 +159,18 @@ export default function HomePage() {
           try {
             localStorage.setItem("setorgmail_auth", "true");
           } catch {}
-          if (isSubscribed) setIsAuthenticated(true);
+          if (isSubscribed) {
+            setIsAuthenticated(true);
+            setIsRestoringSession(false);
+          }
         } else if (event === "SIGNED_OUT") {
           try {
             localStorage.removeItem("setorgmail_auth");
           } catch {}
-          if (isSubscribed) setIsAuthenticated(false);
+          if (isSubscribed) {
+            setIsAuthenticated(false);
+            setIsRestoringSession(false);
+          }
         }
       });
       authListener = data.subscription;
@@ -151,7 +182,7 @@ export default function HomePage() {
     };
   }, []);
 
-  if (isAuthenticated === null) {
+  if (isRestoringSession && !isAuthenticated) {
     return (
       <div className="flex min-h-dvh flex-col items-center justify-center gap-3 bg-[#07080d]">
         <div className="relative flex size-14 items-center justify-center rounded-2xl border border-sky-500/30 bg-sky-500/10 shadow-[0_0_30px_rgba(56,189,248,0.25)]">
