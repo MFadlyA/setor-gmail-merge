@@ -10,6 +10,8 @@ import {
   ChevronDown,
   CheckCircle2,
   Mail,
+  PlayCircle,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -223,6 +225,16 @@ export function TotpGeneratorCard({
   const [selectedEmail, setSelectedEmail] = React.useState("");
   const [manualEmailInput, setManualEmailInput] = React.useState("");
   const [secretInput, setSecretInput] = React.useState("");
+  const [showTutorialModal, setShowTutorialModal] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!showTutorialModal) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setShowTutorialModal(false);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [showTutorialModal]);
 
   // Email kandidat yang belum punya 2FA (otomatis hilang dari dropdown setelah dibuat)
   const availableEmails = React.useMemo(() => {
@@ -337,20 +349,31 @@ export function TotpGeneratorCard({
           </div>
         </div>
 
-        {max2fa > 0 && (
-          <span
-            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold border tabular-nums ${
-              isAllCandidatesFilled
-                ? "bg-emerald-500/15 border-emerald-500/35 text-emerald-300"
-                : "bg-indigo-500/15 border-indigo-500/35 text-indigo-300"
-            }`}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowTutorialModal(true)}
+            className="inline-flex items-center gap-1.5 rounded-full border border-sky-400/35 bg-sky-500/15 hover:bg-sky-500/25 px-3 py-1 text-[11px] font-bold text-sky-300 hover:text-white transition-all active:scale-95 cursor-pointer"
           >
-            {isAllCandidatesFilled && <CheckCircle2 className="size-3.5 text-emerald-400" />}
-            <span>
-              {filledCount} / {max2fa} 2FA Terisi
+            <PlayCircle className="size-3.5 text-sky-400" />
+            <span>Tutorial 2FA</span>
+          </button>
+
+          {max2fa > 0 && (
+            <span
+              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold border tabular-nums ${
+                isAllCandidatesFilled
+                  ? "bg-emerald-500/15 border-emerald-500/35 text-emerald-300"
+                  : "bg-indigo-500/15 border-indigo-500/35 text-indigo-300"
+              }`}
+            >
+              {isAllCandidatesFilled && <CheckCircle2 className="size-3.5 text-emerald-400" />}
+              <span>
+                {filledCount} / {max2fa} 2FA Terisi
+              </span>
             </span>
-          </span>
-        )}
+          )}
+        </div>
       </div>
 
       {mode === "fresh" && max2fa === 0 ? (
@@ -406,6 +429,53 @@ export function TotpGeneratorCard({
           {visibleAccounts.map((acc) => (
             <TotpAccountTile key={acc.id} account={acc} />
           ))}
+        </div>
+      )}
+
+      {showTutorialModal && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4"
+          onClick={() => setShowTutorialModal(false)}
+        >
+          <div
+            className="relative w-full max-w-3xl rounded-3xl border border-white/15 bg-[#0d1019] p-4 sm:p-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-2 pb-3 mb-3 border-b border-white/10">
+              <div className="flex items-center gap-2">
+                <span className="flex size-7 items-center justify-center rounded-lg bg-sky-500/15 border border-sky-400/30 text-sky-400">
+                  <PlayCircle className="size-4" />
+                </span>
+                <div>
+                  <h4 className="text-sm font-extrabold text-white leading-none">
+                    Video Tutorial Pasang 2FA Google
+                  </h4>
+                  <p className="text-[11px] text-zinc-400 mt-0.5">
+                    Ikuti langkah di video untuk mengambil Secret Key dan mengisi Winter 2FA.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowTutorialModal(false)}
+                className="p-1.5 rounded-xl bg-white/5 hover:bg-white/15 text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                title="Tutup"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            <div className="w-full aspect-video rounded-2xl overflow-hidden bg-black border border-white/10">
+              <video
+                src="/tutor-2fa.mp4"
+                controls
+                autoPlay
+                playsInline
+                preload="auto"
+                className="h-full w-full object-contain block"
+              />
+            </div>
+          </div>
         </div>
       )}
     </div>
