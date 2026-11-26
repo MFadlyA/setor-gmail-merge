@@ -379,6 +379,8 @@ export function CinematicFooter({
   const heroRightRef = useRef<HTMLDivElement>(null);
 
   const [feedIdx, setFeedIdx] = React.useState<number>(0);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [isVideoMuted, setIsVideoMuted] = React.useState<boolean>(false);
 
   const handleLogin = onPill1Click || onOpenLogin;
   const handleRegister = onPill2Click || onOpenRegister;
@@ -398,6 +400,49 @@ export function CinematicFooter({
     }, 3800);
     return () => window.clearInterval(timer);
   }, []);
+
+  // Auto-play video with sound; if browser blocks unmuted autoplay, fallback to muted autoplay
+  // and immediately unmute on the user's very first interaction anywhere on the page.
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el || youtubeEmbedUrl) return;
+
+    let cancelled = false;
+    const unlockSound = () => {
+      if (!videoRef.current) return;
+      videoRef.current.muted = false;
+      videoRef.current.volume = 1;
+      videoRef.current.play().catch(() => {});
+      setIsVideoMuted(false);
+    };
+
+    const tryAutoplayWithSound = async () => {
+      try {
+        el.muted = false;
+        el.volume = 1;
+        await el.play();
+        if (!cancelled) setIsVideoMuted(false);
+      } catch {
+        try {
+          el.muted = true;
+          await el.play();
+          if (!cancelled) setIsVideoMuted(true);
+          window.addEventListener("pointerdown", unlockSound, { once: true });
+          window.addEventListener("keydown", unlockSound, { once: true });
+          window.addEventListener("touchstart", unlockSound, { once: true });
+        } catch {}
+      }
+    };
+
+    tryAutoplayWithSound();
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener("pointerdown", unlockSound);
+      window.removeEventListener("keydown", unlockSound);
+      window.removeEventListener("touchstart", unlockSound);
+    };
+  }, [videoUrl, youtubeEmbedUrl]);
 
   useEffect(() => {
     if (typeof window !== "undefined" && wrapperRef.current) {
@@ -583,24 +628,26 @@ export function CinematicFooter({
             ref={heroRightRef}
             className="lg:col-span-6 relative flex items-center justify-center py-4 sm:py-6"
           >
-            <div className="relative w-full max-w-[460px] sm:max-w-[520px] mx-auto px-1 sm:px-0 flex flex-col gap-3.5">
-              {/* Baris Atas: 2 Kartu Info (tidak menutupi video) */}
-              <div className="flex items-center justify-between gap-2.5 sm:gap-4">
-                <div className="animate-float-1 floating-showcase-card rounded-2xl p-2 sm:p-2.5 flex items-center gap-2 sm:gap-2.5">
-                  <div className="flex size-8 sm:size-9 shrink-0 items-center justify-center rounded-xl bg-amber-500/15 text-amber-400 border border-amber-500/25">
-                    <Zap className="size-4 sm:size-4.5 fill-amber-400" />
+            <div className="relative w-full max-w-[460px] sm:max-w-[520px] mx-auto px-1 sm:px-0 flex flex-col">
+              {/* 2 Kartu Info di Atas Kiri & Kanan (menempel sedikit di tepi atas video) */}
+              <div className="relative z-20 -mb-3.5 px-2 sm:px-3 flex items-center justify-between gap-2.5 sm:gap-4 pointer-events-none">
+                {/* Kiri Atas: Jumlah Member */}
+                <div className="animate-float-1 floating-showcase-card rounded-2xl p-2 sm:p-2.5 flex items-center gap-2 sm:gap-2.5 pointer-events-auto">
+                  <div className="flex size-8 sm:size-9 shrink-0 items-center justify-center rounded-xl bg-sky-500/15 text-sky-400 border border-sky-500/25">
+                    <Users className="size-4 sm:size-4.5" />
                   </div>
                   <div className="text-left">
                     <div className="text-[11px] sm:text-xs font-extrabold text-white">
-                      Cair Instan
+                      3.5K+ Member
                     </div>
                     <div className="text-[10px] font-semibold text-sky-400">
-                      Khusus via DANA
+                      Aktif menyetor
                     </div>
                   </div>
                 </div>
 
-                <div className="animate-float-2 floating-showcase-card rounded-2xl p-2 sm:p-2.5 flex items-center gap-2 sm:gap-2.5">
+                {/* Kanan Atas: Saldo Cair DANA */}
+                <div className="animate-float-2 floating-showcase-card rounded-2xl p-2 sm:p-2.5 flex items-center gap-2 sm:gap-2.5 pointer-events-auto">
                   <div className="flex size-8 sm:size-9 shrink-0 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
                     <Banknote className="size-4 sm:size-4.5" />
                   </div>
@@ -615,7 +662,7 @@ export function CinematicFooter({
                 </div>
               </div>
 
-              {/* Center Main Card: Video Cara Kerja (1 border luar terang saja, 100% bebas halangan) */}
+              {/* Center Main Card: Video Cara Kerja (1 border luar terang saja, autoplay + auto suara) */}
               <div className="floating-showcase-card rounded-3xl overflow-hidden relative z-10 aspect-video bg-[#07080d]">
                 {youtubeEmbedUrl ? (
                   <iframe
@@ -626,49 +673,36 @@ export function CinematicFooter({
                     allowFullScreen
                   />
                 ) : (
-                  <video
-                    key={videoUrl}
-                    src={videoUrl}
-                    controls
-                    autoPlay
-                    muted
-                    loop
-                    playsInline
-                    preload="metadata"
-                    className="h-full w-full object-cover block"
-                  />
+                  <>
+                    <video
+                      ref={videoRef}
+                      key={videoUrl}
+                      src={videoUrl}
+                      controls
+                      autoPlay
+                      loop
+                      playsInline
+                      preload="auto"
+                      onVolumeChange={(e) => setIsVideoMuted(e.currentTarget.muted)}
+                      className="h-full w-full object-cover block"
+                    />
+                    {isVideoMuted && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!videoRef.current) return;
+                          videoRef.current.muted = false;
+                          videoRef.current.volume = 1;
+                          videoRef.current.play().catch(() => {});
+                          setIsVideoMuted(false);
+                        }}
+                        className="absolute bottom-14 right-3 z-20 inline-flex items-center gap-1.5 rounded-full bg-black/75 hover:bg-black/90 border border-sky-400/50 px-3 py-1.5 text-[11px] font-bold text-sky-200 backdrop-blur-md shadow-lg transition-all cursor-pointer"
+                      >
+                        <span>🔊 Aktifkan Suara</span>
+                      </button>
+                    )}
+                  </>
                 )}
-              </div>
-
-              {/* Baris Bawah: 2 Kartu Info (tidak menutupi video & kontrol player) */}
-              <div className="flex items-center justify-between gap-2.5 sm:gap-4">
-                <div className="animate-float-2 floating-showcase-card rounded-2xl p-2 sm:p-2.5 flex items-center gap-2 sm:gap-2.5">
-                  <div className="flex size-8 sm:size-9 shrink-0 items-center justify-center rounded-xl bg-sky-500/15 text-sky-400 border border-sky-500/25">
-                    <ShieldCheck className="size-4 sm:size-4.5" />
-                  </div>
-                  <div className="text-left">
-                    <div className="text-[11px] sm:text-xs font-extrabold text-white">
-                      100% Aman
-                    </div>
-                    <div className="text-[10px] font-semibold text-zinc-400">
-                      SSL Terenkripsi
-                    </div>
-                  </div>
-                </div>
-
-                <div className="animate-float-1 floating-showcase-card rounded-2xl p-2 sm:p-2.5 flex items-center gap-2 sm:gap-2.5">
-                  <div className="flex size-8 sm:size-9 shrink-0 items-center justify-center rounded-xl bg-sky-500/15 text-sky-400 border border-sky-500/25">
-                    <Users className="size-4 sm:size-4.5" />
-                  </div>
-                  <div className="text-left">
-                    <div className="text-[11px] sm:text-xs font-extrabold text-white">
-                      3.5K+ Member
-                    </div>
-                    <div className="text-[10px] font-semibold text-sky-400">
-                      Aktif menyetor
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
           </div>
