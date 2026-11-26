@@ -477,8 +477,29 @@ export function CinematicFooter({
         </div>
       </div>
 
+      {/* Pengumuman Badge (di bawah iklan berjalan & di tengah) */}
+      {cfg.badge_status_active !== false && (
+        <div className="relative z-20 w-full flex justify-center px-4 pt-20 sm:pt-24">
+          <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/35 bg-gradient-to-r from-amber-950/85 via-amber-900/55 to-amber-950/85 px-4 py-1.5 text-xs font-bold text-amber-300 shadow-[0_0_20px_-4px_rgba(245,158,11,0.35)] backdrop-blur-md">
+            <span className="relative flex size-2 shrink-0">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
+              <span className="relative inline-flex size-2 rounded-full bg-amber-400" />
+            </span>
+            <Wrench className="size-3.5 text-amber-300 shrink-0" />
+            <span className="tracking-wide text-[11px] sm:text-xs">
+              {cfg.badge_status_text || "Platform sedang dalam tahap pengembangan"}
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* 2. Main Center / Hero Content Area */}
-      <div className="relative z-10 flex flex-1 items-center justify-center px-4 sm:px-10 lg:px-16 pt-22 sm:pt-26 pb-10 sm:pb-14 w-full max-w-7xl mx-auto">
+      <div
+        className={cn(
+          "relative z-10 flex flex-1 items-center justify-center px-4 sm:px-10 lg:px-16 pb-10 sm:pb-14 w-full max-w-7xl mx-auto",
+          cfg.badge_status_active !== false ? "pt-6 sm:pt-8" : "pt-22 sm:pt-26"
+        )}
+      >
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-10 items-center w-full">
           {/* SISI KIRI: Headline, Value Strip & Action Buttons */}
           <div
@@ -563,44 +584,28 @@ export function CinematicFooter({
             className="lg:col-span-6 relative flex items-center justify-center py-8 sm:py-12 pb-12 sm:pb-12"
           >
             <div className="relative w-full max-w-[440px] sm:max-w-[500px] mx-auto px-2 sm:px-0">
-              {/* Center Main Card: Video Cara Kerja */}
-              <div className="floating-showcase-card rounded-3xl p-3 sm:p-4 flex flex-col items-center text-center relative z-10">
-                <div className="w-full aspect-video rounded-2xl overflow-hidden bg-[#07080d] border border-white/10 shadow-2xl relative">
-                  {youtubeEmbedUrl ? (
-                    <iframe
-                      src={youtubeEmbedUrl}
-                      title="Video Cara Kerja Setor Gmail"
-                      className="h-full w-full"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                      allowFullScreen
-                    />
-                  ) : (
-                    <video
-                      key={videoUrl}
-                      src={videoUrl}
-                      controls
-                      autoPlay
-                      muted
-                      loop
-                      playsInline
-                      preload="metadata"
-                      className="h-full w-full object-cover"
-                    />
-                  )}
-                </div>
-
-                {/* Badge Status */}
-                {cfg.badge_status_active !== false && (
-                  <div className="mt-3.5 inline-flex items-center gap-2 rounded-full border border-amber-400/35 bg-gradient-to-r from-amber-950/80 via-amber-900/50 to-amber-950/80 px-3.5 py-1.5 text-xs font-bold text-amber-300 shadow-[0_0_20px_-4px_rgba(245,158,11,0.35)] backdrop-blur-md">
-                    <span className="relative flex size-2 shrink-0">
-                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
-                      <span className="relative inline-flex size-2 rounded-full bg-amber-400" />
-                    </span>
-                    <Wrench className="size-3.5 text-amber-300 shrink-0" />
-                    <span className="tracking-wide text-[11px] sm:text-xs">
-                      {cfg.badge_status_text || "Platform sedang dalam tahap pengembangan"}
-                    </span>
-                  </div>
+              {/* Center Main Card: Video Cara Kerja (1 border luar terang saja, tanpa border ganda) */}
+              <div className="floating-showcase-card rounded-3xl overflow-hidden relative z-10 aspect-video bg-[#07080d]">
+                {youtubeEmbedUrl ? (
+                  <iframe
+                    src={youtubeEmbedUrl}
+                    title="Video Cara Kerja Setor Gmail"
+                    className="h-full w-full block"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                ) : (
+                  <video
+                    key={videoUrl}
+                    src={videoUrl}
+                    controls
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                    preload="metadata"
+                    className="h-full w-full object-cover block"
+                  />
                 )}
               </div>
 
