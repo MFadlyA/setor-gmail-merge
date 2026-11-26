@@ -14,6 +14,8 @@ import {
   Sparkles,
   Target,
   Zap,
+  CheckCircle2,
+  LogOut,
   type LucideIcon,
 } from "lucide-react";
 import { Card, SectionHeading } from "@/components/ui/card";
@@ -69,6 +71,24 @@ const quickMenuThemes: Record<
 export function DashboardView() {
   const [rulesOpen, setRulesOpen] = React.useState(false);
   const [tarikModalOpen, setTarikModalOpen] = React.useState(false);
+  const [depositSuccessPopup, setDepositSuccessPopup] = React.useState<{
+    count: number;
+    totalEarnings: number;
+  } | null>(null);
+
+  React.useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem("setorgmail_deposit_success_popup");
+      if (raw) {
+        sessionStorage.removeItem("setorgmail_deposit_success_popup");
+        const parsed = JSON.parse(raw);
+        setDepositSuccessPopup({
+          count: Number(parsed?.count) || 1,
+          totalEarnings: Number(parsed?.totalEarnings) || 0,
+        });
+      }
+    } catch {}
+  }, []);
   const {
     userProfile,
     wallet,
@@ -369,6 +389,43 @@ export function DashboardView() {
         balance={wallet.balance}
         minimum={minWithdrawal}
       />
+
+      {depositSuccessPopup && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
+          <div className="w-full max-w-md rounded-3xl border border-emerald-500/30 bg-gradient-to-b from-[#151824] via-[#11131c] to-[#0c0d14] p-6 text-center shadow-[0_25px_70px_-15px_rgba(0,0,0,0.9),0_0_40px_-10px_rgba(16,185,129,0.25)]">
+            <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-emerald-500/15 border border-emerald-400/35 text-emerald-400 shadow-lg shadow-emerald-500/20">
+              <CheckCircle2 className="size-8" />
+            </div>
+
+            <h3 className="mt-4 text-lg sm:text-xl font-black text-white tracking-tight">
+              Setoran Berhasil Dikirim!
+            </h3>
+            <p className="mt-1 text-xs sm:text-sm text-zinc-400">
+              <strong className="text-emerald-300">{depositSuccessPopup.count} akun Gmail</strong> sedang dalam antrean pengecekan admin.
+            </p>
+
+            <div className="mt-4 rounded-2xl border border-amber-500/35 bg-amber-950/35 p-4 text-left flex items-start gap-3">
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-300 border border-amber-400/30 mt-0.5">
+                <LogOut className="size-4" />
+              </span>
+              <div className="text-xs sm:text-[13px] leading-relaxed text-amber-200">
+                <p className="font-extrabold text-amber-300">Penting!</p>
+                <p className="mt-0.5">
+                  Jangan lupa <strong>logout akun Gmail yang sudah disetor</strong> dari perangkat Anda agar proses pengecekan oleh Admin berjalan lancar.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setDepositSuccessPopup(null)}
+              className="mt-5 w-full rounded-2xl bg-gradient-to-r from-sky-400 via-sky-500 to-blue-600 hover:from-sky-300 hover:to-blue-500 py-3 text-sm font-extrabold text-white shadow-lg shadow-sky-500/30 transition-all active:scale-[0.99] cursor-pointer"
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
     </PageShell>
   );
 }

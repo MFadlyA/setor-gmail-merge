@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   Check,
@@ -20,6 +21,7 @@ import {
   UserCheck,
   KeyRound,
   Mail,
+  PlayCircle,
 } from "lucide-react";
 import { PageShell, Reveal } from "@/components/layout/page-shell";
 import { defaultPassword } from "@/lib/mock-data";
@@ -161,6 +163,7 @@ function generateBatch(count: number, existingPool?: Set<string>): string[] {
 }
 
 export function SetorView() {
+  const router = useRouter();
   const [emails, setEmails] = React.useState("");
   const [depositMode, setDepositMode] = React.useState<"fresh" | "old">("fresh");
   const { deposits, refreshDeposits, refreshWallet, siteConfig } = useUserProfile();
@@ -856,8 +859,17 @@ export function SetorView() {
             : skippedNo2faNote;
 
         toast.success(`${liveCount} Gmail berhasil disetor!${partialNote}`, {
-          description: `Total ${formatIDR(totalEarnings)} jika di-ACC · Email & 2FA berhasil dibersihkan dari daftar.`,
+          description: `Total ${formatIDR(totalEarnings)} jika di-ACC · Mengarahkan ke Beranda...`,
         });
+
+        try {
+          sessionStorage.setItem(
+            "setorgmail_deposit_success_popup",
+            JSON.stringify({ count: liveCount, totalEarnings })
+          );
+        } catch {}
+
+        router.push("/");
       } catch {
         toast.error("Gagal menyetor Gmail", {
           description: "Periksa koneksi internet Anda lalu coba lagi.",
@@ -1342,6 +1354,34 @@ export function SetorView() {
             )}
         </div>
       </Reveal>
+
+        {/* 2.4. Video Tutorial Pasang 2FA (Full-width di atas Winter 2FA) */}
+        <Reveal delay={40}>
+          <div className="rounded-3xl border border-white/10 bg-[#11131c]/90 p-4 sm:p-5 shadow-2xl backdrop-blur-2xl">
+            <div className="flex items-center gap-2.5 pb-3 mb-3 border-b border-white/10">
+              <span className="flex size-8 items-center justify-center rounded-xl bg-sky-500/15 border border-sky-400/30 text-sky-400">
+                <PlayCircle className="size-4" />
+              </span>
+              <div>
+                <h3 className="text-sm sm:text-base font-extrabold text-white tracking-tight leading-none">
+                  Video Tutorial 2FA Google
+                </h3>
+                <p className="text-[11px] text-zinc-400 mt-0.5">
+                  Putar video panduan di bawah jika membutuhkan bantuan mengambil Secret Key 2FA.
+                </p>
+              </div>
+            </div>
+            <div className="w-full aspect-video rounded-2xl overflow-hidden bg-black border border-white/10">
+              <video
+                src="/tutor-2fa.mp4"
+                controls
+                playsInline
+                preload="metadata"
+                className="h-full w-full object-contain block"
+              />
+            </div>
+          </div>
+        </Reveal>
 
         {/* 2.5. Winter 2FA - TOTP Generator (Wajib untuk Email Baru & Email Lama) */}
         <Reveal delay={50} className="relative z-30">
