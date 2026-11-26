@@ -16,8 +16,8 @@ export async function GET(req: NextRequest) {
 
   const countParam = req.nextUrl.searchParams.get("count");
   const count = countParam
-    ? Math.max(1, Math.min(10, parseInt(countParam, 10) || 10))
-    : 10;
+    ? Math.max(1, Math.min(5, parseInt(countParam, 10) || 5))
+    : 5;
   const { emails, timestampTail } = generateGmailCandidates(count);
 
   return NextResponse.json(
@@ -55,8 +55,8 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => ({}));
   const count = body?.count
-    ? Math.max(1, Math.min(10, parseInt(String(body.count), 10) || 10))
-    : 10;
+    ? Math.max(1, Math.min(5, parseInt(String(body.count), 10) || 5))
+    : 5;
   const { emails, timestampTail } = generateGmailCandidates(count);
 
   return NextResponse.json(

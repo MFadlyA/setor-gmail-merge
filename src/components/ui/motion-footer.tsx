@@ -574,7 +574,22 @@ export function CinematicFooter({
                 {cfg.hero_headline_1 || "Ubah Akun"}
               </span>
               <span className="block footer-text-glow mt-1 sm:mt-1.5">
-                {cfg.hero_headline_2 || "Gmail Jadi"}
+                {(() => {
+                  const line2 = cfg.hero_headline_2 || "Gmail Jadi";
+                  const parts = line2.split(/(gmail)/i);
+                  return parts.map((part, i) =>
+                    part.toLowerCase() === "gmail" ? (
+                      <span
+                        key={i}
+                        className="bg-gradient-to-r from-[#EA4335] via-[#FBBC05] via-50% via-[#34A853] to-[#4285F4] bg-clip-text text-transparent drop-shadow-[0_0_24px_rgba(234,67,53,0.35)]"
+                      >
+                        {part}
+                      </span>
+                    ) : (
+                      <React.Fragment key={i}>{part}</React.Fragment>
+                    )
+                  );
+                })()}
               </span>
               <span className="inline-block mt-1 sm:mt-1.5 px-1 pb-2.5 sm:pb-3 leading-[1.18] bg-gradient-to-r from-sky-300 via-cyan-300 to-blue-500 bg-clip-text text-transparent drop-shadow-[0_0_38px_rgba(56,189,248,0.55)]">
                 {cfg.hero_headline_3 || "Penghasilan"}
@@ -725,9 +740,9 @@ export function CinematicFooter({
               Setor Gmail
             </div>
             <div className="mt-1 text-[10px] text-zinc-400 flex items-center gap-1 leading-none">
-              <span>Generate nama</span>
+              <span>Generate gmail</span>
               <span className="text-sky-400 font-bold">✦</span>
-              <span>Buat akun</span>
+              <span>Buat gmail</span>
               <span className="text-sky-400 font-bold">✦</span>
               <span>Langsung cair</span>
             </div>

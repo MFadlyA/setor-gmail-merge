@@ -187,9 +187,9 @@ export function SetorView() {
     return generatedList.filter((email) => !submittedSet.has(email.toLowerCase())).length;
   }, [generatedList, submittedSet]);
 
-  // Handle generating new batch with high-entropy guarantee
+  // Handle generating new batch with high-entropy guarantee (max 5)
   const handleGenerate = (count = customCountInput) => {
-    const validCount = Math.max(1, Math.min(10, count));
+    const validCount = Math.max(1, Math.min(5, count));
     const list = generateBatch(validCount, generatedPool);
     setGeneratedList(list);
     saveStoredGeneratedGmails(list);
@@ -203,14 +203,14 @@ export function SetorView() {
     });
   };
 
-  // Handle Generate Lagi: appends selected count to existing batch (max 10)
+  // Handle Generate Lagi: appends selected count to existing batch (max 5)
   const handleGenerateMore = (count = customCountInput) => {
     const currentCount = generatedList.length;
-    if (currentCount >= 10) {
-      toast.error("Maksimal 10 Gmail telah tercapai!");
+    if (currentCount >= 5) {
+      toast.error("Maksimal 5 Gmail telah tercapai!");
       return;
     }
-    const maxCanAdd = 10 - currentCount;
+    const maxCanAdd = 5 - currentCount;
     const toAdd = Math.min(Math.max(1, count), maxCanAdd);
     const newBatch = generateBatch(toAdd, generatedPool);
     const combined = [...generatedList, ...newBatch];
@@ -223,8 +223,8 @@ export function SetorView() {
       return next;
     });
 
-    if (currentCount + count > 10) {
-      toast.info(`Ditambahkan ${toAdd} Gmail (maksimal 10 tercapai, total: 10 akun).`);
+    if (currentCount + count > 5) {
+      toast.info(`Ditambahkan ${toAdd} Gmail (maksimal 5 tercapai, total: 5 akun).`);
     } else {
       toast.success(`${toAdd} Gmail tambahan berhasil digenerate! Total: ${combined.length} akun.`);
     }
@@ -996,7 +996,7 @@ export function SetorView() {
                     <span className="text-[0.7rem] font-bold text-zinc-400 uppercase tracking-wider mr-0.5">
                       Jumlah:
                     </span>
-                    {[1, 3, 5, 10].map((num) => (
+                    {[1, 3, 5].map((num) => (
                       <button
                         key={num}
                         type="button"
@@ -1021,12 +1021,12 @@ export function SetorView() {
                       <input
                         type="number"
                         min={1}
-                        max={10}
+                        max={5}
                         value={customCountInput}
                         onChange={(e) => {
                           const val = parseInt(e.target.value, 10);
                           if (!isNaN(val)) {
-                            setCustomCountInput(Math.max(1, Math.min(10, val)));
+                            setCustomCountInput(Math.max(1, Math.min(5, val)));
                           } else {
                             setCustomCountInput(1);
                           }
@@ -1212,8 +1212,8 @@ export function SetorView() {
                         <span>Salin Gmail Belum Disetor</span>
                       </button>
 
-                      {/* Tombol Generate Lagi: hilang jika sudah mencapai maksimal 10 */}
-                      {generatedList.length < 10 && (
+                      {/* Tombol Generate Lagi: hilang jika sudah mencapai maksimal 5 */}
+                      {generatedList.length < 5 && (
                         <button
                           type="button"
                           onClick={() => handleGenerateMore(customCountInput)}
@@ -1221,7 +1221,7 @@ export function SetorView() {
                         >
                           <Sparkles className="size-4 text-sky-400" />
                           <span>
-                            Generate Lagi (+{Math.min(customCountInput, Math.max(0, 10 - generatedList.length))})
+                            Generate Lagi (+{Math.min(customCountInput, Math.max(0, 5 - generatedList.length))})
                           </span>
                         </button>
                       )}

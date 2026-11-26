@@ -254,11 +254,11 @@ export function DashboardView() {
                   className="pointer-events-none absolute -top-16 -right-12 size-52 rounded-full bg-sky-500/20 blur-3xl transition-opacity duration-300 group-hover:opacity-100 opacity-80"
                 />
 
-                <div className="relative min-w-0">
-                  <p className="text-lg leading-tight font-black sm:text-xl text-white tracking-tight">
+                <div className="relative min-w-0 flex-1 flex flex-col justify-center">
+                  <p className="text-2xl sm:text-[1.75rem] leading-tight font-black text-white tracking-tight">
                     Siap Setor Gmail?
                   </p>
-                  <p className="mt-1.5 text-[0.78rem] leading-relaxed text-zinc-300">
+                  <p className="mt-2.5 text-sm sm:text-[0.94rem] leading-relaxed text-zinc-300">
                     Buat Gmail dan setor sekarang.
                     <br />
                     Proses cepat, saldo langsung masuk dan bisa ditarik.
