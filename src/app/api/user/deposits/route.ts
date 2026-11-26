@@ -198,7 +198,7 @@ export async function POST(req: NextRequest) {
           totp_secret: null,
         }));
 
-    if (cleanCategory === "good" && rawPairs.some((p) => !p.totp_secret)) {
+    if (rawPairs.some((p) => !p.totp_secret)) {
       return NextResponse.json(
         {
           success: false,

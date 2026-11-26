@@ -672,14 +672,31 @@ export function SetorView() {
   }, [setoranCheckResults]);
 
   const liveMissing2faCount = React.useMemo(() => {
-    if (depositMode !== "fresh") return 0;
     return liveCheckedResults.filter((r) => !totpByEmail.has(r.email.toLowerCase())).length;
-  }, [liveCheckedResults, depositMode, totpByEmail]);
+  }, [liveCheckedResults, totpByEmail]);
 
   const liveResults = React.useMemo(() => {
-    if (depositMode !== "fresh") return liveCheckedResults;
     return liveCheckedResults.filter((r) => totpByEmail.has(r.email.toLowerCase()));
-  }, [liveCheckedResults, depositMode, totpByEmail]);
+  }, [liveCheckedResults, totpByEmail]);
+
+  // Daftar email kandidat untuk dropdown Winter 2FA:
+  // - Mode Buat Email Baru: daftar email hasil generate
+  // - Mode Setor Email Lama: daftar email valid yang diketik di Kolom Checker & Setoran
+  const totpCandidateEmails = React.useMemo(() => {
+    if (depositMode === "fresh") return generatedList;
+    const seen = new Set<string>();
+    const list: string[] = [];
+    emails
+      .split("\n")
+      .map((l) => parseSetorLine(l).email)
+      .forEach((em) => {
+        if (isValidStrictGmail(em) && !seen.has(em)) {
+          seen.add(em);
+          list.push(em);
+        }
+      });
+    return list;
+  }, [depositMode, generatedList, emails]);
 
   const liveCount = liveResults.length;
   const rawLiveCount = liveCheckedResults.length;
@@ -1326,16 +1343,15 @@ export function SetorView() {
         </div>
       </Reveal>
 
-        {/* 2.5. Winter 2FA - TOTP Generator */}
-        {depositMode === "fresh" && (
-          <Reveal delay={50}>
-            <TotpGeneratorCard
-              generatedEmails={generatedList}
-              accounts={totpAccounts}
-              onAddAccount={handleAddTotpAccount}
-            />
-          </Reveal>
-        )}
+        {/* 2.5. Winter 2FA - TOTP Generator (Wajib untuk Email Baru & Email Lama) */}
+        <Reveal delay={50} className="relative z-30">
+          <TotpGeneratorCard
+            mode={depositMode}
+            candidateEmails={totpCandidateEmails}
+            accounts={totpAccounts}
+            onAddAccount={handleAddTotpAccount}
+          />
+        </Reveal>
 
         {/* 3. Form Kolom Setoran dengan Checker Terintegrasi */}
         <Reveal delay={60}>
@@ -1459,7 +1475,6 @@ export function SetorView() {
                 <div className="space-y-1.5 max-h-56 overflow-y-auto pr-0.5">
                   {setoranCheckResults.map((item) => {
                     const needs2fa =
-                      depositMode === "fresh" &&
                       item.status === "LIVE" &&
                       !totpByEmail.has(item.email.toLowerCase());
                     return (
