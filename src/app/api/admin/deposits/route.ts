@@ -102,17 +102,25 @@ export async function GET(req: NextRequest) {
       };
 
       const rawNote = typeof d.note === "string" ? d.note.trim() : "";
-      const noteHasLegacyPassword = /^Password:\s*/i.test(rawNote);
-      const legacyPasswordFromNote = noteHasLegacyPassword
-        ? rawNote.replace(/^Password:\s*/i, "").trim()
-        : "";
+      const passwordMatch = rawNote.match(/Password:\s*([^|]+)/i);
+      const secretMatch = rawNote.match(/2FA:\s*([A-Za-z2-7\s-]+)/i);
 
       const resolvedPassword =
         (typeof d.password === "string" && d.password.trim()) ||
-        legacyPasswordFromNote ||
+        (passwordMatch ? passwordMatch[1].trim() : "") ||
         (d.category_id === "good" ? cmsDefaultPassword : "-");
 
-      const displayNote = noteHasLegacyPassword ? "-" : rawNote || "-";
+      const resolvedTotpSecret =
+        (typeof d.totp_secret === "string" && d.totp_secret.trim()) ||
+        (secretMatch ? secretMatch[1].trim() : "") ||
+        "-";
+
+      const displayNote =
+        rawNote
+          .replace(/\|?\s*Password:\s*[^|]+/gi, "")
+          .replace(/\|?\s*2FA:\s*[A-Za-z2-7\s-]+/gi, "")
+          .replace(/^\s*\|\s*|\s*\|\s*$/g, "")
+          .trim() || "-";
 
       return {
         id: d.id,
@@ -124,6 +132,7 @@ export async function GET(req: NextRequest) {
         gmail: d.gmail || "-",
         normalized_gmail: d.normalized_gmail || d.gmail || "-",
         password: resolvedPassword,
+        totp_secret: resolvedTotpSecret,
         category_id: d.category_id || "good",
         category_label: cat.label,
         status: d.status || "pending",

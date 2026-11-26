@@ -8,6 +8,7 @@ import {
   checkRateLimit as checkKeyRateLimit,
   sanitizeErrorMessage,
 } from "@/lib/security";
+import { normalizeSecret, isValidBase32Secret } from "@/lib/totp";
 
 export const dynamic = "force-dynamic";
 
@@ -136,6 +137,7 @@ export async function POST(req: NextRequest) {
 
     // 5. Fetch authoritative CMS settings (maintenance, feature flag, default_password, and server-side price)
     let authoritativePrice = cleanCategory === "bebas" ? 1000 : 1500;
+    let cmsDefaultPassword = "winter1212";
     const { data: cfgRow } = await supabaseAdmin
       .from("app_settings")
       .select("value")
@@ -165,33 +167,43 @@ export async function POST(req: NextRequest) {
         if (Number.isFinite(dbPrice) && dbPrice >= 500 && dbPrice <= 100_000) {
           authoritativePrice = Math.floor(dbPrice);
         }
+        if (typeof parsed?.default_password === "string" && parsed.default_password.trim()) {
+          cmsDefaultPassword = sanitizeInputText(parsed.default_password.trim(), 120);
+        }
       } catch {
         // fallback to defaults
       }
     }
 
-    const fallbackBatchPassword = rawPasswordInput || legacyNotePassword || "";
+    const fallbackBatchPassword =
+      rawPasswordInput || legacyNotePassword || (cleanCategory === "good" ? cmsDefaultPassword : "");
 
-    // Build validated { email, password } pairs — every single email MUST have a password
-    const rawPairs: Array<{ email: unknown; password: string }> = rawItemsInput
-      ? rawItemsInput.map((it: any) => ({
-          email: it?.email,
-          password:
+    // Build validated { email, password, totp_secret } entries
+    const rawPairs: Array<{ email: unknown; password: string | null; totp_secret: string | null }> = rawItemsInput
+      ? rawItemsInput.map((it: any) => {
+          const itemPass =
             typeof it?.password === "string" && it.password.trim()
               ? sanitizeInputText(it.password.trim(), 120)
-              : fallbackBatchPassword,
-        }))
+              : fallbackBatchPassword || null;
+          const rawSecret = typeof it?.totp_secret === "string" ? normalizeSecret(it.totp_secret) : "";
+          return {
+            email: it?.email,
+            password: itemPass,
+            totp_secret: rawSecret && isValidBase32Secret(rawSecret) ? rawSecret : null,
+          };
+        })
       : rawEmails.map((em: unknown) => ({
           email: em,
-          password: fallbackBatchPassword,
+          password: fallbackBatchPassword || null,
+          totp_secret: null,
         }));
 
-    if (rawPairs.some((p) => !p.password)) {
+    if (cleanCategory === "good" && rawPairs.some((p) => !p.totp_secret)) {
       return NextResponse.json(
         {
           success: false,
           insertedCount: 0,
-          error: "Wajib menyertakan password untuk setiap akun Gmail (contoh: winterhere777@gmail.com | winter1212).",
+          error: "Wajib memasukkan Secret Key 2FA (Winter 2FA) untuk setiap akun Gmail yang disetor.",
         },
         { status: 400 }
       );
@@ -245,6 +257,7 @@ export async function POST(req: NextRequest) {
           gmail: clean,
           normalized_gmail: normalized,
           password: pair.password,
+          totp_secret: pair.totp_secret,
           category_id: cleanCategory,
           status: "pending",
           amount: authoritativePrice,
@@ -297,12 +310,22 @@ export async function POST(req: NextRequest) {
       .insert(records)
       .select("id");
 
-    // Zero-downtime fallback if `password` column has not yet been added in Supabase SQL Editor
-    if (insertErr && /password/i.test(insertErr.message || "")) {
-      const legacyRecords = records.map(({ password, ...rest }: any) => ({
-        ...rest,
-        note: rest.note || (password ? `Password: ${password}` : undefined),
-      }));
+    // Zero-downtime fallback if `totp_secret` or `password` column has not yet been added in Supabase SQL Editor
+    if (insertErr && /totp_secret|password/i.test(insertErr.message || "")) {
+      const missingSecretCol = /totp_secret/i.test(insertErr.message || "");
+      const missingPassCol = /password/i.test(insertErr.message || "");
+      const legacyRecords = records.map(({ password, totp_secret, ...rest }: any) => {
+        const noteParts: string[] = [];
+        if (rest.note) noteParts.push(rest.note);
+        if (missingPassCol && password) noteParts.push(`Password: ${password}`);
+        if (missingSecretCol && totp_secret) noteParts.push(`2FA: ${totp_secret}`);
+        return {
+          ...rest,
+          ...(missingPassCol ? {} : { password }),
+          ...(missingSecretCol ? {} : { totp_secret }),
+          ...(noteParts.length > 0 ? { note: noteParts.join(" | ") } : {}),
+        };
+      });
       const retry = await supabaseAdmin.from("deposits").insert(legacyRecords).select("id");
       inserted = retry.data;
       insertErr = retry.error;

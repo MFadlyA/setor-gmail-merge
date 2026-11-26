@@ -21,6 +21,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { StatusBadge } from "@/components/admin/ui/badge";
+import { AdminLiveOtpCell } from "@/components/admin/ui/live-otp-cell";
 import { adminFetch } from "@/lib/api-client";
 import { Button } from "@/components/admin/ui/button";
 import { LineChart9 } from "@/components/admin/ui/demo";
@@ -71,6 +72,7 @@ export default function DashboardOverviewPage() {
   const [txSortOrder, setTxSortOrder] = useState<"desc" | "asc">("desc");
   const [copiedGmail, setCopiedGmail] = useState<string | null>(null);
   const [copiedPasswordId, setCopiedPasswordId] = useState<string | null>(null);
+  const [copiedSecretId, setCopiedSecretId] = useState<string | null>(null);
 
   // Withdrawal processing state
   const [isProcessingWd, setIsProcessingWd] = useState<string | null>(null);
@@ -202,6 +204,14 @@ export default function DashboardOverviewPage() {
     }
   };
 
+  const copySecret = (secret: string, id: string) => {
+    if (navigator?.clipboard && secret && secret !== "-") {
+      navigator.clipboard.writeText(secret);
+      setCopiedSecretId(id);
+      setTimeout(() => setCopiedSecretId(null), 1500);
+    }
+  };
+
   const stats = data?.stats || {
     totalUsers: 0,
     totalAdmins: 0,
@@ -264,6 +274,7 @@ export default function DashboardOverviewPage() {
         (d: any) =>
           (d.gmail || "").toLowerCase().includes(q) ||
           (d.password || "").toLowerCase().includes(q) ||
+          (d.totp_secret || "").toLowerCase().includes(q) ||
           (d.userName || "").toLowerCase().includes(q) ||
           (d.userEmail || "").toLowerCase().includes(q)
       );
@@ -968,6 +979,8 @@ export default function DashboardOverviewPage() {
                         <th className="py-2.5 px-3">Gmail Disetor</th>
                         <th className="py-2.5 px-3">Password</th>
                         <th className="py-2.5 px-3">Penyetor Akun</th>
+                        <th className="py-2.5 px-3">Secret Code Google</th>
+                        <th className="py-2.5 px-3">OTP 2FA</th>
                         <th className="py-2.5 px-3">Kategori</th>
                         <th className="py-2.5 px-3">Status Email</th>
                         <th
@@ -990,7 +1003,7 @@ export default function DashboardOverviewPage() {
                     <tbody className="divide-y divide-zinc-800/60">
                       {isLoading ? (
                         <tr>
-                          <td colSpan={7} className="py-8 text-center text-zinc-500">
+                          <td colSpan={9} className="py-8 text-center text-zinc-500">
                             <div className="flex items-center justify-center gap-2">
                               <RefreshCw className="w-4 h-4 animate-spin text-sky-400" />
                               <span>Memuat list setoran Gmail...</span>
@@ -999,7 +1012,7 @@ export default function DashboardOverviewPage() {
                         </tr>
                       ) : filteredDepositsList.length === 0 ? (
                         <tr>
-                          <td colSpan={7} className="py-8 text-center text-zinc-500">
+                          <td colSpan={9} className="py-8 text-center text-zinc-500">
                             Belum ada setoran Gmail yang sesuai filter pada rentang waktu ini.
                           </td>
                         </tr>
@@ -1009,6 +1022,7 @@ export default function DashboardOverviewPage() {
                           const isMasalah = isIssueDepositStatus(d.status);
                           const statusMeta = getDepositStatusAdminMeta(d.status);
                           const emailPass = d.password || "-";
+                          const totpSecret = d.totp_secret || "-";
                           return (
                             <tr key={d.id} className="hover:bg-zinc-800/30 transition-colors">
                               {/* Gmail Disetor */}
@@ -1065,6 +1079,36 @@ export default function DashboardOverviewPage() {
                                     {d.userEmail || "-"}
                                   </span>
                                 </div>
+                              </td>
+
+                              {/* Secret Code Google */}
+                              <td className="py-2.5 px-3">
+                                {totpSecret !== "-" ? (
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-mono text-indigo-300 font-medium text-[11px] select-all bg-zinc-900/80 border border-indigo-500/25 px-2 py-0.5 rounded-md max-w-[150px] truncate">
+                                      {totpSecret}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => copySecret(totpSecret, d.id)}
+                                      className="p-1 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition-colors cursor-pointer"
+                                      title="Salin Secret Code"
+                                    >
+                                      {copiedSecretId === d.id ? (
+                                        <Check className="w-3 h-3 text-emerald-400" />
+                                      ) : (
+                                        <Copy className="w-3 h-3" />
+                                      )}
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <span className="text-zinc-500">-</span>
+                                )}
+                              </td>
+
+                              {/* OTP Generator Live */}
+                              <td className="py-2.5 px-3 whitespace-nowrap">
+                                <AdminLiveOtpCell secret={totpSecret} />
                               </td>
 
                               {/* Kategori & Nominal */}

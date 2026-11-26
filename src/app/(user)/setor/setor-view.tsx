@@ -36,6 +36,32 @@ import {
 import { getCurrentAuthUser, insertUserDeposits } from "@/lib/supabase";
 import { secureRandomInt, isValidStrictGmail } from "@/lib/security";
 import { useUserProfile } from "@/context/user-profile-context";
+import { type TotpAccount, isValidBase32Secret } from "@/lib/totp";
+
+const TOTP_STORAGE_KEY = "setorgmail_totp_accounts_v2";
+
+function getStoredTotpAccounts(): TotpAccount[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(TOTP_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (item): item is TotpAccount =>
+        Boolean(item && typeof item.email === "string" && typeof item.secret === "string")
+    );
+  } catch {
+    return [];
+  }
+}
+
+function saveStoredTotpAccounts(list: TotpAccount[]) {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(TOTP_STORAGE_KEY, JSON.stringify(list));
+  } catch {}
+}
 
 export interface SetoranCheckItem {
   index: number;
@@ -46,7 +72,6 @@ export interface SetoranCheckItem {
     | "UNREGISTERED"
     | "SUDAH DISETOR"
     | "DIABAIKAN"
-    | "TANPA PASSWORD"
     | "INVALID";
   reason: string;
 }
@@ -159,8 +184,19 @@ export function SetorView() {
   // Submitted & Check Status Tracking (synced with authoritative DB deposits)
   const [submittedSet, setSubmittedSet] = React.useState<Set<string>>(() => new Set());
   const [checkStatusMap, setCheckStatusMap] = React.useState<Record<string, "LIVE" | "UNREGISTERED">>({});
+  const [totpAccounts, setTotpAccounts] = React.useState<TotpAccount[]>([]);
 
-  // Mount effect: load existing generated batch and check statuses from localStorage
+  const totpByEmail = React.useMemo(() => {
+    const map = new Map<string, string>();
+    totpAccounts.forEach((acc) => {
+      if (acc.email && acc.secret && isValidBase32Secret(acc.secret)) {
+        map.set(acc.email.toLowerCase().trim(), acc.secret);
+      }
+    });
+    return map;
+  }, [totpAccounts]);
+
+  // Mount effect: load existing generated batch, check statuses, and 2FA accounts from localStorage
   React.useEffect(() => {
     setIsMounted(true);
     const existing = getStoredGeneratedGmails();
@@ -172,7 +208,19 @@ export function SetorView() {
     if (Object.keys(statusMap).length > 0) {
       setCheckStatusMap(statusMap);
     }
+    const storedTotp = getStoredTotpAccounts();
+    if (storedTotp.length > 0) {
+      setTotpAccounts(storedTotp);
+    }
   }, []);
+
+  const handleAddTotpAccount = (newAcc: TotpAccount) => {
+    setTotpAccounts((prev) => {
+      const next = [...prev.filter((a) => a.email.toLowerCase() !== newAcc.email.toLowerCase()), newAcc];
+      saveStoredTotpAccounts(next);
+      return next;
+    });
+  };
 
   // Sync submittedSet strictly with real database deposits so unsubmitted emails are never falsely blocked
   React.useEffect(() => {
@@ -232,11 +280,19 @@ export function SetorView() {
   };
 
   const handleDeleteGenerated = (index: number) => {
+    const removedEmail = generatedList[index]?.toLowerCase();
     setGeneratedList((prev) => {
       const next = prev.filter((_, i) => i !== index);
       saveStoredGeneratedGmails(next);
       return next;
     });
+    if (removedEmail) {
+      setTotpAccounts((prev) => {
+        const next = prev.filter((a) => a.email.toLowerCase() !== removedEmail);
+        saveStoredTotpAccounts(next);
+        return next;
+      });
+    }
     toast.info("1 Gmail dihapus dari daftar.");
   };
 
@@ -294,11 +350,11 @@ export function SetorView() {
       toast.info("Belum ada Gmail yang digenerate di atas.");
       return;
     }
-    const capped = list.slice(0, 10);
-    setEmails(capped.map((e) => `${e} | ${activePassword}`).join("\n"));
+    const capped = list.slice(0, 5);
+    setEmails(capped.join("\n"));
     setHasCheckedSetoran(false);
     setSetoranCheckResults([]);
-    toast.success(`${capped.length} Gmail beserta password berhasil ditempel ke kolom checker!`);
+    toast.success(`${capped.length} Gmail berhasil ditempel ke kolom checker!`);
   };
 
   const handleClearEmails = () => {
@@ -312,16 +368,14 @@ export function SetorView() {
   /* Real-time Validation for Textarea                                  */
   /* ------------------------------------------------------------------ */
 
-  const { validCount, totalLines, isExceededMax, notGeneratedCount, missingPasswordCount } =
+  const { validCount, totalLines, isExceededMax, notGeneratedCount } =
     React.useMemo(() => {
       const rawLines = emails.split("\n");
       const cleanLines = rawLines.map((l) => l.trim()).filter(Boolean);
       const seen = new Set<string>();
 
       let valid = 0;
-      let invalid = 0;
       let notGen = 0;
-      let missingPw = 0;
 
       const currentStored = typeof window !== "undefined" ? getStoredGeneratedGmails() : [];
       const historySet = typeof window !== "undefined" ? getStoredHistory() : new Set<string>();
@@ -337,9 +391,7 @@ export function SetorView() {
         const isGmail = isValidStrictGmail(lower);
 
         if (!isGmail || seen.has(lower)) {
-          invalid++;
-        } else if (!parsed.password) {
-          missingPw++;
+          return;
         } else if (depositMode === "fresh" && !combinedPool.has(lower)) {
           notGen++;
         } else {
@@ -352,9 +404,7 @@ export function SetorView() {
         validCount: valid,
         totalLines: cleanLines.length,
         isExceededMax: cleanLines.length > 10,
-        invalidCount: invalid,
         notGeneratedCount: notGen,
-        missingPasswordCount: missingPw,
       };
     }, [emails, generatedPool, depositMode]);
 
@@ -460,22 +510,15 @@ export function SetorView() {
       }
       seenInBatch.add(lower);
 
-      if (!parsed.password) {
-        items.push({
-          index: idx + 1,
-          email: lower,
-          status: "TANPA PASSWORD",
-          reason: "Wajib sertakan password (contoh: winterhere777@gmail.com | winter1212)",
-        });
-        return;
-      }
+      const resolvedPassword =
+        parsed.password || (depositMode === "fresh" ? activePassword : "");
 
       // Email yang sudah disetor di database: TIDAK PERLU DICEK LAGI
       if (submittedSet.has(lower)) {
         items.push({
           index: idx + 1,
           email: lower,
-          password: parsed.password,
+          password: resolvedPassword,
           status: "SUDAH DISETOR",
           reason: "Email sudah disetor sebelumnya (tidak perlu dicek lagi)",
         });
@@ -490,7 +533,7 @@ export function SetorView() {
           items.push({
             index: idx + 1,
             email: lower,
-            password: parsed.password,
+            password: resolvedPassword,
             status: "DIABAIKAN",
             reason: "Bukan hasil Generate Gmail (Diabaikan)",
           });
@@ -499,7 +542,7 @@ export function SetorView() {
       }
 
       // Masuk antrian cek status ke API
-      toQueryViaApi.push({ email: lower, password: parsed.password, index: idx + 1 });
+      toQueryViaApi.push({ email: lower, password: resolvedPassword, index: idx + 1 });
     });
 
     if (toQueryViaApi.length > 0) {
@@ -612,32 +655,34 @@ export function SetorView() {
     setSetoranCheckResults(items);
     setIsCheckingSetoran(false);
 
-    const noPassCount = items.filter((r) => r.status === "TANPA PASSWORD").length;
     const ignoredCount = items.filter((r) => r.status === "DIABAIKAN").length;
     const liveCount = items.filter((r) => r.status === "LIVE").length;
     const unregCount = items.filter((r) => r.status === "UNREGISTERED").length;
     const alreadySubmitted = items.filter((r) => r.status === "SUDAH DISETOR").length;
 
-    if (noPassCount > 0 && liveCount === 0) {
-      toast.error(`${noPassCount} email belum menyertakan password!`, {
-        description: "Gunakan format: winterhere777@gmail.com | winter1212",
-      });
-    } else {
-      toast.success("Pemeriksaan Kolom Checker selesai!", {
-        description: `${liveCount} Live · ${unregCount} Unregistered${
-          noPassCount > 0 ? ` · ${noPassCount} Tanpa Password` : ""
-        }${alreadySubmitted > 0 ? ` · ${alreadySubmitted} Sudah Disetor` : ""}${
-          ignoredCount > 0 ? ` · ${ignoredCount} Diabaikan` : ""
-        }`,
-      });
-    }
+    toast.success("Pemeriksaan Kolom Checker selesai!", {
+      description: `${liveCount} Live · ${unregCount} Unregistered${
+        alreadySubmitted > 0 ? ` · ${alreadySubmitted} Sudah Disetor` : ""
+      }${ignoredCount > 0 ? ` · ${ignoredCount} Diabaikan` : ""}`,
+    });
   };
 
-  const liveResults = React.useMemo(() => {
-    return setoranCheckResults.filter((r) => r.status === "LIVE" && Boolean(r.password));
+  const liveCheckedResults = React.useMemo(() => {
+    return setoranCheckResults.filter((r) => r.status === "LIVE");
   }, [setoranCheckResults]);
 
+  const liveMissing2faCount = React.useMemo(() => {
+    if (depositMode !== "fresh") return 0;
+    return liveCheckedResults.filter((r) => !totpByEmail.has(r.email.toLowerCase())).length;
+  }, [liveCheckedResults, depositMode, totpByEmail]);
+
+  const liveResults = React.useMemo(() => {
+    if (depositMode !== "fresh") return liveCheckedResults;
+    return liveCheckedResults.filter((r) => totpByEmail.has(r.email.toLowerCase()));
+  }, [liveCheckedResults, depositMode, totpByEmail]);
+
   const liveCount = liveResults.length;
+  const rawLiveCount = liveCheckedResults.length;
   const isSetorServiceActive = siteConfig?.is_setor_active !== false;
   const isCheckerServiceActive = siteConfig?.is_checker_active !== false;
   const freshPrice = siteConfig?.price_per_gmail || 1500;
@@ -650,6 +695,12 @@ export function SetorView() {
     const now = Date.now();
     if (now - lastHoverToastTime.current > 3000) {
       lastHoverToastTime.current = now;
+      if (hasCheckedSetoran && rawLiveCount > 0 && liveMissing2faCount > 0 && liveCount === 0) {
+        toast.error("Wajib masukkan 2FA di kolom Winter 2FA dulu!", {
+          description: "Email sudah LIVE, silakan masukkan Secret Key 2FA pada kolom Winter 2FA - TOTP terlebih dahulu sebelum setor.",
+        });
+        return;
+      }
       toast.error("Tidak ada email live untuk disetor", {
         description: !hasCheckedSetoran
           ? "Silakan klik tombol 'Cek Status' terlebih dahulu."
@@ -682,10 +733,15 @@ export function SetorView() {
       });
       return;
     }
+    if (rawLiveCount > 0 && liveCount === 0 && liveMissing2faCount > 0) {
+      toast.error("Wajib masukkan 2FA di Winter 2FA terlebih dahulu!", {
+        description: "Masukkan Secret Key 2FA untuk email LIVE di kolom Winter 2FA - TOTP baru bisa setor.",
+      });
+      return;
+    }
     if (liveCount === 0) {
-      toast.error("Tidak ada email LIVE beserta password untuk disetor", {
-        description:
-          "Pastikan setiap baris menggunakan format email@gmail.com | password dan sudah berstatus LIVE.",
+      toast.error("Tidak ada email LIVE siap setor", {
+        description: "Pastikan email berstatus LIVE dan sudah dimasukkan Secret Key 2FA-nya.",
       });
       return;
     }
@@ -693,10 +749,14 @@ export function SetorView() {
     setIsSubmitting(true);
     const totalEarnings = liveCount * pricePerGmail;
     const liveEmailList = liveResults.map((r) => r.email.toLowerCase());
-    const liveItemsWithPassword = liveResults.map((r) => ({
-      email: r.email.toLowerCase(),
-      password: (r.password || "").trim(),
-    }));
+    const liveItemsPayload = liveResults.map((r) => {
+      const lower = r.email.toLowerCase();
+      return {
+        email: lower,
+        password: (r.password || (depositMode === "fresh" ? activePassword : "")).trim(),
+        totp_secret: totpByEmail.get(lower),
+      };
+    });
 
     (async () => {
       try {
@@ -717,7 +777,7 @@ export function SetorView() {
           pricePerGmail,
           undefined,
           undefined,
-          liveItemsWithPassword
+          liveItemsPayload
         );
         if (!res.success) {
           toast.error("Gagal menyetor Gmail", {
@@ -730,26 +790,56 @@ export function SetorView() {
         await refreshDeposits();
         await refreshWallet();
 
+        const submittedEmailSet = new Set(liveEmailList);
+
         // Tandai akun LIVE sebagai sudah disetor
         const newSubmitted = new Set([...Array.from(submittedSet), ...liveEmailList]);
         setSubmittedSet(newSubmitted);
         saveStoredSubmittedGmails(Array.from(newSubmitted));
 
-        // Update status pada hasil pemeriksaan menjadi SUDAH DISETOR
-        setSetoranCheckResults((prev) =>
-          prev.map((item) =>
-            liveEmailList.includes(item.email.toLowerCase())
-              ? { ...item, status: "SUDAH DISETOR" as const, reason: "Berhasil disetor ke sistem" }
-              : item
-          )
-        );
+        // Hapus email & 2FA yang berhasil disetor dari daftar Generate & Winter 2FA
+        setGeneratedList((prev) => {
+          const remaining = prev.filter((e) => !submittedEmailSet.has(e.toLowerCase()));
+          saveStoredGeneratedGmails(remaining);
+          return remaining;
+        });
+        setTotpAccounts((prev) => {
+          const remaining = prev.filter((a) => !submittedEmailSet.has(a.email.toLowerCase()));
+          saveStoredTotpAccounts(remaining);
+          return remaining;
+        });
 
-        const nonLiveCount = totalLines - liveCount;
+        // Hapus baris email yang berhasil disetor dari textarea & hasil checker
+        const remainingLines = emails
+          .split("\n")
+          .filter((line) => {
+            const trimmed = line.trim();
+            if (!trimmed) return false;
+            const parsed = parseSetorLine(trimmed);
+            return !submittedEmailSet.has(parsed.email.toLowerCase());
+          });
+        setEmails(remainingLines.join("\n"));
+
+        setSetoranCheckResults((prev) => {
+          const remainingResults = prev.filter(
+            (item) => !submittedEmailSet.has(item.email.toLowerCase())
+          );
+          if (remainingResults.length === 0) {
+            setHasCheckedSetoran(false);
+          }
+          return remainingResults;
+        });
+
+        const skippedNo2faNote =
+          liveMissing2faCount > 0 ? ` (${liveMissing2faCount} email LIVE belum ada 2FA tidak ikut disetor)` : "";
+        const nonLiveCount = totalLines - rawLiveCount;
         const partialNote =
-          nonLiveCount > 0 ? ` (${nonLiveCount} akun belum LIVE/diabaikan tidak ikut disetor)` : "";
+          nonLiveCount > 0
+            ? ` (${nonLiveCount} akun belum LIVE/diabaikan tidak ikut disetor)${skippedNo2faNote}`
+            : skippedNo2faNote;
 
-        toast.success(`${liveCount} Gmail LIVE berhasil disetor!${partialNote}`, {
-          description: `Total ${formatIDR(totalEarnings)} jika di-ACC · Akun telah ditandai 'Sudah Disetor' di atas.`,
+        toast.success(`${liveCount} Gmail berhasil disetor!${partialNote}`, {
+          description: `Total ${formatIDR(totalEarnings)} jika di-ACC · Email & 2FA berhasil dibersihkan dari daftar.`,
         });
       } catch {
         toast.error("Gagal menyetor Gmail", {
@@ -1237,9 +1327,15 @@ export function SetorView() {
       </Reveal>
 
         {/* 2.5. Winter 2FA - TOTP Generator */}
-        <Reveal delay={50}>
-          <TotpGeneratorCard />
-        </Reveal>
+        {depositMode === "fresh" && (
+          <Reveal delay={50}>
+            <TotpGeneratorCard
+              generatedEmails={generatedList}
+              accounts={totpAccounts}
+              onAddAccount={handleAddTotpAccount}
+            />
+          </Reveal>
+        )}
 
         {/* 3. Form Kolom Setoran dengan Checker Terintegrasi */}
         <Reveal delay={60}>
@@ -1305,23 +1401,12 @@ export function SetorView() {
               </div>
             )}
 
-            {/* Petunjuk Format Wajib Email | Password */}
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-sky-400/25 bg-sky-500/10 px-3.5 py-2 text-xs text-sky-200">
-              <span className="inline-flex items-center gap-1.5 font-semibold">
-                <KeyRound className="size-3.5 shrink-0 text-sky-400" />
-                <span>Wajib sertakan password di setiap baris:</span>
-              </span>
-              <code className="rounded-lg border border-sky-400/30 bg-black/50 px-2.5 py-0.5 font-mono text-[0.73rem] font-bold text-white select-all">
-                winterhere777@gmail.com | {activePassword}
-              </code>
-            </div>
-
             <textarea
               rows={9}
               value={emails}
               onChange={handleTextareaChange}
               onKeyDown={handleTextareaKeyDown}
-              placeholder={`winterhere777@gmail.com | ${activePassword}\ncontohkedua88@gmail.com | sandiemail2`}
+              placeholder={`contoh1@gmail.com\ncontoh2@gmail.com`}
               spellCheck={false}
               autoCapitalize="none"
               autoCorrect="off"
@@ -1357,9 +1442,9 @@ export function SetorView() {
                         {setoranCheckResults.filter((r) => r.status === "SUDAH DISETOR").length} Sudah Disetor
                       </span>
                     )}
-                    {setoranCheckResults.filter((r) => r.status === "TANPA PASSWORD").length > 0 && (
+                    {liveMissing2faCount > 0 && (
                       <span className="rounded-full bg-amber-500/20 border border-amber-500/40 px-2.5 py-0.5 font-bold text-amber-300 text-[0.7rem]">
-                        {setoranCheckResults.filter((r) => r.status === "TANPA PASSWORD").length} Tanpa Password
+                        {liveMissing2faCount} Belum 2FA
                       </span>
                     )}
                     {setoranCheckResults.filter((r) => r.status === "DIABAIKAN").length > 0 && (
@@ -1373,6 +1458,10 @@ export function SetorView() {
                 {/* Detail list with max height */}
                 <div className="space-y-1.5 max-h-56 overflow-y-auto pr-0.5">
                   {setoranCheckResults.map((item) => {
+                    const needs2fa =
+                      depositMode === "fresh" &&
+                      item.status === "LIVE" &&
+                      !totpByEmail.has(item.email.toLowerCase());
                     return (
                       <div
                         key={item.index + item.email}
@@ -1385,14 +1474,14 @@ export function SetorView() {
                           <span className="font-mono text-xs text-zinc-200 font-medium truncate select-all">
                             {item.email}
                           </span>
-                          {item.password && (
-                            <span className="font-mono text-[0.7rem] text-sky-300 bg-sky-500/10 border border-sky-500/25 px-1.5 py-0.2 rounded truncate max-w-[130px]">
-                              | {item.password}
-                            </span>
-                          )}
                         </div>
 
                         <div className="flex items-center gap-2 shrink-0">
+                          {needs2fa && (
+                            <span className="rounded-full px-2 py-0.5 text-[0.65rem] font-bold uppercase tracking-wider border bg-amber-500/20 text-amber-300 border-amber-500/40">
+                              Belum 2FA
+                            </span>
+                          )}
                           <span
                             className={cn(
                               "rounded-full px-2 py-0.5 text-[0.65rem] font-bold uppercase tracking-wider border",
@@ -1400,7 +1489,6 @@ export function SetorView() {
                               item.status === "UNREGISTERED" && "bg-rose-500/20 text-rose-300 border-rose-500/40",
                               item.status === "SUDAH DISETOR" && "bg-sky-500/20 text-sky-300 border-sky-500/40",
                               item.status === "DIABAIKAN" && "bg-amber-500/20 text-amber-300 border-amber-500/40",
-                              item.status === "TANPA PASSWORD" && "bg-amber-500/20 text-amber-300 border-amber-500/40",
                               item.status === "INVALID" && "bg-rose-500/20 text-rose-300 border-rose-500/40"
                             )}
                           >
@@ -1420,14 +1508,10 @@ export function SetorView() {
                   })}
                 </div>
 
-                {setoranCheckResults.some((r) => r.status === "TANPA PASSWORD") && (
+                {liveMissing2faCount > 0 && (
                   <p className="mt-2 text-[0.72rem] text-amber-300 bg-amber-950/40 rounded-xl p-2.5 border border-amber-500/30 leading-relaxed">
-                    ⚠️ <strong>Wajib menyertakan password setiap email!</strong> Gunakan pemisah{" "}
-                    <code className="bg-black/50 px-1.5 py-0.5 rounded font-mono text-white">|</code> seperti contoh:{" "}
-                    <code className="bg-black/50 px-1.5 py-0.5 rounded font-mono text-white">
-                      winterhere777@gmail.com | winter1212
-                    </code>
-                    .
+                    ⚠️ <strong>Wajib masukkan Secret Key 2FA terlebih dahulu</strong> di kolom{" "}
+                    <strong>Winter 2FA - TOTP</strong> untuk email yang LIVE sebelum mengirim setoran.
                   </p>
                 )}
 
@@ -1438,7 +1522,7 @@ export function SetorView() {
                 )}
 
                 {/* Notifikasi jika 0 yang LIVE setelah dicheck */}
-                {hasCheckedSetoran && liveCount === 0 && (
+                {hasCheckedSetoran && rawLiveCount === 0 && (
                   <div className="mt-3 rounded-2xl border border-amber-500/30 bg-amber-950/40 p-3.5 text-xs text-amber-200 flex items-start gap-2.5 shadow-xs animate-fade-up">
                     <Clock className="size-4 text-amber-400 shrink-0 mt-0.5" />
                     <div className="leading-relaxed">
@@ -1464,8 +1548,13 @@ export function SetorView() {
                 <p className="text-xs sm:text-sm text-zinc-300">
                   {hasCheckedSetoran ? (
                     <>
-                      Terverifikasi LIVE:{" "}
+                      Siap setor (LIVE + 2FA):{" "}
                       <strong className="font-bold text-emerald-400">{liveCount}</strong> akun
+                      {liveMissing2faCount > 0 && (
+                        <span className="text-amber-400 font-medium ml-1.5">
+                          ({liveMissing2faCount} live belum 2FA)
+                        </span>
+                      )}
                       {setoranCheckResults.filter((r) => r.status === "UNREGISTERED").length > 0 && (
                         <span className="text-rose-400 font-medium ml-1.5">
                           ({setoranCheckResults.filter((r) => r.status === "UNREGISTERED").length} unregistered)
@@ -1484,21 +1573,11 @@ export function SetorView() {
                     </>
                   ) : depositMode === "old" ? (
                     <>
-                      Siap dicek: <strong className="font-bold text-white">{validCount}</strong> akun lengkap dengan password
-                      {missingPasswordCount > 0 && (
-                        <span className="text-amber-400 font-semibold ml-1.5">
-                          ({missingPasswordCount} belum ada | password)
-                        </span>
-                      )}
+                      Siap dicek: <strong className="font-bold text-white">{validCount}</strong> akun Gmail
                     </>
                   ) : (
                     <>
-                      Terdeteksi: <strong className="font-bold text-white">{validCount}</strong> baris Gmail hasil generate + password
-                      {missingPasswordCount > 0 && (
-                        <span className="text-amber-400 font-semibold ml-1.5">
-                          ({missingPasswordCount} belum ada | password)
-                        </span>
-                      )}
+                      Terdeteksi: <strong className="font-bold text-white">{validCount}</strong> baris Gmail hasil generate
                       {notGeneratedCount > 0 && (
                         <span className="text-amber-400 font-medium ml-1.5">
                           ({notGeneratedCount} diabaikan)
@@ -1508,19 +1587,19 @@ export function SetorView() {
                   )}
                 </p>
 
-                {/* Muncul hanya apabila minimal 1 gmail LIVE */}
+                {/* Muncul hanya apabila minimal 1 gmail LIVE siap setor */}
                 {hasCheckedSetoran && liveCount > 0 && (
                   <p className="mt-1 text-xs sm:text-sm font-bold text-white">
                     Setor Gmail : {formatIDR(calculatedEarnings)} Jika di ACC
                     <span className="text-emerald-400 font-semibold text-xs ml-1">
-                      ({liveCount} akun LIVE)
+                      ({liveCount} akun siap setor)
                     </span>
                   </p>
                 )}
 
                 <p className="mt-0.5 text-[0.75rem] text-zinc-400 font-medium">
                   {!hasCheckedSetoran
-                    ? "Wajib klik 'Cek Status' sebelum menyetor untuk memvalidasi akun LIVE."
+                    ? "Wajib isi 2FA & klik 'Cek Status' sebelum menyetor untuk memvalidasi akun LIVE."
                     : "Estimasi pengecekan 12-24 jam."}
                 </p>
               </div>
@@ -1555,10 +1634,14 @@ export function SetorView() {
                     }
                   }}
                 >
-                  {/* Floating Tooltip Bubble saat 0 live atau belum cek */}
+                  {/* Floating Tooltip Bubble saat belum siap setor */}
                   {(!hasCheckedSetoran || liveCount === 0) && (
                     <div className="pointer-events-none absolute -top-11 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-xl bg-black/90 border border-white/20 px-3 py-1.5 text-[0.72rem] font-bold text-white shadow-xl opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-30 flex items-center gap-1.5">
-                      <span>Tidak ada email live untuk disetor</span>
+                      <span>
+                        {hasCheckedSetoran && rawLiveCount > 0 && liveMissing2faCount > 0
+                          ? "Wajib masukkan 2FA di Winter 2FA dulu"
+                          : "Tidak ada email live untuk disetor"}
+                      </span>
                       <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 border-4 border-transparent border-t-black" />
                     </div>
                   )}

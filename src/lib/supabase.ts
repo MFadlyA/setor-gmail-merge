@@ -425,7 +425,7 @@ export async function insertUserDeposits(
   _amountPerAccount = 1500,
   note?: string,
   password?: string,
-  items?: Array<{ email: string; password: string }>
+  items?: Array<{ email: string; password?: string; totp_secret?: string }>
 ): Promise<{ success: boolean; insertedCount: number; error?: string }> {
   if (!isSupabaseConfigured) {
     return {
@@ -454,13 +454,16 @@ export async function insertUserDeposits(
       };
     }
 
-    const normalizedItems: Array<{ email: string; password: string }> =
+    const normalizedItems: Array<{ email: string; password: string; totp_secret?: string }> =
       Array.isArray(items) && items.length > 0
         ? items
             .filter((it) => isValidStrictGmail(it?.email))
             .map((it) => ({
               email: it.email.trim().toLowerCase(),
               password: sanitizeInputText(it.password || "", 120),
+              ...(it.totp_secret
+                ? { totp_secret: sanitizeInputText(it.totp_secret, 128).toUpperCase() }
+                : {}),
             }))
         : (emails || [])
             .filter((e) => isValidStrictGmail(e))
@@ -475,14 +478,6 @@ export async function insertUserDeposits(
 
     if (normalizedItems.length > 10) {
       return { success: false, insertedCount: 0, error: "Maksimal 10 Gmail per pengiriman setoran." };
-    }
-
-    if (normalizedItems.some((it) => !it.password)) {
-      return {
-        success: false,
-        insertedCount: 0,
-        error: "Setiap akun Gmail wajib menyertakan password (format: email@gmail.com | password).",
-      };
     }
 
     const res = await fetch("/api/user/deposits", {

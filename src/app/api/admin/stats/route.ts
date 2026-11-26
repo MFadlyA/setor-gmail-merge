@@ -330,11 +330,21 @@ export async function GET(req: NextRequest) {
     const depositsListSource = hasPeriodDeposits || isAllTime ? filteredDeposits : allDepositsRaw;
     const recentDepositsWithUser = depositsListSource.slice(0, 500).map((d: any) => {
       const rawNote = String(d.note || "").trim();
-      const passwordMatch = rawNote.match(/^Password:\s*(.+)$/i);
+      const passwordMatch = rawNote.match(/Password:\s*([^|]+)/i);
+      const secretMatch = rawNote.match(/2FA:\s*([A-Za-z2-7\s-]+)/i);
       const emailPassword =
         (typeof d.password === "string" && d.password.trim()) ||
         (passwordMatch ? passwordMatch[1].trim() : "") ||
         ((d.category_id || "good") === "good" ? defaultPassword : "-");
+      const resolvedTotpSecret =
+        (typeof d.totp_secret === "string" && d.totp_secret.trim()) ||
+        (secretMatch ? secretMatch[1].trim() : "") ||
+        "-";
+      const cleanedNote = rawNote
+        .replace(/\|?\s*Password:\s*[^|]+/gi, "")
+        .replace(/\|?\s*2FA:\s*[A-Za-z2-7\s-]+/gi, "")
+        .replace(/^\s*\|\s*|\s*\|\s*$/g, "")
+        .trim();
 
       return {
         id: d.id,
@@ -343,11 +353,12 @@ export async function GET(req: NextRequest) {
         userEmail: userMap[d.user_id]?.email || "-",
         gmail: d.gmail || d.normalized_gmail || "-",
         password: emailPassword,
+        totp_secret: resolvedTotpSecret,
         status: d.status || "pending",
         category_id: d.category_id || "good",
         categoryLabel: d.category_id === "good" ? "Gmail Fresh" : "Gmail Bebas",
         amount: Number(d.amount) || (d.category_id === "good" ? (cfgPricePerGmail || 1500) : 1000),
-        note: passwordMatch ? "-" : d.note || "-",
+        note: cleanedNote || "-",
         created_at: d.created_at,
       };
     });
