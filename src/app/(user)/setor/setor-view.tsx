@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { PageShell, Reveal } from "@/components/layout/page-shell";
 import { defaultPassword } from "@/lib/mock-data";
+import { TotpGeneratorCard } from "./totp-generator-card";
 import { cn, formatIDR } from "@/lib/utils";
 import {
   getStoredGeneratedGmails,
@@ -912,7 +913,7 @@ export function SetorView() {
                   {
                     icon: Calendar,
                     iconColor: "text-amber-400",
-                    title: siteConfig?.rule_usia || "Lahir 18+ tahun",
+                    title: (siteConfig?.rule_usia || "Lahir 21+ tahun").replace(/18\+/g, "21+"),
                     detail: detailTexts[2],
                   },
                   {
@@ -1234,6 +1235,11 @@ export function SetorView() {
             )}
         </div>
       </Reveal>
+
+        {/* 2.5. Winter 2FA - TOTP Generator */}
+        <Reveal delay={50}>
+          <TotpGeneratorCard />
+        </Reveal>
 
         {/* 3. Form Kolom Setoran dengan Checker Terintegrasi */}
         <Reveal delay={60}>

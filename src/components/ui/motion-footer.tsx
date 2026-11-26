@@ -579,12 +579,12 @@ export function CinematicFooter({
                   const parts = line2.split(/(gmail)/i);
                   return parts.map((part, i) =>
                     part.toLowerCase() === "gmail" ? (
-                      <span
-                        key={i}
-                        className="bg-gradient-to-r from-[#EA4335] via-[#FBBC05] via-50% via-[#34A853] to-[#4285F4] bg-clip-text text-transparent drop-shadow-[0_0_24px_rgba(234,67,53,0.35)]"
-                      >
-                        {part}
-                      </span>
+                      <React.Fragment key={i}>
+                        <span className="text-[#EA4335] drop-shadow-[0_0_24px_rgba(234,67,53,0.45)]">
+                          {part[0]}
+                        </span>
+                        {part.slice(1)}
+                      </React.Fragment>
                     ) : (
                       <React.Fragment key={i}>{part}</React.Fragment>
                     )

@@ -75,12 +75,12 @@ export const DEFAULT_CONFIG: SiteConfig = {
   default_password: "winter1212",
   rule_status: "Wajib Fresh (baru dibuat)",
   rule_nama: "Wajib sama persis hasil generate",
-  rule_usia: "Lahir 18+ tahun",
+  rule_usia: "Lahir 21+ tahun",
   rule_keamanan: "Tanpa No HP / Email Pemulihan",
   rules_detail_text: [
     "Wajib Fresh: Akun harus baru dibuat secara manual dan belum pernah didaftarkan ke platform/jasa lain.",
     "Nama Akun Sama Persis: Karakter, angka, dan huruf pada Gmail wajib 100% sama dengan hasil yang di-generate di situs ini. Dilarang mengubah atau menambah karakter apa pun.",
-    "Usia 18+ Tahun: Atur tanggal dan tahun kelahiran akun Gmail di Google agar umur akun minimal 18 tahun (contoh: tahun 2000–2005).",
+    "Usia 21+ Tahun: Atur tanggal dan tahun kelahiran akun Gmail di Google agar umur akun minimal 21 tahun (contoh: tahun 2000–2004).",
     "Tanpa Pemulihan: Akun dilarang menautkan nomor HP pemulihan atau email pemulihan agar peninjauan oleh admin lancar tanpa kendala OTP.",
   ],
 

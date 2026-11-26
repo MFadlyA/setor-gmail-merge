@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 const SITE_URL = "https://www.setorgmail.com";
-const SITE_TITLE = "Setor Gmail by Winter - Aman, Cepat & Trusted";
+const SITE_TITLE = "Setor Gmail by Winter - Cepat & Terpercaya";
 const SITE_DESCRIPTION =
   "Setor Gmail by Winter. Setor Gmail dengan harga transparan, penarikan cepat via DANA, GoPay, OVO, ShopeePay.";
 
