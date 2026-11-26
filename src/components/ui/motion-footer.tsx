@@ -479,7 +479,7 @@ export function CinematicFooter({
 
       {/* Pengumuman Badge (di bawah iklan berjalan & di tengah) */}
       {cfg.badge_status_active !== false && (
-        <div className="relative z-20 w-full flex justify-center px-4 pt-20 sm:pt-24">
+        <div className="relative z-20 w-full flex justify-center px-4 pt-24 sm:pt-28 md:pt-32">
           <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/35 bg-gradient-to-r from-amber-950/85 via-amber-900/55 to-amber-950/85 px-4 py-1.5 text-xs font-bold text-amber-300 shadow-[0_0_20px_-4px_rgba(245,158,11,0.35)] backdrop-blur-md">
             <span className="relative flex size-2 shrink-0">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
@@ -581,10 +581,41 @@ export function CinematicFooter({
           {/* SISI KANAN: Interactive Video Cara Kerja Showcase */}
           <div
             ref={heroRightRef}
-            className="lg:col-span-6 relative flex items-center justify-center py-8 sm:py-12 pb-12 sm:pb-12"
+            className="lg:col-span-6 relative flex items-center justify-center py-4 sm:py-6"
           >
-            <div className="relative w-full max-w-[440px] sm:max-w-[500px] mx-auto px-2 sm:px-0">
-              {/* Center Main Card: Video Cara Kerja (1 border luar terang saja, tanpa border ganda) */}
+            <div className="relative w-full max-w-[460px] sm:max-w-[520px] mx-auto px-1 sm:px-0 flex flex-col gap-3.5">
+              {/* Baris Atas: 2 Kartu Info (tidak menutupi video) */}
+              <div className="flex items-center justify-between gap-2.5 sm:gap-4">
+                <div className="animate-float-1 floating-showcase-card rounded-2xl p-2 sm:p-2.5 flex items-center gap-2 sm:gap-2.5">
+                  <div className="flex size-8 sm:size-9 shrink-0 items-center justify-center rounded-xl bg-amber-500/15 text-amber-400 border border-amber-500/25">
+                    <Zap className="size-4 sm:size-4.5 fill-amber-400" />
+                  </div>
+                  <div className="text-left">
+                    <div className="text-[11px] sm:text-xs font-extrabold text-white">
+                      Cair Instan
+                    </div>
+                    <div className="text-[10px] font-semibold text-sky-400">
+                      Khusus via DANA
+                    </div>
+                  </div>
+                </div>
+
+                <div className="animate-float-2 floating-showcase-card rounded-2xl p-2 sm:p-2.5 flex items-center gap-2 sm:gap-2.5">
+                  <div className="flex size-8 sm:size-9 shrink-0 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
+                    <Banknote className="size-4 sm:size-4.5" />
+                  </div>
+                  <div className="text-left">
+                    <div className="text-[11px] sm:text-xs font-extrabold text-white tabular-nums">
+                      {activeFeed.amount}
+                    </div>
+                    <div className="text-[10px] font-semibold text-emerald-400 flex items-center gap-1">
+                      <Clock className="size-2.5" /> {activeFeed.detail}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Center Main Card: Video Cara Kerja (1 border luar terang saja, 100% bebas halangan) */}
               <div className="floating-showcase-card rounded-3xl overflow-hidden relative z-10 aspect-video bg-[#07080d]">
                 {youtubeEmbedUrl ? (
                   <iframe
@@ -609,63 +640,33 @@ export function CinematicFooter({
                 )}
               </div>
 
-              {/* 4 FLOATING ORBIT CARDS */}
-              {/* 1. Kiri Atas: Cair Instan */}
-              <div className="animate-float-1 absolute -top-6 left-1 sm:-top-8 sm:-left-6 lg:-left-10 z-20 floating-showcase-card rounded-2xl p-2 sm:p-3 flex items-center gap-2 sm:gap-2.5">
-                <div className="flex size-8 sm:size-9 shrink-0 items-center justify-center rounded-xl bg-amber-500/15 text-amber-400 border border-amber-500/25">
-                  <Zap className="size-4 sm:size-4.5 fill-amber-400" />
-                </div>
-                <div className="text-left">
-                  <div className="text-[11px] sm:text-xs font-extrabold text-white">
-                    Cair Instan
+              {/* Baris Bawah: 2 Kartu Info (tidak menutupi video & kontrol player) */}
+              <div className="flex items-center justify-between gap-2.5 sm:gap-4">
+                <div className="animate-float-2 floating-showcase-card rounded-2xl p-2 sm:p-2.5 flex items-center gap-2 sm:gap-2.5">
+                  <div className="flex size-8 sm:size-9 shrink-0 items-center justify-center rounded-xl bg-sky-500/15 text-sky-400 border border-sky-500/25">
+                    <ShieldCheck className="size-4 sm:size-4.5" />
                   </div>
-                  <div className="text-[10px] font-semibold text-sky-400">
-                    Khusus via DANA
+                  <div className="text-left">
+                    <div className="text-[11px] sm:text-xs font-extrabold text-white">
+                      100% Aman
+                    </div>
+                    <div className="text-[10px] font-semibold text-zinc-400">
+                      SSL Terenkripsi
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* 2. Kanan Atas: Rotating Live Payout Feed */}
-              <div className="animate-float-2 absolute -top-6 right-1 sm:-top-8 sm:-right-6 lg:-right-10 z-20 floating-showcase-card rounded-2xl p-2 sm:p-3 flex items-center gap-2 sm:gap-2.5">
-                <div className="flex size-8 sm:size-9 shrink-0 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
-                  <Banknote className="size-4 sm:size-4.5" />
-                </div>
-                <div className="text-left">
-                  <div className="text-[11px] sm:text-xs font-extrabold text-white tabular-nums">
-                    {activeFeed.amount}
+                <div className="animate-float-1 floating-showcase-card rounded-2xl p-2 sm:p-2.5 flex items-center gap-2 sm:gap-2.5">
+                  <div className="flex size-8 sm:size-9 shrink-0 items-center justify-center rounded-xl bg-sky-500/15 text-sky-400 border border-sky-500/25">
+                    <Users className="size-4 sm:size-4.5" />
                   </div>
-                  <div className="text-[10px] font-semibold text-emerald-400 flex items-center gap-1">
-                    <Clock className="size-2.5" /> {activeFeed.detail}
-                  </div>
-                </div>
-              </div>
-
-              {/* 3. Kiri Bawah: 100% Aman */}
-              <div className="animate-float-2 absolute -bottom-7 left-1 sm:-bottom-9 sm:-left-6 lg:-left-10 z-20 floating-showcase-card rounded-2xl p-2 sm:p-3 flex items-center gap-2 sm:gap-2.5">
-                <div className="flex size-8 sm:size-9 shrink-0 items-center justify-center rounded-xl bg-sky-500/15 text-sky-400 border border-sky-500/25">
-                  <ShieldCheck className="size-4 sm:size-4.5" />
-                </div>
-                <div className="text-left">
-                  <div className="text-[11px] sm:text-xs font-extrabold text-white">
-                    100% Aman
-                  </div>
-                  <div className="text-[10px] font-semibold text-zinc-400">
-                    SSL Terenkripsi
-                  </div>
-                </div>
-              </div>
-
-              {/* 4. Kanan Bawah: Komunitas Aktif */}
-              <div className="animate-float-1 absolute -bottom-7 right-1 sm:-bottom-9 sm:-right-6 lg:-right-10 z-20 floating-showcase-card rounded-2xl p-2 sm:p-3 flex items-center gap-2 sm:gap-2.5">
-                <div className="flex size-8 sm:size-9 shrink-0 items-center justify-center rounded-xl bg-sky-500/15 text-sky-400 border border-sky-500/25">
-                  <Users className="size-4 sm:size-4.5" />
-                </div>
-                <div className="text-left">
-                  <div className="text-[11px] sm:text-xs font-extrabold text-white">
-                    3.5K+ Member
-                  </div>
-                  <div className="text-[10px] font-semibold text-sky-400">
-                    Aktif menyetor
+                  <div className="text-left">
+                    <div className="text-[11px] sm:text-xs font-extrabold text-white">
+                      3.5K+ Member
+                    </div>
+                    <div className="text-[10px] font-semibold text-sky-400">
+                      Aktif menyetor
+                    </div>
                   </div>
                 </div>
               </div>
@@ -701,6 +702,26 @@ export function CinematicFooter({
 
         {/* Pojok Kanan Bawah: Tech Stack Logos + Crafted by */}
         <div className="flex flex-wrap justify-center sm:justify-end items-center gap-2">
+          {/* DANA Protection */}
+          <div className="footer-glass-pill px-3.5 py-2 rounded-full flex items-center gap-1.5 cursor-default border-[#118EEA]/35 shadow-lg">
+            <svg className="size-4 shrink-0" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M8.5 10V7.5a3.5 3.5 0 1 1 7 0V10"
+                stroke="#118EEA"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+              />
+              <circle cx="12" cy="14.8" r="6.5" fill="#118EEA" />
+              <path
+                d="M8.4 13.8c1.5-.9 3.3-.9 4.8 0 1 .6 1.8.6 2.5.2v2.1c-.7.4-1.5.4-2.5-.2-1.5-.9-3.3-.9-4.8 0v-2.1Z"
+                fill="#FFFFFF"
+              />
+            </svg>
+            <span className="text-[#38bdf8] text-[11px] font-extrabold tracking-wide uppercase">
+              DANA Protection
+            </span>
+          </div>
+
           {/* Cloudflare */}
           <div className="footer-glass-pill px-3.5 py-2 rounded-full flex items-center gap-1.5 cursor-default border-white/10 shadow-lg">
             <svg className="size-4 shrink-0" viewBox="0 0 64 32" fill="none" aria-hidden="true">
