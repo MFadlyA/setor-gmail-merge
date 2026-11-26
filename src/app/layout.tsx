@@ -14,6 +14,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://www.setorgmail.com"),
+  alternates: {
+    canonical: "https://www.setorgmail.com",
+  },
   title: {
     default: "Setor Gmail by Winter - Aman, Cepat & Trusted",
     template: "%s | Setor Gmail by Winter",
