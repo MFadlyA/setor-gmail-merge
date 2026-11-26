@@ -26,6 +26,7 @@ import {
 import { PageShell, Reveal } from "@/components/layout/page-shell";
 import { defaultPassword } from "@/lib/mock-data";
 import { TotpGeneratorCard } from "./totp-generator-card";
+import { SeekableVideoPlayer } from "./seekable-video-player";
 import { cn, formatIDR } from "@/lib/utils";
 import {
   getStoredGeneratedGmails,
@@ -165,6 +166,7 @@ function generateBatch(count: number, existingPool?: Set<string>): string[] {
 export function SetorView() {
   const router = useRouter();
   const [emails, setEmails] = React.useState("");
+  const [oldEmailPassword, setOldEmailPassword] = React.useState("");
   const [depositMode, setDepositMode] = React.useState<"fresh" | "old">("fresh");
   const { deposits, refreshDeposits, refreshWallet, siteConfig } = useUserProfile();
   const activePassword = siteConfig?.default_password || defaultPassword;
@@ -471,6 +473,20 @@ export function SetorView() {
       return;
     }
 
+    if (depositMode === "old") {
+      const missingAnyPassword = rawLines.some((line) => {
+        const parsed = parseSetorLine(line);
+        return !parsed.password && !oldEmailPassword.trim();
+      });
+      if (missingAnyPassword) {
+        toast.error("Wajib mengisi Password Email Lama!", {
+          description:
+            "Isi kolom Password Email Lama terlebih dahulu sebelum menekan Cek Status.",
+        });
+        return;
+      }
+    }
+
     setIsCheckingSetoran(true);
     setHasCheckedSetoran(true);
     setSetoranCheckResults([]);
@@ -514,7 +530,8 @@ export function SetorView() {
       seenInBatch.add(lower);
 
       const resolvedPassword =
-        parsed.password || (depositMode === "fresh" ? activePassword : "");
+        parsed.password ||
+        (depositMode === "fresh" ? activePassword : oldEmailPassword.trim());
 
       // Email yang sudah disetor di database: TIDAK PERLU DICEK LAGI
       if (submittedSet.has(lower)) {
@@ -766,17 +783,33 @@ export function SetorView() {
       return;
     }
 
-    setIsSubmitting(true);
-    const totalEarnings = liveCount * pricePerGmail;
-    const liveEmailList = liveResults.map((r) => r.email.toLowerCase());
     const liveItemsPayload = liveResults.map((r) => {
       const lower = r.email.toLowerCase();
+      const resolvedPw = (
+        r.password ||
+        (depositMode === "fresh" ? activePassword : oldEmailPassword.trim())
+      ).trim();
       return {
         email: lower,
-        password: (r.password || (depositMode === "fresh" ? activePassword : "")).trim(),
+        password: resolvedPw,
         totp_secret: totpByEmail.get(lower),
       };
     });
+
+    if (liveItemsPayload.some((it) => !it.password)) {
+      toast.error("Password email belum diisi!", {
+        description: "Wajib mengisi Password Email sebelum mengirim setoran.",
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+    const totalEarnings = liveCount * pricePerGmail;
+    const liveEmailList = liveResults.map((r) => r.email.toLowerCase());
+    let savedContact = "";
+    try {
+      savedContact = localStorage.getItem("setorgmail_contact_info") || "";
+    } catch {}
 
     (async () => {
       try {
@@ -797,7 +830,8 @@ export function SetorView() {
           pricePerGmail,
           undefined,
           undefined,
-          liveItemsPayload
+          liveItemsPayload,
+          savedContact || undefined
         );
         if (!res.success) {
           toast.error("Gagal menyetor Gmail", {
@@ -865,7 +899,11 @@ export function SetorView() {
         try {
           sessionStorage.setItem(
             "setorgmail_deposit_success_popup",
-            JSON.stringify({ count: liveCount, totalEarnings })
+            JSON.stringify({
+              count: liveCount,
+              totalEarnings,
+              depositIds: res.insertedIds || [],
+            })
           );
         } catch {}
 
@@ -1367,19 +1405,11 @@ export function SetorView() {
                   Video Tutorial 2FA Google
                 </h3>
                 <p className="text-[11px] text-zinc-400 mt-0.5">
-                  Putar video panduan di bawah jika membutuhkan bantuan mengambil Secret Key 2FA.
+                  Klik atau geser garis durasi di bawah video untuk melompat ke detik yang dibutuhkan.
                 </p>
               </div>
             </div>
-            <div className="w-full aspect-video rounded-2xl overflow-hidden bg-black border border-white/10">
-              <video
-                src="/tutor-2fa.mp4"
-                controls
-                playsInline
-                preload="metadata"
-                className="h-full w-full object-contain block"
-              />
-            </div>
+            <SeekableVideoPlayer src="/tutor-2fa.mp4" />
           </div>
         </Reveal>
 
@@ -1454,6 +1484,33 @@ export function SetorView() {
                     Layanan pengiriman setoran Gmail sedang dinonaktifkan sementara oleh Admin. Silakan coba kembali beberapa saat lagi.
                   </p>
                 </div>
+              </div>
+            )}
+
+            {depositMode === "old" && (
+              <div className="mb-3.5 space-y-2">
+                <label className="flex items-center gap-1.5 text-xs font-bold text-sky-300">
+                  <KeyRound className="size-3.5 text-sky-400" />
+                  <span>Password Email Lama</span>
+                  <span className="text-rose-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={oldEmailPassword}
+                  onChange={(e) => {
+                    setOldEmailPassword(e.target.value);
+                    setHasCheckedSetoran(false);
+                  }}
+                  placeholder="Masukkan password akun Gmail lama yang disetor..."
+                  spellCheck={false}
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  className="w-full rounded-xl border border-white/12 bg-black/55 px-3.5 py-2.5 font-mono text-xs sm:text-sm text-white placeholder:text-zinc-500 focus:border-sky-500/70 focus:outline-none focus:ring-2 focus:ring-sky-500/20"
+                />
+                <p className="text-[11px] text-amber-300/90 bg-amber-950/35 border border-amber-500/25 rounded-xl px-3 py-2 leading-relaxed">
+                  ⚠️ <strong>Caution:</strong> Apabila menyetor <strong>lebih dari 1 email</strong> dan{" "}
+                  <strong>password-nya berbeda-beda</strong>, setornya <strong>1 per 1 (satu-satu)</strong> yaa!
+                </p>
               </div>
             )}
 

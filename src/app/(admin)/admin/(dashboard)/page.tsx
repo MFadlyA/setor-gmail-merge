@@ -73,6 +73,7 @@ export default function DashboardOverviewPage() {
   const [copiedGmail, setCopiedGmail] = useState<string | null>(null);
   const [copiedPasswordId, setCopiedPasswordId] = useState<string | null>(null);
   const [copiedSecretId, setCopiedSecretId] = useState<string | null>(null);
+  const [copiedContactId, setCopiedContactId] = useState<string | null>(null);
 
   // Withdrawal processing state
   const [isProcessingWd, setIsProcessingWd] = useState<string | null>(null);
@@ -212,6 +213,14 @@ export default function DashboardOverviewPage() {
     }
   };
 
+  const copyContact = (contact: string, id: string) => {
+    if (navigator?.clipboard && contact && contact !== "-") {
+      navigator.clipboard.writeText(contact);
+      setCopiedContactId(id);
+      setTimeout(() => setCopiedContactId(null), 1500);
+    }
+  };
+
   const stats = data?.stats || {
     totalUsers: 0,
     totalAdmins: 0,
@@ -275,6 +284,7 @@ export default function DashboardOverviewPage() {
           (d.gmail || "").toLowerCase().includes(q) ||
           (d.password || "").toLowerCase().includes(q) ||
           (d.totp_secret || "").toLowerCase().includes(q) ||
+          (d.contact_info || "").toLowerCase().includes(q) ||
           (d.userName || "").toLowerCase().includes(q) ||
           (d.userEmail || "").toLowerCase().includes(q)
       );
@@ -307,7 +317,7 @@ export default function DashboardOverviewPage() {
   }, [data?.recentTransactions, txDateFrom, txDateTo, txSortOrder]);
 
   return (
-    <div className="space-y-4 max-w-7xl mx-auto pb-10">
+    <div className="space-y-4 max-w-7xl w-full min-w-0 mx-auto pb-10">
       {/* Revenue & Balance Flow Line Chart (Real-time from DB) */}
       <LineChart9
         onRefresh={handleFullRefresh}
@@ -323,24 +333,24 @@ export default function DashboardOverviewPage() {
       />
 
       {/* 1 Kolom Terpadu: Ekosistem & Likuiditas User (3 Section) */}
-      <div className="rounded-2xl border border-zinc-800 bg-zinc-900/80 p-5 shadow-sm space-y-4">
+      <div className="rounded-2xl border border-zinc-800 bg-zinc-900/80 p-3.5 sm:p-5 shadow-sm space-y-4 max-w-full overflow-hidden">
         {/* Header Insight */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-zinc-800">
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
               <TrendingUp className="w-4 h-4" />
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 min-w-0">
               <h3 className="text-sm font-bold text-white tracking-tight">
                 Ekosistem & Likuiditas User
               </h3>
-              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
                 Live Insight
               </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 max-w-full">
             {stats.pendingWithdrawals > 0 ? (
               <button
                 type="button"
@@ -348,7 +358,7 @@ export default function DashboardOverviewPage() {
                   setActiveTab("transactions");
                   scrollToTabs();
                 }}
-                className="px-3 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                className="px-3 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-xs font-semibold flex flex-wrap items-center gap-1.5 transition-all cursor-pointer shadow-xs"
               >
                 <AlertTriangle className="w-3.5 h-3.5 text-amber-400 animate-bounce shrink-0" />
                 <span>{stats.pendingWithdrawals} Antrean WD Butuh Diproses</span>
@@ -358,7 +368,7 @@ export default function DashboardOverviewPage() {
               </button>
             ) : (
               <div className="px-3 py-1 rounded-xl bg-zinc-950/60 border border-zinc-800 text-[11px] text-zinc-300 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
                 <span className="font-medium">Semua Penarikan Telah Diproses</span>
               </div>
             )}
@@ -366,13 +376,13 @@ export default function DashboardOverviewPage() {
         </div>
 
         {/* 3 Section Terpadu: Ekosistem & Likuiditas User (Garis Tengah Sejajar) */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 py-1">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 sm:gap-4 py-1">
           {/* Section 1: Pengguna & Jumlah User Aktif */}
-          <div className="bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-4 flex flex-col hover:border-zinc-700/80 transition-colors">
-            <div className="h-[54px] flex flex-col justify-between">
+          <div className="bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-3.5 sm:p-4 flex flex-col hover:border-zinc-700/80 transition-colors min-w-0">
+            <div className="min-h-[54px] flex flex-col justify-between gap-2">
               <div className="flex items-center justify-between text-white">
                 <span className="text-[11px] font-semibold uppercase tracking-wider text-white">Jumlah User</span>
-                <Users className="w-4 h-4 text-blue-400" />
+                <Users className="w-4 h-4 text-blue-400 shrink-0" />
               </div>
               <div className="text-xl sm:text-2xl font-bold text-white font-mono tracking-tight leading-none">
                 {isLoading ? (
@@ -384,9 +394,9 @@ export default function DashboardOverviewPage() {
             </div>
 
             <div className="border-t border-zinc-800/80 pt-3 mt-3.5 flex-1 flex flex-col justify-center space-y-2 text-xs">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <span className="flex items-center gap-1.5 text-zinc-300">
-                  <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
+                  <UserCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                   Jumlah User Aktif:
                 </span>
                 <b className="text-emerald-400 font-mono">
@@ -401,13 +411,13 @@ export default function DashboardOverviewPage() {
           </div>
 
           {/* Section 2: Saldo All User (kanan bawah: User Punya Saldo) & Saldo Ditarik (kanan: User Tarik Saldo) */}
-          <div className="bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-4 flex flex-col hover:border-zinc-700/80 transition-colors">
-            <div className="h-[54px] flex flex-col justify-between">
+          <div className="bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-3.5 sm:p-4 flex flex-col hover:border-zinc-700/80 transition-colors min-w-0">
+            <div className="min-h-[54px] flex flex-col justify-between gap-2">
               <div className="flex items-center justify-between text-white">
                 <span className="text-[11px] font-semibold uppercase tracking-wider text-white">Saldo All User</span>
-                <Wallet className="w-4 h-4 text-emerald-400" />
+                <Wallet className="w-4 h-4 text-emerald-400 shrink-0" />
               </div>
-              <div className="flex items-baseline justify-between gap-2">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
                 <div className="text-xl sm:text-2xl font-bold text-white font-mono tracking-tight leading-none">
                   {isLoading ? (
                     <div className="w-28 h-6 bg-zinc-800 animate-pulse rounded" />
@@ -434,13 +444,13 @@ export default function DashboardOverviewPage() {
             </div>
 
             <div className="border-t border-zinc-800/80 pt-3 mt-3.5 flex-1 flex flex-col justify-center">
-              <div className="flex items-center text-white mb-1">
+              <div className="flex items-center text-white mb-1.5">
                 <span className="text-[11px] font-semibold uppercase tracking-wider flex items-center gap-1.5 text-white">
-                  <ArrowDownToLine className="w-3.5 h-3.5 text-white" />
+                  <ArrowDownToLine className="w-3.5 h-3.5 text-white shrink-0" />
                   Saldo Ditarik
                 </span>
               </div>
-              <div className="flex items-baseline justify-between gap-2">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
                 <div className="text-xl sm:text-2xl font-bold text-white font-mono tracking-tight leading-none">
                   {isLoading ? (
                     <div className="w-24 h-6 bg-zinc-800 animate-pulse rounded" />
@@ -471,13 +481,13 @@ export default function DashboardOverviewPage() {
           </div>
 
           {/* Section 3: Gmail Digenerate & Status (Diterima / Dicek / Ditolak) */}
-          <div className="bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-4 flex flex-col hover:border-zinc-700/80 transition-colors">
-            <div className="h-[54px] flex flex-col justify-between">
+          <div className="bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-3.5 sm:p-4 flex flex-col hover:border-zinc-700/80 transition-colors min-w-0">
+            <div className="min-h-[54px] flex flex-col justify-between gap-2">
               <div className="flex items-center justify-between text-white">
                 <span className="text-[11px] font-semibold uppercase tracking-wider text-white">Gmail Digenerate</span>
-                <Mail className="w-4 h-4 text-rose-400" />
+                <Mail className="w-4 h-4 text-rose-400 shrink-0" />
               </div>
-              <div className="flex items-baseline justify-between gap-2">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
                 <div className="text-xl sm:text-2xl font-bold text-white font-mono tracking-tight leading-none">
                   {isLoading ? (
                     <div className="w-20 h-6 bg-zinc-800 animate-pulse rounded" />
@@ -529,11 +539,11 @@ export default function DashboardOverviewPage() {
       </div>
 
       {/* Main Full-Width Section (Unified Dashboard Tabs) */}
-      <div id="dashboard-tabs-section" className="space-y-4">
-        <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl overflow-hidden shadow-sm">
+      <div id="dashboard-tabs-section" className="space-y-4 min-w-0 max-w-full">
+        <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl overflow-hidden shadow-sm max-w-full">
           {/* Tab Header (3 Tab: Daftar Pengguna, Setor Gmail, Transaksi) */}
-          <div className="flex flex-wrap items-center justify-between border-b border-zinc-800 px-3 pt-2 pb-0 bg-zinc-950/40 no-scrollbar gap-2">
-            <div className="flex items-center gap-1">
+          <div className="flex items-center justify-between border-b border-zinc-800 px-2.5 sm:px-3 pt-2 pb-0 bg-zinc-950/40 overflow-x-auto no-scrollbar max-w-full">
+            <div className="flex items-center gap-1 whitespace-nowrap">
               {/* Tab 1: Daftar Pengguna (Sebelah Kiri) */}
               <button
                 type="button"
@@ -711,13 +721,13 @@ export default function DashboardOverviewPage() {
                     </span>
 
                     <div className="flex flex-wrap items-center gap-2">
-                      <div className="flex items-center gap-1.5 bg-zinc-950/80 border border-zinc-800 rounded-xl px-2.5 py-1">
+                      <div className="flex flex-wrap items-center gap-1.5 bg-zinc-950/80 border border-zinc-800 rounded-xl px-2.5 py-1 max-w-full">
                         <Calendar className="w-3.5 h-3.5 text-sky-400 shrink-0" />
                         <input
                           type="date"
                           value={txDateFrom}
                           onChange={(e) => setTxDateFrom(e.target.value)}
-                          className="bg-transparent text-xs text-zinc-200 focus:outline-none [color-scheme:dark] cursor-pointer"
+                          className="bg-transparent text-[11px] sm:text-xs text-zinc-200 focus:outline-none [color-scheme:dark] cursor-pointer min-w-0"
                           title="Dari tanggal"
                         />
                         <span className="text-[10px] text-zinc-500 font-semibold">s/d</span>
@@ -726,7 +736,7 @@ export default function DashboardOverviewPage() {
                           value={txDateTo}
                           min={txDateFrom || undefined}
                           onChange={(e) => setTxDateTo(e.target.value)}
-                          className="bg-transparent text-xs text-zinc-200 focus:outline-none [color-scheme:dark] cursor-pointer"
+                          className="bg-transparent text-[11px] sm:text-xs text-zinc-200 focus:outline-none [color-scheme:dark] cursor-pointer min-w-0"
                           title="Sampai tanggal"
                         />
                         {(txDateFrom || txDateTo) && (
@@ -865,13 +875,13 @@ export default function DashboardOverviewPage() {
                     </div>
 
                     {/* Filter Rentang Tanggal Setor (Dari - Sampai) */}
-                    <div className="flex items-center gap-1.5 bg-zinc-950/80 border border-zinc-800 rounded-xl px-2.5 py-1.5">
+                    <div className="flex flex-wrap items-center gap-1.5 bg-zinc-950/80 border border-zinc-800 rounded-xl px-2.5 py-1.5 max-w-full">
                       <Calendar className="w-3.5 h-3.5 text-sky-400 shrink-0" />
                       <input
                         type="date"
                         value={depositDateFrom}
                         onChange={(e) => setDepositDateFrom(e.target.value)}
-                        className="bg-transparent text-xs text-zinc-200 focus:outline-none [color-scheme:dark] cursor-pointer"
+                        className="bg-transparent text-[11px] sm:text-xs text-zinc-200 focus:outline-none [color-scheme:dark] cursor-pointer min-w-0"
                         title="Dari tanggal"
                       />
                       <span className="text-[10px] text-zinc-500 font-semibold">s/d</span>
@@ -880,7 +890,7 @@ export default function DashboardOverviewPage() {
                         value={depositDateTo}
                         min={depositDateFrom || undefined}
                         onChange={(e) => setDepositDateTo(e.target.value)}
-                        className="bg-transparent text-xs text-zinc-200 focus:outline-none [color-scheme:dark] cursor-pointer"
+                        className="bg-transparent text-[11px] sm:text-xs text-zinc-200 focus:outline-none [color-scheme:dark] cursor-pointer min-w-0"
                         title="Sampai tanggal"
                       />
                       {(depositDateFrom || depositDateTo) && (
@@ -899,7 +909,7 @@ export default function DashboardOverviewPage() {
                     </div>
 
                     {/* Filter Kategori: Semua / Fresh / Bebas */}
-                    <div className="flex items-center gap-1 bg-zinc-950/80 border border-zinc-800 rounded-xl p-1">
+                    <div className="flex items-center gap-1 bg-zinc-950/80 border border-zinc-800 rounded-xl p-1 overflow-x-auto max-w-full no-scrollbar">
                       {[
                         { id: "all" as const, label: "Semua Kategori" },
                         { id: "good" as const, label: "Gmail Fresh" },
@@ -909,7 +919,7 @@ export default function DashboardOverviewPage() {
                           key={cat.id}
                           type="button"
                           onClick={() => setDepositCategoryFilter(cat.id)}
-                          className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer ${depositCategoryFilter === cat.id
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap ${depositCategoryFilter === cat.id
                             ? "bg-sky-500/20 text-sky-300 border border-sky-500/40"
                             : "text-zinc-400 hover:text-zinc-200 border border-transparent"
                             }`}
@@ -976,16 +986,17 @@ export default function DashboardOverviewPage() {
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
                       <tr className="border-b border-zinc-800 bg-zinc-900/60 text-zinc-400 font-semibold uppercase tracking-wider text-[10px]">
-                        <th className="py-2.5 px-3">Gmail Disetor</th>
-                        <th className="py-2.5 px-3">Password</th>
-                        <th className="py-2.5 px-3">Penyetor Akun</th>
-                        <th className="py-2.5 px-3">Secret Code Google</th>
-                        <th className="py-2.5 px-3">OTP 2FA</th>
-                        <th className="py-2.5 px-3">Kategori</th>
-                        <th className="py-2.5 px-3">Status Email</th>
+                        <th className="py-2.5 px-3 whitespace-nowrap">Gmail Disetor</th>
+                        <th className="py-2.5 px-3 whitespace-nowrap">Password</th>
+                        <th className="py-2.5 px-3 whitespace-nowrap">Penyetor Akun</th>
+                        <th className="py-2.5 px-3 whitespace-nowrap">Secret Code Google</th>
+                        <th className="py-2.5 px-3 whitespace-nowrap">OTP 2FA</th>
+                        <th className="py-2.5 px-3 whitespace-nowrap">Kontak TG / WA</th>
+                        <th className="py-2.5 px-3 whitespace-nowrap">Kategori</th>
+                        <th className="py-2.5 px-3 whitespace-nowrap">Status Email</th>
                         <th
                           onClick={() => setDepositSortOrder((prev) => (prev === "desc" ? "asc" : "desc"))}
-                          className="py-2.5 px-3 cursor-pointer hover:text-zinc-200 select-none transition-colors"
+                          className="py-2.5 px-3 cursor-pointer hover:text-zinc-200 select-none transition-colors whitespace-nowrap"
                           title="Klik untuk urutkan waktu setor"
                         >
                           <span className="inline-flex items-center gap-1">
@@ -997,13 +1008,13 @@ export default function DashboardOverviewPage() {
                             )}
                           </span>
                         </th>
-                        <th className="py-2.5 px-3 text-right">Aksi</th>
+                        <th className="py-2.5 px-3 text-right whitespace-nowrap">Aksi</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-zinc-800/60">
                       {isLoading ? (
                         <tr>
-                          <td colSpan={9} className="py-8 text-center text-zinc-500">
+                          <td colSpan={10} className="py-8 text-center text-zinc-500">
                             <div className="flex items-center justify-center gap-2">
                               <RefreshCw className="w-4 h-4 animate-spin text-sky-400" />
                               <span>Memuat list setoran Gmail...</span>
@@ -1012,7 +1023,7 @@ export default function DashboardOverviewPage() {
                         </tr>
                       ) : filteredDepositsList.length === 0 ? (
                         <tr>
-                          <td colSpan={9} className="py-8 text-center text-zinc-500">
+                          <td colSpan={10} className="py-8 text-center text-zinc-500">
                             Belum ada setoran Gmail yang sesuai filter pada rentang waktu ini.
                           </td>
                         </tr>
@@ -1023,6 +1034,7 @@ export default function DashboardOverviewPage() {
                           const statusMeta = getDepositStatusAdminMeta(d.status);
                           const emailPass = d.password || "-";
                           const totpSecret = d.totp_secret || "-";
+                          const contactInfo = d.contact_info || "-";
                           return (
                             <tr key={d.id} className="hover:bg-zinc-800/30 transition-colors">
                               {/* Gmail Disetor */}
@@ -1109,6 +1121,31 @@ export default function DashboardOverviewPage() {
                               {/* OTP Generator Live */}
                               <td className="py-2.5 px-3 whitespace-nowrap">
                                 <AdminLiveOtpCell secret={totpSecret} />
+                              </td>
+
+                              {/* Kontak Telegram / WA */}
+                              <td className="py-2.5 px-3 whitespace-nowrap">
+                                {contactInfo !== "-" ? (
+                                  <div className="inline-flex items-center gap-1.5">
+                                    <span className="font-mono text-cyan-300 font-medium text-[11px] select-all bg-cyan-500/10 border border-cyan-500/25 px-2 py-0.5 rounded-md max-w-[150px] truncate">
+                                      {contactInfo}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => copyContact(contactInfo, d.id)}
+                                      className="p-1 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition-colors cursor-pointer"
+                                      title="Salin Kontak Telegram / WA"
+                                    >
+                                      {copiedContactId === d.id ? (
+                                        <Check className="w-3 h-3 text-emerald-400" />
+                                      ) : (
+                                        <Copy className="w-3 h-3" />
+                                      )}
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <span className="text-zinc-500">-</span>
+                                )}
                               </td>
 
                               {/* Kategori & Nominal */}

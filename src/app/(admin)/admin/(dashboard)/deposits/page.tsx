@@ -44,6 +44,7 @@ export default function DepositsPage() {
   const [copiedGmailId, setCopiedGmailId] = useState<string | null>(null);
   const [copiedPasswordId, setCopiedPasswordId] = useState<string | null>(null);
   const [copiedSecretId, setCopiedSecretId] = useState<string | null>(null);
+  const [copiedContactId, setCopiedContactId] = useState<string | null>(null);
   const [categories, setCategories] = useState<any[]>([]);
 
   // Deposit Detail / Verification Modal
@@ -132,6 +133,14 @@ export default function DepositsPage() {
       navigator.clipboard.writeText(text);
       setCopiedSecretId(id);
       setTimeout(() => setCopiedSecretId(null), 2000);
+    }
+  };
+
+  const handleCopyContact = (text: string, id: string) => {
+    if (navigator?.clipboard && text && text !== "-") {
+      navigator.clipboard.writeText(text);
+      setCopiedContactId(id);
+      setTimeout(() => setCopiedContactId(null), 2000);
     }
   };
 
@@ -291,23 +300,24 @@ export default function DepositsPage() {
           <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="bg-zinc-950/80 border-b border-zinc-800 text-zinc-400 font-semibold uppercase tracking-wider text-[10px]">
-                <th className="py-3 px-4">Tanggal Setor</th>
-                <th className="py-3 px-4">Akun Gmail Disetor</th>
-                <th className="py-3 px-4">Password</th>
-                <th className="py-3 px-4">Penyetor (Member)</th>
-                <th className="py-3 px-4">Secret Code Google</th>
-                <th className="py-3 px-4">OTP 2FA</th>
-                <th className="py-3 px-4">Kategori</th>
-                <th className="py-3 px-4 text-right">Reward</th>
-                <th className="py-3 px-4 text-center">Status</th>
-                <th className="py-3 px-4">Catatan</th>
-                <th className="py-3 px-4 text-right">Aksi Verifikasi</th>
+                <th className="py-3 px-4 whitespace-nowrap">Tanggal Setor</th>
+                <th className="py-3 px-4 whitespace-nowrap">Akun Gmail Disetor</th>
+                <th className="py-3 px-4 whitespace-nowrap">Password</th>
+                <th className="py-3 px-4 whitespace-nowrap">Penyetor (Member)</th>
+                <th className="py-3 px-4 whitespace-nowrap">Secret Code Google</th>
+                <th className="py-3 px-4 whitespace-nowrap">OTP 2FA</th>
+                <th className="py-3 px-4 whitespace-nowrap">Kontak TG / WA</th>
+                <th className="py-3 px-4 whitespace-nowrap">Kategori</th>
+                <th className="py-3 px-4 text-right whitespace-nowrap">Reward</th>
+                <th className="py-3 px-4 text-center whitespace-nowrap">Status</th>
+                <th className="py-3 px-4 whitespace-nowrap">Catatan</th>
+                <th className="py-3 px-4 text-right whitespace-nowrap">Aksi Verifikasi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-800/80 text-zinc-200">
               {isLoadingDeposits ? (
                 <tr>
-                  <td colSpan={11} className="py-12 text-center text-zinc-500">
+                  <td colSpan={12} className="py-12 text-center text-zinc-500">
                     <div className="flex flex-col items-center gap-2">
                       <RefreshCw className="w-5 h-5 animate-spin text-emerald-400" />
                       <span>Memuat data setoran Gmail...</span>
@@ -316,7 +326,7 @@ export default function DepositsPage() {
                 </tr>
               ) : deposits.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="py-12 text-center text-zinc-500">
+                  <td colSpan={12} className="py-12 text-center text-zinc-500">
                     <div className="flex flex-col items-center gap-2 max-w-sm mx-auto">
                       <Mail className="w-8 h-8 text-zinc-600" />
                       <p className="font-medium text-zinc-400">Belum ada akun Gmail yang disetor</p>
@@ -416,6 +426,28 @@ export default function DepositsPage() {
 
                     <td className="py-3 px-4 whitespace-nowrap">
                       <AdminLiveOtpCell secret={dep.totp_secret} />
+                    </td>
+
+                    <td className="py-3 px-4 whitespace-nowrap">
+                      {dep.contact_info && dep.contact_info !== "-" ? (
+                        <div className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-500/25 bg-cyan-500/10 px-2.5 py-1 text-xs text-cyan-300 font-mono">
+                          <span className="font-semibold select-all max-w-[140px] truncate">{dep.contact_info}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleCopyContact(dep.contact_info, dep.id)}
+                            title="Salin Kontak Telegram / WA"
+                            className="text-zinc-400 hover:text-white transition-colors p-0.5 rounded hover:bg-zinc-800 cursor-pointer"
+                          >
+                            {copiedContactId === dep.id ? (
+                              <Check className="w-3 h-3 text-emerald-400" />
+                            ) : (
+                              <Copy className="w-3 h-3" />
+                            )}
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-zinc-500">-</span>
+                      )}
                     </td>
 
                     <td className="py-3 px-4">
@@ -663,6 +695,30 @@ export default function DepositsPage() {
             <div className="flex items-center justify-between gap-2">
               <span className="text-zinc-500">OTP 2FA Live:</span>
               <AdminLiveOtpCell secret={selectedDeposit?.totp_secret} />
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-zinc-500">Kontak Telegram / WA:</span>
+              <div className="flex items-center gap-1.5">
+                <span className="font-mono font-bold text-cyan-300 text-xs select-all">
+                  {selectedDeposit?.contact_info || "-"}
+                </span>
+                {selectedDeposit?.contact_info && selectedDeposit.contact_info !== "-" && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleCopyContact(selectedDeposit.contact_info, `modal-${selectedDeposit.id}`)
+                    }
+                    className="p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-white cursor-pointer"
+                    title="Salin Kontak"
+                  >
+                    {copiedContactId === `modal-${selectedDeposit.id}` ? (
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    ) : (
+                      <Copy className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                )}
+              </div>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-zinc-500">Penyetor (Member):</span>

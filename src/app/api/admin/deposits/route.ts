@@ -104,6 +104,7 @@ export async function GET(req: NextRequest) {
       const rawNote = typeof d.note === "string" ? d.note.trim() : "";
       const passwordMatch = rawNote.match(/Password:\s*([^|]+)/i);
       const secretMatch = rawNote.match(/2FA:\s*([A-Za-z2-7\s-]+)/i);
+      const contactMatch = rawNote.match(/Kontak:\s*([^|]+)/i);
 
       const resolvedPassword =
         (typeof d.password === "string" && d.password.trim()) ||
@@ -115,10 +116,16 @@ export async function GET(req: NextRequest) {
         (secretMatch ? secretMatch[1].trim() : "") ||
         "-";
 
+      const resolvedContact =
+        (typeof d.contact_info === "string" && d.contact_info.trim()) ||
+        (contactMatch ? contactMatch[1].trim() : "") ||
+        "-";
+
       const displayNote =
         rawNote
           .replace(/\|?\s*Password:\s*[^|]+/gi, "")
           .replace(/\|?\s*2FA:\s*[A-Za-z2-7\s-]+/gi, "")
+          .replace(/\|?\s*Kontak:\s*[^|]+/gi, "")
           .replace(/^\s*\|\s*|\s*\|\s*$/g, "")
           .trim() || "-";
 
@@ -133,6 +140,7 @@ export async function GET(req: NextRequest) {
         normalized_gmail: d.normalized_gmail || d.gmail || "-",
         password: resolvedPassword,
         totp_secret: resolvedTotpSecret,
+        contact_info: resolvedContact,
         category_id: d.category_id || "good",
         category_label: cat.label,
         status: d.status || "pending",
@@ -151,6 +159,7 @@ export async function GET(req: NextRequest) {
           it.user_name.toLowerCase().includes(search) ||
           it.user_email.toLowerCase().includes(search) ||
           it.user_dana.toLowerCase().includes(search) ||
+          it.contact_info.toLowerCase().includes(search) ||
           it.category_label.toLowerCase().includes(search)
       );
     }
@@ -255,7 +264,22 @@ export async function PATCH(req: NextRequest) {
       updated_at: nowStr,
     };
     if (adminNote !== undefined) {
-      updatePayload.note = adminNote;
+      const prevRawNote = typeof deposit.note === "string" ? deposit.note : "";
+      const preservedParts: string[] = [];
+      if (adminNote.trim()) preservedParts.push(adminNote.trim());
+      if (!deposit.password) {
+        const pm = prevRawNote.match(/Password:\s*([^|]+)/i);
+        if (pm?.[1]?.trim()) preservedParts.push(`Password: ${pm[1].trim()}`);
+      }
+      if (!deposit.totp_secret) {
+        const sm = prevRawNote.match(/2FA:\s*([A-Za-z2-7\s-]+)/i);
+        if (sm?.[1]?.trim()) preservedParts.push(`2FA: ${sm[1].trim()}`);
+      }
+      if (!deposit.contact_info) {
+        const cm = prevRawNote.match(/Kontak:\s*([^|]+)/i);
+        if (cm?.[1]?.trim()) preservedParts.push(`Kontak: ${cm[1].trim()}`);
+      }
+      updatePayload.note = preservedParts.join(" | ");
     }
 
     const { data: updatedRows, error: updErr } = await supabaseAdmin

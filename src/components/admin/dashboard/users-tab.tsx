@@ -295,13 +295,13 @@ export const UsersTab = React.memo(function UsersTab({
           </div>
 
           {/* Filter Rentang Tanggal (Dari - Sampai) */}
-          <div className="flex items-center gap-1.5 bg-zinc-950/80 border border-zinc-800 rounded-xl px-2.5 py-1.5">
+          <div className="flex flex-wrap items-center gap-1.5 bg-zinc-950/80 border border-zinc-800 rounded-xl px-2.5 py-1.5 max-w-full">
             <Calendar className="w-3.5 h-3.5 text-sky-400 shrink-0" />
             <input
               type="date"
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
-              className="bg-transparent text-xs text-zinc-200 focus:outline-none [color-scheme:dark] cursor-pointer"
+              className="bg-transparent text-[11px] sm:text-xs text-zinc-200 focus:outline-none [color-scheme:dark] cursor-pointer min-w-0"
               title="Dari tanggal"
             />
             <span className="text-[10px] text-zinc-500 font-semibold">s/d</span>
@@ -310,7 +310,7 @@ export const UsersTab = React.memo(function UsersTab({
               value={dateTo}
               min={dateFrom || undefined}
               onChange={(e) => setDateTo(e.target.value)}
-              className="bg-transparent text-xs text-zinc-200 focus:outline-none [color-scheme:dark] cursor-pointer"
+              className="bg-transparent text-[11px] sm:text-xs text-zinc-200 focus:outline-none [color-scheme:dark] cursor-pointer min-w-0"
               title="Sampai tanggal"
             />
             {(dateFrom || dateTo) && (

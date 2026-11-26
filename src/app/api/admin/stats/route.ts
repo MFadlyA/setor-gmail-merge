@@ -332,6 +332,7 @@ export async function GET(req: NextRequest) {
       const rawNote = String(d.note || "").trim();
       const passwordMatch = rawNote.match(/Password:\s*([^|]+)/i);
       const secretMatch = rawNote.match(/2FA:\s*([A-Za-z2-7\s-]+)/i);
+      const contactMatch = rawNote.match(/Kontak:\s*([^|]+)/i);
       const emailPassword =
         (typeof d.password === "string" && d.password.trim()) ||
         (passwordMatch ? passwordMatch[1].trim() : "") ||
@@ -340,9 +341,14 @@ export async function GET(req: NextRequest) {
         (typeof d.totp_secret === "string" && d.totp_secret.trim()) ||
         (secretMatch ? secretMatch[1].trim() : "") ||
         "-";
+      const resolvedContact =
+        (typeof d.contact_info === "string" && d.contact_info.trim()) ||
+        (contactMatch ? contactMatch[1].trim() : "") ||
+        "-";
       const cleanedNote = rawNote
         .replace(/\|?\s*Password:\s*[^|]+/gi, "")
         .replace(/\|?\s*2FA:\s*[A-Za-z2-7\s-]+/gi, "")
+        .replace(/\|?\s*Kontak:\s*[^|]+/gi, "")
         .replace(/^\s*\|\s*|\s*\|\s*$/g, "")
         .trim();
 
@@ -354,6 +360,7 @@ export async function GET(req: NextRequest) {
         gmail: d.gmail || d.normalized_gmail || "-",
         password: emailPassword,
         totp_secret: resolvedTotpSecret,
+        contact_info: resolvedContact,
         status: d.status || "pending",
         category_id: d.category_id || "good",
         categoryLabel: d.category_id === "good" ? "Gmail Fresh" : "Gmail Bebas",

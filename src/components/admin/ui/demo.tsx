@@ -108,20 +108,20 @@ export function LineChart9({
   const strokeGlow = 'rgba(168, 85, 247, 0.7)';
 
   return (
-    <Card className={`w-full bg-zinc-900/90 border border-zinc-800 shadow-sm ${className}`}>
-      <CardContent className="flex flex-col items-stretch gap-5 p-5">
+    <Card className={`w-full max-w-full overflow-hidden bg-zinc-900/90 border border-zinc-800 shadow-sm ${className}`}>
+      <CardContent className="flex flex-col items-stretch gap-4 sm:gap-5 p-3.5 sm:p-5">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-2">
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2.5">
-              <span className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 mb-1">
+          <div className="space-y-1.5 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-2xl sm:text-3xl font-bold text-white tracking-tight truncate">
                 {isBalanceHidden ? 'Rp ***' : `Rp ${currentTotal.toLocaleString('id-ID')}`}
               </span>
               {onToggleHideBalance && (
                 <button
                   type="button"
                   onClick={onToggleHideBalance}
-                  className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors cursor-pointer"
+                  className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors cursor-pointer shrink-0"
                   title={isBalanceHidden ? 'Tampilkan Angka' : 'Sembunyikan Angka'}
                 >
                   {isBalanceHidden ? (
@@ -135,13 +135,13 @@ export function LineChart9({
           </div>
 
           {/* Right side: Enlarged Refresh Button with Day Selector underneath */}
-          <div className="flex flex-col sm:items-end gap-2 shrink-0">
+          <div className="flex flex-col sm:items-end gap-2 min-w-0 max-w-full">
             {onRefresh && (
               <button
                 type="button"
                 onClick={onRefresh}
                 disabled={isRefreshing}
-                className="h-9 px-4 rounded-xl text-xs sm:text-sm font-semibold flex items-center gap-2 bg-zinc-950 hover:bg-zinc-800 border border-zinc-700 hover:border-zinc-600 text-zinc-100 transition-all cursor-pointer shadow-sm disabled:opacity-50"
+                className="h-9 px-4 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-center sm:justify-start gap-2 bg-zinc-950 hover:bg-zinc-800 border border-zinc-700 hover:border-zinc-600 text-zinc-100 transition-all cursor-pointer shadow-sm disabled:opacity-50 w-full sm:w-auto"
               >
                 <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
                 <span>Refresh</span>
@@ -149,13 +149,13 @@ export function LineChart9({
             )}
 
             {/* Timeframe Selector with 1D, 3D, 7D, 14D, 30D, All */}
-            <div className="flex items-center gap-1 bg-zinc-950/80 p-0.5 rounded-lg border border-zinc-800">
+            <div className="flex items-center justify-between sm:justify-start gap-1 bg-zinc-950/80 p-0.5 rounded-lg border border-zinc-800 overflow-x-auto max-w-full no-scrollbar">
               {['1D', '3D', '7D', '14D', '30D', 'All'].map((d) => (
                 <button
                   key={d}
                   type="button"
                   onClick={() => handleTimeframeSelect(d)}
-                  className={`px-2.5 py-0.5 rounded text-[11px] font-medium transition-all cursor-pointer border ${activeTimeframe === d
+                  className={`flex-1 sm:flex-none px-2 sm:px-2.5 py-1 sm:py-0.5 rounded text-[11px] font-medium transition-all cursor-pointer border whitespace-nowrap ${activeTimeframe === d
                       ? 'bg-zinc-800 text-purple-400 font-semibold border-zinc-700/80 shadow-xs'
                       : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900 border-transparent'
                     }`}
@@ -167,10 +167,10 @@ export function LineChart9({
           </div>
         </div>
 
-        <div className="grow">
+        <div className="grow min-w-0">
           {/* Stats Row */}
-          <div className="flex items-center justify-between flex-wrap gap-4 text-xs mb-3 border-y border-zinc-800/80 py-2.5">
-            <div className="flex items-center gap-6">
+          <div className="flex items-center justify-between flex-wrap gap-x-4 gap-y-1.5 text-xs mb-3 border-y border-zinc-800/80 py-2.5">
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5">
               <div className="flex items-center gap-1.5">
                 <span className="text-zinc-400">Gmail Disetor :</span>
                 <span className="font-semibold text-white font-mono">

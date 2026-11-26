@@ -134,6 +134,10 @@ export async function POST(req: NextRequest) {
 
     const cleanNote =
       rawNoteInput && !/^Password:\s*/i.test(rawNoteInput) ? rawNoteInput : undefined;
+    const cleanContactInfo =
+      typeof body.contact_info === "string" && body.contact_info.trim()
+        ? sanitizeInputText(body.contact_info.trim(), 100)
+        : undefined;
 
     // 5. Fetch authoritative CMS settings (maintenance, feature flag, default_password, and server-side price)
     let authoritativePrice = cleanCategory === "bebas" ? 1000 : 1500;
@@ -198,6 +202,17 @@ export async function POST(req: NextRequest) {
           totp_secret: null,
         }));
 
+    if (rawPairs.some((p) => !p.password)) {
+      return NextResponse.json(
+        {
+          success: false,
+          insertedCount: 0,
+          error: "Wajib mengisi password untuk setiap akun Gmail yang disetor.",
+        },
+        { status: 400 }
+      );
+    }
+
     if (rawPairs.some((p) => !p.totp_secret)) {
       return NextResponse.json(
         {
@@ -261,6 +276,7 @@ export async function POST(req: NextRequest) {
           category_id: cleanCategory,
           status: "pending",
           amount: authoritativePrice,
+          ...(cleanContactInfo ? { contact_info: cleanContactInfo } : {}),
           ...(cleanNote ? { note: cleanNote } : {}),
         };
       })
@@ -310,22 +326,33 @@ export async function POST(req: NextRequest) {
       .insert(records)
       .select("id");
 
-    // Zero-downtime fallback if `totp_secret` or `password` column has not yet been added in Supabase SQL Editor
-    if (insertErr && /totp_secret|password/i.test(insertErr.message || "")) {
-      const missingSecretCol = /totp_secret/i.test(insertErr.message || "");
-      const missingPassCol = /password/i.test(insertErr.message || "");
-      const legacyRecords = records.map(({ password, totp_secret, ...rest }: any) => {
+    // Zero-downtime progressive fallback if `contact_info`, `totp_secret`, or `password` column has not yet been added in Supabase SQL Editor
+    const missingCols = new Set<string>();
+    for (
+      let attempt = 0;
+      attempt < 3 && insertErr && /totp_secret|password|contact_info/i.test(insertErr.message || "");
+      attempt++
+    ) {
+      const errMsg = insertErr.message || "";
+      if (/totp_secret/i.test(errMsg)) missingCols.add("totp_secret");
+      if (/password/i.test(errMsg)) missingCols.add("password");
+      if (/contact_info/i.test(errMsg)) missingCols.add("contact_info");
+
+      const legacyRecords = records.map(({ password, totp_secret, contact_info, ...rest }: any) => {
         const noteParts: string[] = [];
         if (rest.note) noteParts.push(rest.note);
-        if (missingPassCol && password) noteParts.push(`Password: ${password}`);
-        if (missingSecretCol && totp_secret) noteParts.push(`2FA: ${totp_secret}`);
+        if (missingCols.has("password") && password) noteParts.push(`Password: ${password}`);
+        if (missingCols.has("totp_secret") && totp_secret) noteParts.push(`2FA: ${totp_secret}`);
+        if (missingCols.has("contact_info") && contact_info) noteParts.push(`Kontak: ${contact_info}`);
         return {
           ...rest,
-          ...(missingPassCol ? {} : { password }),
-          ...(missingSecretCol ? {} : { totp_secret }),
+          ...(missingCols.has("password") ? {} : { password }),
+          ...(missingCols.has("totp_secret") ? {} : { totp_secret }),
+          ...(missingCols.has("contact_info") || !contact_info ? {} : { contact_info }),
           ...(noteParts.length > 0 ? { note: noteParts.join(" | ") } : {}),
         };
       });
+
       const retry = await supabaseAdmin.from("deposits").insert(legacyRecords).select("id");
       inserted = retry.data;
       insertErr = retry.error;
@@ -342,10 +369,126 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       insertedCount: inserted?.length || records.length,
+      insertedIds: (inserted || []).map((r: { id: string }) => r.id),
     });
   } catch (err) {
     return NextResponse.json(
       { success: false, insertedCount: 0, error: sanitizeErrorMessage(err, "Gagal menyimpan data setoran.") },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(req: NextRequest) {
+  const csrf = validateCsrf(req);
+  if (!csrf.valid) {
+    return NextResponse.json(
+      { success: false, error: "Akses ditolak: Validasi keamanan permintaan gagal." },
+      { status: 403 }
+    );
+  }
+
+  const ipRate = checkIpRateLimit(req, { maxRequests: 15, windowMs: 60_000 }, "user_deposit_contact_ip");
+  if (!ipRate.success) {
+    return NextResponse.json(
+      { success: false, error: "Terlalu banyak permintaan. Mohon tunggu sebentar." },
+      { status: 429, headers: { "Retry-After": String(ipRate.retryAfterSeconds) } }
+    );
+  }
+
+  try {
+    const token = extractBearerOrCookieToken(req);
+    if (!token) {
+      return NextResponse.json(
+        { success: false, error: "Akses ditolak: Sesi login tidak ditemukan." },
+        { status: 401 }
+      );
+    }
+
+    const { data: authData, error: authErr } = await supabaseAdmin.auth.getUser(token);
+    if (authErr || !authData?.user) {
+      return NextResponse.json(
+        { success: false, error: "Akses ditolak: Sesi login tidak sah." },
+        { status: 401 }
+      );
+    }
+
+    const user = authData.user;
+    const body = await req.json().catch(() => null);
+    const rawContact = typeof body?.contact_info === "string" ? body.contact_info.trim() : "";
+    const cleanContact = sanitizeInputText(rawContact, 100);
+
+    if (!cleanContact || cleanContact.length < 3) {
+      return NextResponse.json(
+        { success: false, error: "Masukkan username Telegram atau nomor WhatsApp yang valid." },
+        { status: 400 }
+      );
+    }
+
+    const rawIds: string[] = Array.isArray(body?.depositIds)
+      ? body.depositIds
+          .filter((id: unknown) => typeof id === "string" && id.trim().length > 0)
+          .slice(0, 15)
+      : [];
+
+    let targetRows: Array<{ id: string; note?: string | null }> = [];
+    if (rawIds.length > 0) {
+      const { data } = await supabaseAdmin
+        .from("deposits")
+        .select("id, note")
+        .eq("user_id", user.id)
+        .in("id", rawIds);
+      targetRows = data || [];
+    } else {
+      const { data } = await supabaseAdmin
+        .from("deposits")
+        .select("id, note")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(10);
+      targetRows = data || [];
+    }
+
+    if (targetRows.length === 0) {
+      return NextResponse.json({ success: true, updatedCount: 0 });
+    }
+
+    const targetIds = targetRows.map((r) => r.id);
+    const nowStr = new Date().toISOString();
+
+    const { error: updErr } = await supabaseAdmin
+      .from("deposits")
+      .update({ contact_info: cleanContact, updated_at: nowStr })
+      .eq("user_id", user.id)
+      .in("id", targetIds);
+
+    // Zero-downtime fallback if `contact_info` column hasn't been created yet
+    if (updErr && /contact_info/i.test(updErr.message || "")) {
+      await Promise.all(
+        targetRows.map((row) => {
+          const baseNote = String(row.note || "")
+            .replace(/\|?\s*Kontak:\s*[^|]+/gi, "")
+            .replace(/^\s*\|\s*|\s*\|\s*$/g, "")
+            .trim();
+          const mergedNote = baseNote ? `${baseNote} | Kontak: ${cleanContact}` : `Kontak: ${cleanContact}`;
+          return supabaseAdmin
+            .from("deposits")
+            .update({ note: mergedNote, updated_at: nowStr })
+            .eq("user_id", user.id)
+            .eq("id", row.id);
+        })
+      );
+    } else if (updErr) {
+      return NextResponse.json(
+        { success: false, error: sanitizeErrorMessage(updErr, "Gagal menyimpan kontak.") },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ success: true, updatedCount: targetIds.length });
+  } catch (err) {
+    return NextResponse.json(
+      { success: false, error: sanitizeErrorMessage(err, "Gagal menyimpan kontak.") },
       { status: 500 }
     );
   }

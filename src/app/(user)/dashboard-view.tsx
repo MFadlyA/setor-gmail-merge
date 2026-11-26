@@ -16,6 +16,7 @@ import {
   Zap,
   CheckCircle2,
   LogOut,
+  MessageCircle,
   type LucideIcon,
 } from "lucide-react";
 import { Card, SectionHeading } from "@/components/ui/card";
@@ -30,6 +31,7 @@ import {
 import { cn, formatIDR } from "@/lib/utils";
 import { useUserProfile } from "@/context/user-profile-context";
 import { Skeleton } from "@/components/ui/skeleton";
+import { updateUserDepositsContact } from "@/lib/supabase";
 
 const iconMap: Record<QuickMenuIconName, LucideIcon> = {
   send: Send,
@@ -74,10 +76,15 @@ export function DashboardView() {
   const [depositSuccessPopup, setDepositSuccessPopup] = React.useState<{
     count: number;
     totalEarnings: number;
+    depositIds: string[];
   } | null>(null);
+  const [contactInput, setContactInput] = React.useState("");
+  const [isSavingContact, setIsSavingContact] = React.useState(false);
 
   React.useEffect(() => {
     try {
+      const saved = localStorage.getItem("setorgmail_contact_info") || "";
+      if (saved) setContactInput(saved);
       const raw = sessionStorage.getItem("setorgmail_deposit_success_popup");
       if (raw) {
         sessionStorage.removeItem("setorgmail_deposit_success_popup");
@@ -85,10 +92,34 @@ export function DashboardView() {
         setDepositSuccessPopup({
           count: Number(parsed?.count) || 1,
           totalEarnings: Number(parsed?.totalEarnings) || 0,
+          depositIds: Array.isArray(parsed?.depositIds) ? parsed.depositIds : [],
         });
       }
     } catch {}
   }, []);
+
+  const handleConfirmSuccessPopup = async () => {
+    if (!depositSuccessPopup) return;
+    const clean = contactInput.trim();
+    if (clean.length < 4) {
+      toast.error("Kontak Telegram / WhatsApp wajib diisi", {
+        description: "Masukkan @username Telegram atau nomor WhatsApp Anda jika email butuh tindak lanjut.",
+      });
+      return;
+    }
+
+    setIsSavingContact(true);
+    try {
+      try {
+        localStorage.setItem("setorgmail_contact_info", clean);
+      } catch {}
+      await updateUserDepositsContact(depositSuccessPopup.depositIds, clean);
+      toast.success("Kontak tindak lanjut berhasil disimpan!");
+      setDepositSuccessPopup(null);
+    } finally {
+      setIsSavingContact(false);
+    }
+  };
   const {
     userProfile,
     wallet,
@@ -404,7 +435,7 @@ export function DashboardView() {
               <strong className="text-emerald-300">{depositSuccessPopup.count} akun Gmail</strong> sedang dalam antrean pengecekan admin.
             </p>
 
-            <div className="mt-4 rounded-2xl border border-amber-500/35 bg-amber-950/35 p-4 text-left flex items-start gap-3">
+            <div className="mt-4 rounded-2xl border border-amber-500/35 bg-amber-950/35 p-3.5 text-left flex items-start gap-3">
               <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-amber-500/20 text-amber-300 border border-amber-400/30 mt-0.5">
                 <LogOut className="size-4" />
               </span>
@@ -416,12 +447,43 @@ export function DashboardView() {
               </div>
             </div>
 
+            <div className="mt-3.5 rounded-2xl border border-sky-500/30 bg-sky-950/25 p-3.5 text-left space-y-2">
+              <div className="flex items-center gap-2">
+                <MessageCircle className="size-4 text-sky-400 shrink-0" />
+                <label
+                  htmlFor="followup-contact-input"
+                  className="text-xs font-extrabold text-sky-200 tracking-tight"
+                >
+                  Username Telegram / Kontak WhatsApp
+                </label>
+              </div>
+              <p className="text-[11px] leading-relaxed text-zinc-300">
+                Apabila email yang disetor butuh tindak lanjut, Admin akan menghubungi Anda melalui kontak ini.
+              </p>
+              <input
+                id="followup-contact-input"
+                type="text"
+                value={contactInput}
+                onChange={(e) => setContactInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleConfirmSuccessPopup();
+                  }
+                }}
+                placeholder="Contoh: @username_tg atau 0812xxxxxxx"
+                maxLength={80}
+                className="w-full rounded-xl border border-white/15 bg-black/55 px-3.5 py-2.5 text-xs sm:text-sm font-medium text-white placeholder-zinc-500 focus:border-sky-400/60 focus:outline-none focus:ring-2 focus:ring-sky-500/30"
+              />
+            </div>
+
             <button
               type="button"
-              onClick={() => setDepositSuccessPopup(null)}
-              className="mt-5 w-full rounded-2xl bg-gradient-to-r from-sky-400 via-sky-500 to-blue-600 hover:from-sky-300 hover:to-blue-500 py-3 text-sm font-extrabold text-white shadow-lg shadow-sky-500/30 transition-all active:scale-[0.99] cursor-pointer"
+              disabled={isSavingContact}
+              onClick={handleConfirmSuccessPopup}
+              className="mt-5 w-full rounded-2xl bg-gradient-to-r from-sky-400 via-sky-500 to-blue-600 hover:from-sky-300 hover:to-blue-500 disabled:opacity-60 py-3 text-sm font-extrabold text-white shadow-lg shadow-sky-500/30 transition-all active:scale-[0.99] cursor-pointer"
             >
-              OK
+              {isSavingContact ? "Menyimpan Kontak..." : "OK"}
             </button>
           </div>
         </div>

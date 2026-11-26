@@ -47,34 +47,58 @@ export function Header() {
   }, []);
 
   return (
-    <header className="sticky top-0 z-30 bg-zinc-950/90 backdrop-blur-md border-b border-zinc-800/80">
-      <div className="flex items-center justify-between h-16 px-4 sm:px-6 gap-3 sm:gap-4">
+    <header className="sticky top-0 z-30 w-full max-w-full overflow-x-hidden bg-zinc-950/90 backdrop-blur-md border-b border-zinc-800/80">
+      <div className="flex flex-wrap items-center justify-between min-h-14 sm:h-16 px-3 sm:px-6 py-2 sm:py-0 gap-2 sm:gap-4 max-w-[1600px] mx-auto w-full">
         {/* Left side: Brand Logo */}
         <Link
           href="/admin"
-          className="flex items-center gap-2.5 font-bold text-zinc-100 group shrink-0"
+          className="flex items-center gap-2 sm:gap-2.5 font-bold text-zinc-100 group min-w-0"
         >
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 flex items-center justify-center text-white shadow-md shadow-emerald-950/40">
-            <ShieldCheck className="w-5 h-5" />
+          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 flex items-center justify-center text-white shadow-md shadow-emerald-950/40 shrink-0">
+            <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
-          <div className="flex flex-col">
-            <span className="text-sm font-semibold tracking-tight text-white flex items-center gap-1.5">
-              Setor Gmail by Winter
-              <span className="text-[10px] uppercase font-bold tracking-widest bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/20">
+          <div className="flex flex-col min-w-0">
+            <span className="text-xs sm:text-sm font-semibold tracking-tight text-white flex items-center gap-1.5 truncate">
+              <span className="truncate">
+                Setor Gmail<span className="hidden sm:inline"> by Winter</span>
+              </span>
+              <span className="text-[9px] sm:text-[10px] uppercase font-bold tracking-widest bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/20 shrink-0">
                 Admin
               </span>
             </span>
-            <span className="text-[10px] text-zinc-400">setorgmail.com</span>
+            <span className="text-[10px] text-zinc-400 hidden sm:block">setorgmail.com</span>
           </div>
         </Link>
 
         {/* Right side: Integrations & Profile */}
-        <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-3 ml-auto max-w-full">
+          {/* Compact Mobile Status Pill (<640px) */}
+          <div
+            className="flex sm:hidden items-center gap-1.5 px-2 py-1 rounded-lg bg-zinc-900/70 border border-zinc-800/80 text-[10px]"
+            title={`CF: ${integrations.cloudflare.status} | DB: ${integrations.supabase.status} | TG: ${integrations.telegram.status}`}
+          >
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${
+                integrations.cloudflare.status === "Live" ? "bg-emerald-500" : "bg-rose-500"
+              }`}
+            />
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${
+                integrations.supabase.status === "Live" ? "bg-emerald-500" : "bg-rose-500"
+              }`}
+            />
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${
+                integrations.telegram.status === "Live" ? "bg-emerald-500" : "bg-rose-500"
+              }`}
+            />
+          </div>
+
           {/* Status Integrasi & CMS (urutan: cloudflare -> supabase -> bot -> cms) */}
           <div className="flex items-center gap-1 sm:gap-2">
             {/* 1. Cloudflare Edge */}
             <div
-              className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 rounded-lg bg-zinc-900/60 border border-zinc-800/80 hover:border-zinc-700 transition-colors text-[11px] shrink-0"
+              className="hidden sm:flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 rounded-lg bg-zinc-900/60 border border-zinc-800/80 hover:border-zinc-700 transition-colors text-[11px] shrink-0"
               title={`Cloudflare Edge: ${integrations.cloudflare.status} (${integrations.cloudflare.latency || 0}ms)`}
             >
               <span
@@ -90,7 +114,7 @@ export function Header() {
                 {integrations.cloudflare.latency ? `${integrations.cloudflare.latency}ms` : ""}
               </span>
               <span
-                className={`text-[9px] font-semibold px-1 py-0.2 rounded border font-mono hidden sm:inline-block ${
+                className={`text-[9px] font-semibold px-1 py-0.2 rounded border font-mono hidden lg:inline-block ${
                   integrations.cloudflare.status === "Live"
                     ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20"
                     : "text-rose-400 bg-rose-500/10 border-rose-500/20"
@@ -102,7 +126,7 @@ export function Header() {
 
             {/* 2. Supabase DB */}
             <div
-              className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 rounded-lg bg-zinc-900/60 border border-zinc-800/80 hover:border-zinc-700 transition-colors text-[11px] shrink-0"
+              className="hidden sm:flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 rounded-lg bg-zinc-900/60 border border-zinc-800/80 hover:border-zinc-700 transition-colors text-[11px] shrink-0"
               title={`Supabase DB: ${integrations.supabase.status} (${integrations.supabase.latency || 0}ms)`}
             >
               <span
@@ -118,7 +142,7 @@ export function Header() {
                 {integrations.supabase.latency ? `${integrations.supabase.latency}ms` : ""}
               </span>
               <span
-                className={`text-[9px] font-semibold px-1 py-0.2 rounded border font-mono hidden sm:inline-block ${
+                className={`text-[9px] font-semibold px-1 py-0.2 rounded border font-mono hidden lg:inline-block ${
                   integrations.supabase.status === "Live"
                     ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20"
                     : "text-rose-400 bg-rose-500/10 border-rose-500/20"
@@ -130,7 +154,7 @@ export function Header() {
 
             {/* 3. Bot Telegram */}
             <div
-              className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 rounded-lg bg-zinc-900/60 border border-zinc-800/80 hover:border-zinc-700 transition-colors text-[11px] shrink-0"
+              className="hidden sm:flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 rounded-lg bg-zinc-900/60 border border-zinc-800/80 hover:border-zinc-700 transition-colors text-[11px] shrink-0"
               title={`Bot Telegram: ${integrations.telegram.status} (${integrations.telegram.latency || 0}ms)`}
             >
               <span
@@ -146,7 +170,7 @@ export function Header() {
                 {integrations.telegram.latency ? `${integrations.telegram.latency}ms` : ""}
               </span>
               <span
-                className={`text-[9px] font-semibold px-1 py-0.2 rounded border font-mono hidden sm:inline-block ${
+                className={`text-[9px] font-semibold px-1 py-0.2 rounded border font-mono hidden lg:inline-block ${
                   integrations.telegram.status === "Live"
                     ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20"
                     : "text-rose-400 bg-rose-500/10 border-rose-500/20"
@@ -159,7 +183,7 @@ export function Header() {
             {/* 4. (Logo) CMS */}
             <Link
               href="/admin/cms"
-              className={`flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all shrink-0 ${
+              className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 rounded-lg text-[10px] sm:text-[11px] font-semibold transition-all shrink-0 ${
                 pathname === "/admin/cms"
                   ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shadow-xs font-bold"
                   : "bg-zinc-900/60 border border-zinc-800/80 text-zinc-300 hover:text-emerald-300 hover:border-zinc-700 hover:bg-zinc-800/40"
@@ -172,13 +196,13 @@ export function Header() {
           </div>
 
           {/* Profile Pill & Logout (Nama & Email di sebelah kiri tombol logout) */}
-          <div className="flex items-center gap-2 pl-2 border-l border-zinc-800 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 pl-1.5 sm:pl-2 border-l border-zinc-800 shrink-0">
             <div className="flex items-center gap-2">
               {profile?.avatar_url || user?.user_metadata?.avatar_url || user?.user_metadata?.picture ? (
                 <img
                   src={profile?.avatar_url || user?.user_metadata?.avatar_url || user?.user_metadata?.picture}
                   alt={profile?.name || "Admin"}
-                  className="w-8 h-8 rounded-full object-cover border border-zinc-700 shrink-0 shadow-sm"
+                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover border border-zinc-700 shrink-0 shadow-sm"
                   referrerPolicy="no-referrer"
                   onError={(e) => {
                     (e.target as HTMLElement).style.display = "none";
@@ -188,7 +212,7 @@ export function Header() {
                 />
               ) : null}
               <div
-                className={`w-8 h-8 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-500 text-white items-center justify-center font-bold text-xs shadow-sm shrink-0 ${
+                className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-500 text-white items-center justify-center font-bold text-xs shadow-sm shrink-0 ${
                   profile?.avatar_url || user?.user_metadata?.avatar_url || user?.user_metadata?.picture ? "hidden" : "flex"
                 }`}
               >

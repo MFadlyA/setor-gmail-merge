@@ -425,8 +425,9 @@ export async function insertUserDeposits(
   _amountPerAccount = 1500,
   note?: string,
   password?: string,
-  items?: Array<{ email: string; password?: string; totp_secret?: string }>
-): Promise<{ success: boolean; insertedCount: number; error?: string }> {
+  items?: Array<{ email: string; password?: string; totp_secret?: string }>,
+  contactInfo?: string
+): Promise<{ success: boolean; insertedCount: number; insertedIds?: string[]; error?: string }> {
   if (!isSupabaseConfigured) {
     return {
       success: false,
@@ -493,6 +494,7 @@ export async function insertUserDeposits(
         categoryId: categoryId === "bebas" ? "bebas" : "good",
         password: password ? sanitizeInputText(password, 120) : undefined,
         note: note ? sanitizeInputText(note, 200) : undefined,
+        contact_info: contactInfo ? sanitizeInputText(contactInfo, 100) : undefined,
       }),
     });
 
@@ -508,12 +510,60 @@ export async function insertUserDeposits(
     return {
       success: true,
       insertedCount: Number(json.insertedCount) || normalizedItems.length,
+      insertedIds: Array.isArray(json.insertedIds) ? json.insertedIds : [],
     };
   } catch (err: unknown) {
     return {
       success: false,
       insertedCount: 0,
       error: sanitizeErrorMessage(err, "Gagal menyimpan data setoran."),
+    };
+  }
+}
+
+export async function updateUserDepositsContact(
+  depositIds: string[],
+  contactInfo: string
+): Promise<{ success: boolean; error?: string }> {
+  if (!isSupabaseConfigured) return { success: true };
+  try {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      return { success: false, error: "Sesi login tidak ditemukan." };
+    }
+
+    const cleanContact = sanitizeInputText(contactInfo, 100);
+    if (!cleanContact) {
+      return { success: false, error: "Kontak tidak boleh kosong." };
+    }
+
+    const res = await fetch("/api/user/deposits", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+        "X-Requested-With": "XMLHttpRequest",
+      },
+      body: JSON.stringify({
+        depositIds: Array.isArray(depositIds) ? depositIds.slice(0, 15) : [],
+        contact_info: cleanContact,
+      }),
+    });
+
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok || !json?.success) {
+      return {
+        success: false,
+        error: json?.error || "Gagal menyimpan kontak tindak lanjut.",
+      };
+    }
+    return { success: true };
+  } catch (err: unknown) {
+    return {
+      success: false,
+      error: sanitizeErrorMessage(err, "Gagal menyimpan kontak tindak lanjut."),
     };
   }
 }

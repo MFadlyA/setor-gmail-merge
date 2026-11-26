@@ -379,11 +379,11 @@ export default function CmsPage() {
       )}
 
       {/* Main Split Screen: Sisi Kiri (Form Controls) & Sisi Kanan (Sticky Interactive Live Preview) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start min-w-0">
         {/* ========================================================= */}
         {/* SISI KIRI: FORM CONTROL CMS                               */}
         {/* ========================================================= */}
-        <div className="lg:col-span-6 xl:col-span-6 space-y-4">
+        <div className="lg:col-span-6 xl:col-span-6 space-y-4 min-w-0">
           {/* Form Tabs Navigation - Always 1 Clean Horizontal Row */}
           <div className="grid grid-cols-5 gap-1.5 p-1.5 bg-zinc-900/85 border border-zinc-800/90 rounded-2xl shadow-sm">
             {[
@@ -1336,7 +1336,7 @@ export default function CmsPage() {
         {/* ========================================================= */}
         {/* SISI KANAN: INTERACTIVE LIVE PREVIEW (IDENTIK WEB USER)   */}
         {/* ========================================================= */}
-        <div className="lg:col-span-6 xl:col-span-6 lg:sticky lg:top-32 space-y-3">
+        <div className="lg:col-span-6 xl:col-span-6 lg:sticky lg:top-32 space-y-3 min-w-0 overflow-x-hidden">
           {/* Preview Control Header */}
           <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl px-3.5 py-2.5 backdrop-blur-md shadow-xl flex items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
