@@ -8,8 +8,19 @@ const eslintConfig = defineConfig([
   {
     rules: {
       "react-hooks/set-state-in-effect": "off",
-      "@typescript-eslint/no-unused-vars": "warn",
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+        },
+      ],
       "@typescript-eslint/no-explicit-any": "off",
+      // next.config.ts intentionally sets `images: { unoptimized: true }` for Cloudflare Workers
+      "@next/next/no-img-element": "off",
+      // Auth login/logout/callback flows intentionally use hard navigation to sync session cookies with proxy.ts
+      "@next/next/no-location-assign-relative-destination": "off",
     },
   },
   // Override default ignores of eslint-config-next.

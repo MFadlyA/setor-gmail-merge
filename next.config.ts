@@ -64,6 +64,17 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
+  webpack(config, { webpack }) {
+    // dana-node's MerchantManagementApi wraps an optional require('../CustomValidation')
+    // in try/catch (MODULE_NOT_FOUND), where that file does not exist in merchant_management/v1.
+    config.plugins.push(
+      new webpack.IgnorePlugin({
+        resourceRegExp: /^\.\.\/CustomValidation$/,
+        contextRegExp: /dana-node[\\/]dist[\\/]merchant_management/,
+      })
+    );
+    return config;
+  },
   async headers() {
     return [
       {

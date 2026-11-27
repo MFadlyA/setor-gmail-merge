@@ -194,6 +194,7 @@ export type WithdrawalRecord = {
   status: WithdrawalStatus;
   method: "DANA" | "OVO" | "GOPAY" | "SHOPEEPAY" | string;
   accountNumber: string;
+  accountName?: string;
   createdAt: string;
   updatedAt?: string;
 };

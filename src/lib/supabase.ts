@@ -13,10 +13,8 @@ import {
   isValidStrictGmail,
   checkRateLimit,
   validateEWalletNumber,
-  validateWithdrawalAmount,
   sanitizeErrorMessage,
   recordWithdrawalAttempt,
-  MAX_WITHDRAWALS_PER_DAY,
 } from "./security";
 
 const supabaseUrl =
@@ -327,11 +325,10 @@ export async function saveEWalletAccount(
       return { success: false, error: "Akses ditolak: Sesi tidak sah." };
     }
 
-    // A03: Strict E-Wallet Validation
+    // A03: Strict E-Wallet Validation (DANA-only)
     const cleanMethod = sanitizeInputText(method, 20).toUpperCase();
-    const validMethods = ["DANA", "GOPAY", "OVO", "SHOPEEPAY"];
-    if (!validMethods.includes(cleanMethod)) {
-      return { success: false, error: "Metode e-wallet tidak valid." };
+    if (cleanMethod !== "DANA") {
+      return { success: false, error: "Saat ini hanya metode DANA yang didukung." };
     }
 
     const phoneCheck = validateEWalletNumber(accountNumber);
@@ -596,7 +593,7 @@ export async function fetchUserWithdrawals(userId?: string): Promise<{
 
     const { data, error } = await supabase
       .from("withdrawals")
-      .select("id, amount, status, method, account_number, created_at, updated_at")
+      .select("id, amount, status, method, account_number, account_name, created_at, updated_at")
       .eq("user_id", targetUid)
       .order("created_at", { ascending: false });
 
@@ -610,6 +607,7 @@ export async function fetchUserWithdrawals(userId?: string): Promise<{
       status: w.status as WithdrawalRecord["status"],
       method: w.method,
       accountNumber: w.account_number,
+      accountName: w.account_name || undefined,
       createdAt: w.created_at,
       updatedAt: w.updated_at || undefined,
     }));
@@ -618,6 +616,80 @@ export async function fetchUserWithdrawals(userId?: string): Promise<{
   } catch (err) {
     console.error("[WITHDRAWALS FETCH ERROR]", err);
     return { withdrawals: [], isFallback: true };
+  }
+}
+
+export interface DanaInquiryClientResult {
+  success: boolean;
+  customerName?: string;
+  customerNumber?: string;
+  accountNumber?: string;
+  amount?: number;
+  taxFee?: number;
+  netAmount?: number;
+  maxAmount?: number;
+  autoDisburse?: boolean;
+  autoDisburseMaxAmount?: number;
+  env?: string;
+  error?: string;
+}
+
+export async function inquireUserDanaAccount(params: {
+  accountNumber: string;
+  amount: number;
+}): Promise<DanaInquiryClientResult> {
+  try {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      return { success: false, error: "Sesi login tidak ditemukan. Silakan login ulang." };
+    }
+
+    const phoneCheck = validateEWalletNumber(params.accountNumber);
+    if (!phoneCheck.valid) {
+      return { success: false, error: phoneCheck.error || "Nomor DANA tidak valid." };
+    }
+
+    const res = await fetch("/api/user/withdrawals/inquiry", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+        "X-Requested-With": "XMLHttpRequest",
+      },
+      body: JSON.stringify({
+        accountNumber: phoneCheck.cleaned,
+        amount: params.amount,
+      }),
+    });
+
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok || !json?.success) {
+      return {
+        success: false,
+        error: json?.error || "Gagal memeriksa nomor DANA tujuan.",
+      };
+    }
+
+    return {
+      success: true,
+      customerName: json.customerName,
+      customerNumber: json.customerNumber,
+      accountNumber: json.accountNumber,
+      amount: json.amount,
+      taxFee: json.taxFee,
+      netAmount: json.netAmount,
+      maxAmount: json.maxAmount,
+      autoDisburse: Boolean(json.autoDisburse),
+      autoDisburseMaxAmount: json.autoDisburseMaxAmount,
+      env: json.env,
+    };
+  } catch (err: unknown) {
+    return {
+      success: false,
+      error: sanitizeErrorMessage(err, "Gagal memeriksa nomor DANA tujuan."),
+    };
   }
 }
 
@@ -630,7 +702,17 @@ export async function insertWithdrawalRequest(
     method: string;
     accountNumber: string;
   }
-): Promise<{ success: boolean; id?: string; error?: string }> {
+): Promise<{
+  success: boolean;
+  id?: string;
+  status?: string;
+  autoDisbursed?: boolean;
+  requiresAdminApproval?: boolean;
+  pendingDanaConfirm?: boolean;
+  customerName?: string;
+  referenceNo?: string;
+  error?: string;
+}> {
   try {
     const {
       data: { session },
@@ -640,11 +722,10 @@ export async function insertWithdrawalRequest(
       return { success: false, error: "Akses ditolak: Sesi tidak sah." };
     }
 
-    const validMethods = ["DANA", "GOPAY", "OVO", "SHOPEEPAY"];
     const cleanMethod = sanitizeInputText(params.method, 20).toUpperCase();
-    if (!validMethods.includes(cleanMethod)) {
+    if (cleanMethod !== "DANA") {
       recordWithdrawalAttempt(user.id, false);
-      return { success: false, error: "Metode pembayaran e-wallet tidak valid." };
+      return { success: false, error: "Saat ini penarikan saldo hanya mendukung metode DANA." };
     }
 
     const phoneCheck = validateEWalletNumber(params.accountNumber);
@@ -671,7 +752,7 @@ export async function insertWithdrawalRequest(
       },
       body: JSON.stringify({
         amount: params.amount,
-        method: cleanMethod,
+        method: "DANA",
         accountNumber: phoneCheck.cleaned,
       }),
     });
@@ -686,7 +767,16 @@ export async function insertWithdrawalRequest(
     }
 
     recordWithdrawalAttempt(user.id, true);
-    return { success: true, id: json.id };
+    return {
+      success: true,
+      id: json.id,
+      status: json.status,
+      autoDisbursed: Boolean(json.autoDisbursed),
+      requiresAdminApproval: Boolean(json.requiresAdminApproval),
+      pendingDanaConfirm: Boolean(json.pendingDanaConfirm),
+      customerName: json.customerName,
+      referenceNo: json.referenceNo,
+    };
   } catch (err: unknown) {
     return {
       success: false,
@@ -825,10 +915,10 @@ export const DEFAULT_SITE_CONFIG: SiteConfig = {
   price_bebas: 1000,
   min_withdrawal: 5000,
   max_withdrawals_per_day: 3,
-  is_gopay_active: true,
-  is_ovo_active: true,
+  is_gopay_active: false,
+  is_ovo_active: false,
   is_dana_active: true,
-  is_shopeepay_active: true,
+  is_shopeepay_active: false,
   tax_gopay_active: true,
   tax_gopay: 1000,
   tax_ovo_active: true,

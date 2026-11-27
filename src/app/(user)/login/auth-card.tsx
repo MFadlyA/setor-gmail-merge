@@ -508,7 +508,7 @@ export function AuthCard({
       toast.success("Tautan pemulihan dikirim!", {
         description: `Silakan periksa kotak masuk atau spam email ${cleanEmail}.`,
       });
-    } catch (err: any) {
+    } catch {
       toast.error("Terjadi kendala saat mengirim email pemulihan.");
     } finally {
       setIsLoading(false);

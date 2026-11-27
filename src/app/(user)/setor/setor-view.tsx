@@ -18,7 +18,6 @@ import {
   ChevronDown,
   Calendar,
   ShieldAlert,
-  UserCheck,
   KeyRound,
   Mail,
   PlayCircle,
@@ -31,7 +30,6 @@ import { cn, formatIDR } from "@/lib/utils";
 import {
   getStoredGeneratedGmails,
   saveStoredGeneratedGmails,
-  getStoredSubmittedGmails,
   saveStoredSubmittedGmails,
   getStoredCheckStatusMap,
   saveStoredCheckStatusMap,

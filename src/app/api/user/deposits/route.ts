@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { checkRateLimit as checkIpRateLimit, RATE_LIMITS } from "@/lib/security/rate-limiter";
+import { checkRateLimit as checkIpRateLimit } from "@/lib/security/rate-limiter";
 import { validateCsrf } from "@/lib/security/csrf";
 import {
   sanitizeInputText,

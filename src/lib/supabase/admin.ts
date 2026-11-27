@@ -29,7 +29,7 @@ export function readServerEnv(key: string): string | undefined {
 }
 
 export function getCfEnvDiagnostics() {
-  const keyFilter = /SUPA|ADMIN|TELE|NEXT|SERVICE|SECRET/i;
+  const keyFilter = /SUPA|ADMIN|TELE|NEXT|SERVICE|SECRET|DANA/i;
   const cfEnv = getCfEnvObject();
   const cfEnvKeys = cfEnv
     ? Object.keys(cfEnv)

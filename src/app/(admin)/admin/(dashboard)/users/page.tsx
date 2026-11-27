@@ -1,17 +1,14 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Users,
   Search,
-  Filter,
   Wallet,
   Ban,
   CheckCircle,
   RefreshCw,
-  UserCheck,
   CheckCircle2,
-  ExternalLink,
   Copy,
   Check,
 } from "lucide-react";
@@ -69,7 +66,7 @@ export default function UserManagementPage() {
   const [isUpdatingSaldo, setIsUpdatingSaldo] = useState(false);
   const [actionSuccessMsg, setActionSuccessMsg] = useState<string | null>(null);
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     setIsLoading(true);
     try {
       const params = new URLSearchParams();
@@ -93,14 +90,14 @@ export default function UserManagementPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [search, limit]);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
       fetchUsers();
     }, 300);
     return () => clearTimeout(timeout);
-  }, [search, limit]);
+  }, [fetchUsers]);
 
   // Open Edit Saldo
   const handleOpenEditSaldo = (u: any) => {

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, Suspense } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { safeDecodeParam } from "@/lib/security";
@@ -59,7 +59,7 @@ function AuthCallbackContent() {
         if (sessionErr || !session?.user) {
           // Listen to state change if hash is being parsed by supabase-js
           const { data: authListener } = supabase.auth.onAuthStateChange(
-            async (event, currentSession) => {
+            async (_event, currentSession) => {
               if (currentSession?.user) {
                 authListener.subscription.unsubscribe();
                 await verifyAndRedirect(currentSession.user, currentSession.access_token);

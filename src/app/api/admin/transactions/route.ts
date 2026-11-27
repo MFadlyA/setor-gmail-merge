@@ -3,6 +3,76 @@ import { supabaseAdmin, fetchAllRows } from "@/lib/supabase/admin";
 import { requireAdminAuth } from "@/lib/security/auth-guard";
 import { sanitizeString, sanitizeNumber } from "@/lib/security/sanitize";
 import { logAuditEvent } from "@/lib/security/audit-logger";
+import { isDanaConfigured } from "@/lib/dana/client";
+import {
+  checkMdaBalance,
+  disburseToDana,
+  generatePartnerReferenceNo,
+  queryTopUpStatus,
+} from "@/lib/dana/disbursement";
+
+async function safeUpdateWdRow(
+  id: string,
+  payload: Record<string, unknown>,
+  expectedPrevStatus?: string
+): Promise<{ updated: boolean; error?: any }> {
+  let q = supabaseAdmin.from("withdrawals").update(payload).eq("id", id);
+  if (expectedPrevStatus !== undefined) {
+    q = q.eq("status", expectedPrevStatus);
+  }
+  let { data, error } = await q.select("id");
+
+  if (error && /dana_/i.test(error.message || "")) {
+    const cleanPayload = { ...payload };
+    delete cleanPayload.dana_partner_reference_no;
+    delete cleanPayload.dana_reference_no;
+    delete cleanPayload.dana_response_code;
+    delete cleanPayload.dana_response_message;
+    delete cleanPayload.dana_checked_at;
+
+    let retryQ = supabaseAdmin.from("withdrawals").update(cleanPayload).eq("id", id);
+    if (expectedPrevStatus !== undefined) {
+      retryQ = retryQ.eq("status", expectedPrevStatus);
+    }
+    const retry = await retryQ.select("id");
+    data = retry.data;
+    error = retry.error;
+  }
+
+  return { updated: Boolean(data && data.length > 0), error };
+}
+
+async function refundUserWithdrawalBalance(
+  wd: any,
+  reasonText: string,
+  nowIso: string
+) {
+  const { data: wallet } = await supabaseAdmin
+    .from("wallets")
+    .select("balance, total_withdrawn")
+    .eq("user_id", wd.user_id)
+    .maybeSingle();
+
+  if (wallet) {
+    await supabaseAdmin
+      .from("wallets")
+      .update({
+        balance: Number(wallet.balance) + Number(wd.amount),
+        total_withdrawn: Math.max(0, Number(wallet.total_withdrawn) - Number(wd.amount)),
+        updated_at: nowIso,
+      })
+      .eq("user_id", wd.user_id);
+
+    await supabaseAdmin.from("transactions").insert({
+      user_id: wd.user_id,
+      type: "refund",
+      amount: wd.amount,
+      title: "Pengembalian Dana Penarikan",
+      description: `Refund penarikan #${String(wd.id).slice(0, 8)} (${reasonText})`,
+      status: "success",
+    });
+  }
+}
 
 export async function GET(req: NextRequest) {
   const auth = await requireAdminAuth(req);
@@ -14,7 +84,6 @@ export async function GET(req: NextRequest) {
     const filterStatus = searchParams.get("status") || "all";
     const search = searchParams.get("search")?.toLowerCase().trim() || "";
 
-    // Build queries (paginated to bypass 1000-row PostgREST cap)
     const profilesPromise = fetchAllRows((from, to) =>
       supabaseAdmin
         .from("profiles")
@@ -24,7 +93,12 @@ export async function GET(req: NextRequest) {
     );
 
     let txPromise: Promise<{ data: any[]; error?: any }> = Promise.resolve({ data: [] });
-    if (filterType === "all" || filterType === "transaction" || filterType === "deposit" || filterType === "adjustment") {
+    if (
+      filterType === "all" ||
+      filterType === "transaction" ||
+      filterType === "deposit" ||
+      filterType === "adjustment"
+    ) {
       txPromise = fetchAllRows((from, to) => {
         let q = supabaseAdmin
           .from("transactions")
@@ -57,12 +131,11 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // Parallel fetch
-    const [
-      { data: profiles },
-      { data: txs },
-      { data: wds },
-    ] = await Promise.all([profilesPromise, txPromise, wdPromise]);
+    const [{ data: profiles }, { data: txs }, { data: wds }] = await Promise.all([
+      profilesPromise,
+      txPromise,
+      wdPromise,
+    ]);
 
     const userMap: Record<string, { name: string; email: string; dana: string }> = {};
     (profiles || []).forEach((p) => {
@@ -102,7 +175,9 @@ export async function GET(req: NextRequest) {
         type: "withdrawal",
         amount: Number(w.amount) || 0,
         title: `Penarikan (${w.method || "DANA"})`,
-        description: `Rekening: ${w.account_number || "-"} a/n ${w.account_name || "-"}`,
+        description: `Rekening: ${w.account_number || "-"} a/n ${w.account_name || "-"}${
+          w.dana_reference_no ? ` • Ref DANA: ${w.dana_reference_no}` : ""
+        }`,
         status: w.status || "pending",
         created_at: w.created_at,
         details: {
@@ -113,14 +188,17 @@ export async function GET(req: NextRequest) {
           net_amount: w.net_amount,
           admin_note: w.admin_note,
           proof_url: w.proof_url,
+          dana_partner_reference_no: w.dana_partner_reference_no || null,
+          dana_reference_no: w.dana_reference_no || null,
+          dana_response_code: w.dana_response_code || null,
+          dana_response_message: w.dana_response_message || null,
+          dana_checked_at: w.dana_checked_at || null,
         },
       });
     });
 
-    // Sort combined items by created_at desc
     items.sort(
-      (a, b) =>
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     );
 
     let filtered = items;
@@ -131,7 +209,13 @@ export async function GET(req: NextRequest) {
           i.user_email.toLowerCase().includes(search) ||
           i.title.toLowerCase().includes(search) ||
           i.description.toLowerCase().includes(search) ||
-          i.id.toLowerCase().includes(search)
+          i.id.toLowerCase().includes(search) ||
+          String(i.details?.dana_partner_reference_no || "")
+            .toLowerCase()
+            .includes(search) ||
+          String(i.details?.dana_reference_no || "")
+            .toLowerCase()
+            .includes(search)
       );
     }
 
@@ -164,7 +248,6 @@ export async function PATCH(req: NextRequest) {
     }
 
     if (sourceTable === "withdrawals") {
-      // 1. Fetch current withdrawal
       const { data: wd, error: getErr } = await supabaseAdmin
         .from("withdrawals")
         .select("*")
@@ -184,8 +267,6 @@ export async function PATCH(req: NextRequest) {
         rejected: { wd: "ditolak", tx: "failed" },
         failed: { wd: "ditolak", tx: "failed" },
         ditolak: { wd: "ditolak", tx: "failed" },
-        pending: { wd: "diproses", tx: "pending" },
-        diproses: { wd: "diproses", tx: "pending" },
       };
 
       const mapped = wdStatusMap[newStatus];
@@ -198,9 +279,267 @@ export async function PATCH(req: NextRequest) {
 
       const prevWdStatus = String(wd.status || "diproses");
       const wasPending = ["diproses", "pending"].includes(prevWdStatus.toLowerCase());
+      if (!wasPending) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Penarikan ini sudah berstatus "${prevWdStatus}" dan tidak dapat diproses ulang.`,
+          },
+          { status: 409 }
+        );
+      }
+
+      const isDanaMethod = String(wd.method || "DANA").toUpperCase() === "DANA";
+      const existingPartnerRef =
+        typeof wd.dana_partner_reference_no === "string" && wd.dana_partner_reference_no.trim()
+          ? wd.dana_partner_reference_no.trim()
+          : null;
       const nowIso = new Date().toISOString();
 
-      const updatePayload: any = {
+      // Safety check if an earlier DANA transfer call was uncertain (`dana_partner_reference_no` exists)
+      if (isDanaMethod && existingPartnerRef && isDanaConfigured()) {
+        const priorStatus = await queryTopUpStatus(
+          existingPartnerRef,
+          wd.dana_reference_no || undefined
+        );
+
+        if (priorStatus.mappedOutcome === "SUCCESS") {
+          const { updated } = await safeUpdateWdRow(
+            id,
+            {
+              status: "berhasil",
+              processed_at: nowIso,
+              updated_at: nowIso,
+              dana_reference_no: priorStatus.originalReferenceNo || wd.dana_reference_no || null,
+              dana_response_code: `STATUS_${priorStatus.latestTransactionStatus}`,
+              dana_response_message: priorStatus.transactionStatusDesc || "Success via Inquiry Status",
+              dana_checked_at: nowIso,
+              admin_note: "Terverifikasi sudah Berhasil di DANA (00 Success)",
+            },
+            prevWdStatus
+          );
+
+          if (updated) {
+            await supabaseAdmin
+              .from("transactions")
+              .update({ status: "success" })
+              .eq("reference_id", id);
+          }
+
+          if (mapped.wd === "ditolak") {
+            return NextResponse.json(
+              {
+                success: false,
+                error:
+                  "Tidak dapat menolak: Dana ternyata SUDAH BERHASIL masuk ke akun DANA pengguna. Status diperbarui ke Berhasil.",
+              },
+              { status: 409 }
+            );
+          }
+
+          return NextResponse.json({
+            success: true,
+            message: "Transaksi terverifikasi sudah Berhasil di DANA!",
+          });
+        }
+
+        if (priorStatus.mappedOutcome === "PENDING") {
+          return NextResponse.json(
+            {
+              success: false,
+              error: `Transaksi ini masih berstatus Pending (${priorStatus.latestTransactionStatus}) di server DANA. Tunggu beberapa saat lalu gunakan tombol Rekonsiliasi DANA.`,
+            },
+            { status: 409 }
+          );
+        }
+
+        if (priorStatus.mappedOutcome === "FAILED" && mapped.wd === "berhasil") {
+          // Previous attempt definitively failed at DANA; allow fresh retry below with new partnerReferenceNo
+        }
+      }
+
+      // Admin Approve (`berhasil`) for DANA -> Call `transferToDana` via DANA API!
+      if (isDanaMethod && mapped.wd === "berhasil") {
+        if (!isDanaConfigured()) {
+          return NextResponse.json(
+            {
+              success: false,
+              error:
+                "Kredensial API DANA belum dikonfigurasi pada environment server. Isi variabel DANA_* terlebih dahulu.",
+            },
+            { status: 503 }
+          );
+        }
+
+        const netAmountToSend = Math.max(
+          0,
+          Number(wd.net_amount) || Number(wd.amount) - Number(wd.tax_fee || 0)
+        );
+
+        // Pre-check MDA balance if DANA_MERCHANT_ID is set
+        const mda = await checkMdaBalance();
+        if (mda.ok && typeof mda.balanceIdr === "number" && mda.balanceIdr < netAmountToSend) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: `Saldo Merchant DANA (MDA) tidak mencukupi (tersedia Rp${mda.balanceIdr.toLocaleString("id-ID")}, butuh Rp${netAmountToSend.toLocaleString("id-ID")}). Silakan top-up MDA terlebih dahulu.`,
+            },
+            { status: 400 }
+          );
+        }
+
+        // Claim atomic concurrency lock by transitioning status temporarily or guarding partnerRefNo
+        const partnerRefNo = generatePartnerReferenceNo("WD", id);
+        const { updated: claimed, error: claimErr } = await safeUpdateWdRow(
+          id,
+          {
+            dana_partner_reference_no: partnerRefNo,
+            dana_response_code: "ADMIN_DISBURSING",
+            updated_at: nowIso,
+          },
+          prevWdStatus
+        );
+
+        if (claimErr) throw claimErr;
+        if (!claimed) {
+          return NextResponse.json(
+            { success: false, error: "Status penarikan sudah diproses oleh permintaan lain." },
+            { status: 409 }
+          );
+        }
+
+        const disburseRes = await disburseToDana({
+          partnerReferenceNo: partnerRefNo,
+          phoneNumber: wd.account_number,
+          amountIdr: netAmountToSend,
+          notes: adminNote || `Approve WD Setor Gmail #${id.slice(0, 8)}`,
+        });
+
+        const doneIso = new Date().toISOString();
+
+        if (disburseRes.outcome === "SUCCESS") {
+          await safeUpdateWdRow(id, {
+            status: "berhasil",
+            processed_at: doneIso,
+            updated_at: doneIso,
+            dana_partner_reference_no: partnerRefNo,
+            dana_reference_no: disburseRes.referenceNo || null,
+            dana_response_code: disburseRes.responseCode,
+            dana_response_message: disburseRes.responseMessage,
+            dana_checked_at: doneIso,
+            admin_note:
+              adminNote ||
+              (disburseRes.inconsistentFlag
+                ? "Disetujui Admin (4043818 Inconsistent Request — cek portal DANA)"
+                : "Disetujui Admin & cair otomatis via DANA"),
+          });
+
+          await supabaseAdmin
+            .from("transactions")
+            .update({ status: "success" })
+            .eq("reference_id", id);
+
+          await logAuditEvent({
+            event: "WITHDRAWAL_STATUS_CHANGE",
+            severity: "INFO",
+            actorId: auth.user?.id,
+            actorEmail: auth.user?.email,
+            targetId: id,
+            ip: auth.clientIp,
+            country: auth.country,
+            details: {
+              action: "ADMIN_APPROVE_DANA_SUCCESS",
+              amount: wd.amount,
+              netAmount: netAmountToSend,
+              partnerReferenceNo: partnerRefNo,
+              referenceNo: disburseRes.referenceNo,
+              responseCode: disburseRes.responseCode,
+            },
+          });
+
+          return NextResponse.json({
+            success: true,
+            referenceNo: disburseRes.referenceNo,
+            message: `Saldo Rp${netAmountToSend.toLocaleString("id-ID")} berhasil dicairkan ke DANA pengguna!`,
+          });
+        }
+
+        if (disburseRes.outcome === "MDA_INSUFFICIENT") {
+          await safeUpdateWdRow(id, {
+            dana_partner_reference_no: null,
+            dana_response_code: disburseRes.responseCode,
+            dana_response_message: disburseRes.responseMessage,
+            updated_at: doneIso,
+          });
+
+          return NextResponse.json(
+            {
+              success: false,
+              error:
+                "Saldo Merchant DANA (MDA) tidak mencukupi (4033814). Silakan top-up MDA terlebih dahulu lalu klik Setujui kembali.",
+            },
+            { status: 400 }
+          );
+        }
+
+        if (disburseRes.outcome === "PENDING_RECONCILE") {
+          await safeUpdateWdRow(id, {
+            dana_partner_reference_no: partnerRefNo,
+            dana_response_code: disburseRes.responseCode,
+            dana_response_message: disburseRes.responseMessage,
+            dana_checked_at: doneIso,
+            updated_at: doneIso,
+          });
+
+          return NextResponse.json({
+            success: true,
+            pendingDana: true,
+            message:
+              "DANA merespons Pending/Timeout. Dana ditahan pada status Diproses demi mencegah pencairan ganda — klik tombol Rekonsiliasi DANA sebentar lagi.",
+          });
+        }
+
+        // Definitive failure (`DEF_FAILED`) -> Mark `ditolak` + atomic wallet refund
+        const { updated: markedFailed } = await safeUpdateWdRow(
+          id,
+          {
+            status: "ditolak",
+            updated_at: doneIso,
+            dana_partner_reference_no: partnerRefNo,
+            dana_response_code: disburseRes.responseCode,
+            dana_response_message: disburseRes.responseMessage,
+            dana_checked_at: doneIso,
+            admin_note: `Gagal Disbursement DANA (${disburseRes.responseCode}): ${disburseRes.responseMessage}`,
+          },
+          prevWdStatus
+        );
+
+        if (markedFailed) {
+          await supabaseAdmin
+            .from("transactions")
+            .update({ status: "failed" })
+            .eq("reference_id", id);
+
+          await refundUserWithdrawalBalance(
+            wd,
+            `Gagal pencairan DANA (${disburseRes.responseCode})`,
+            doneIso
+          );
+        }
+
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Pencairan ditolak oleh DANA (${disburseRes.responseCode}): ${
+              disburseRes.friendlyError || disburseRes.responseMessage
+            }. Saldo pengguna telah dikembalikan otomatis.`,
+          },
+          { status: 400 }
+        );
+      }
+
+      // Manual reject (`ditolak`) or legacy non-DANA update
+      const updatePayload: Record<string, unknown> = {
         status: mapped.wd,
         updated_at: nowIso,
       };
@@ -209,55 +548,26 @@ export async function PATCH(req: NextRequest) {
         updatePayload.processed_at = nowIso;
       }
 
-      // Atomic conditional update to prevent concurrent double-refund race condition
-      const { data: updatedWd, error: updErr } = await supabaseAdmin
-        .from("withdrawals")
-        .update(updatePayload)
-        .eq("id", id)
-        .eq("status", prevWdStatus)
-        .select("id");
-
+      const { updated, error: updErr } = await safeUpdateWdRow(id, updatePayload, prevWdStatus);
       if (updErr) throw updErr;
-      if (!updatedWd || updatedWd.length === 0) {
+      if (!updated) {
         return NextResponse.json(
           { success: false, error: "Status penarikan sudah berubah oleh permintaan lain." },
           { status: 409 }
         );
       }
 
-      // Also update matching transaction row if any
       await supabaseAdmin
         .from("transactions")
         .update({ status: mapped.tx })
         .eq("reference_id", id);
 
-      // If rejected/failed from pending/diproses state, refund user's wallet balance atomically once
       if (mapped.wd === "ditolak" && wasPending) {
-        const { data: wallet } = await supabaseAdmin
-          .from("wallets")
-          .select("balance, total_withdrawn")
-          .eq("user_id", wd.user_id)
-          .maybeSingle();
-
-        if (wallet) {
-          await supabaseAdmin
-            .from("wallets")
-            .update({
-              balance: Number(wallet.balance) + Number(wd.amount),
-              total_withdrawn: Math.max(0, Number(wallet.total_withdrawn) - Number(wd.amount)),
-              updated_at: nowIso,
-            })
-            .eq("user_id", wd.user_id);
-
-          await supabaseAdmin.from("transactions").insert({
-            user_id: wd.user_id,
-            type: "refund",
-            amount: wd.amount,
-            title: "Pengembalian Dana Penarikan",
-            description: `Refund penarikan #${wd.id.slice(0, 8)} (${adminNote || "Penarikan ditolak oleh Admin"})`,
-            status: "success",
-          });
-        }
+        await refundUserWithdrawalBalance(
+          wd,
+          adminNote || "Penarikan ditolak oleh Admin",
+          nowIso
+        );
       }
 
       await logAuditEvent({
@@ -268,7 +578,13 @@ export async function PATCH(req: NextRequest) {
         targetId: id,
         ip: auth.clientIp,
         country: auth.country,
-        details: { prevStatus: prevWdStatus, newStatus: mapped.wd, adminNote, userId: wd.user_id, amount: wd.amount },
+        details: {
+          prevStatus: prevWdStatus,
+          newStatus: mapped.wd,
+          adminNote,
+          userId: wd.user_id,
+          amount: wd.amount,
+        },
       });
 
       return NextResponse.json({
@@ -327,7 +643,6 @@ export async function POST(req: NextRequest) {
 
     const numAmount = amount;
 
-    // Insert transaction
     const { data: tx, error: txErr } = await supabaseAdmin
       .from("transactions")
       .insert({
@@ -343,7 +658,6 @@ export async function POST(req: NextRequest) {
 
     if (txErr) throw txErr;
 
-    // Update wallet balance
     const { data: wallet } = await supabaseAdmin
       .from("wallets")
       .select("balance, total_earned")

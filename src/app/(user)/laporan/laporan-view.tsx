@@ -1,6 +1,5 @@
 "use client";
 
-import * as React from "react";
 import Image from "next/image";
 import { Sparkles } from "lucide-react";
 import { PageShell, Reveal } from "@/components/layout/page-shell";

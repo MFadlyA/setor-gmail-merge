@@ -9,13 +9,11 @@ import { type SiteConfig, DEFAULT_SITE_CONFIG } from "@/lib/supabase";
 import {
   LogIn,
   UserPlus,
-  Zap,
   Banknote,
   ShieldCheck,
   Users,
   Clock,
   Wrench,
-  PlayCircle,
   ArrowRight,
 } from "lucide-react";
 
@@ -365,7 +363,7 @@ export function CinematicFooter({
   giantText = "SETOR GMAIL",
   onPill1Click,
   onPill2Click,
-  onTutorialClick,
+  onTutorialClick: _onTutorialClick,
   craftedByText = "Winter",
   onOpenRegister,
   onOpenLogin,

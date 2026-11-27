@@ -58,10 +58,10 @@ export const DEFAULT_CONFIG: SiteConfig = {
   min_withdrawal: 5000,
   max_withdrawals_per_day: 3,
 
-  is_gopay_active: true,
-  is_ovo_active: true,
+  is_gopay_active: false,
+  is_ovo_active: false,
   is_dana_active: true,
-  is_shopeepay_active: true,
+  is_shopeepay_active: false,
 
   tax_gopay_active: true,
   tax_gopay: 1000,

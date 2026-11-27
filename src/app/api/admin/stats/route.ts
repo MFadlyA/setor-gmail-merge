@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin, fetchAllRows } from "@/lib/supabase/admin";
+import { supabaseAdmin, fetchAllRows, readServerEnv } from "@/lib/supabase/admin";
 import { getAdminEmails } from "@/lib/auth-helpers";
 import { requireAdminAuth } from "@/lib/security/auth-guard";
 import {
@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
       { data: wallets, error: wErr },
       { data: transactions },
       { data: withdrawals },
-      { data: deposits, error: depErr },
+      { data: deposits },
       { data: categories },
       { data: siteConfigRow },
     ] = await Promise.all([
@@ -71,7 +71,7 @@ export async function GET(req: NextRequest) {
       fetchAllRows((from, to) =>
         supabaseAdmin
           .from("withdrawals")
-          .select("id, user_id, amount, method, status, created_at, account_name, account_number")
+          .select("*")
           .order("created_at", { ascending: false })
           .order("id", { ascending: true })
           .range(from, to)
@@ -436,7 +436,7 @@ export async function GET(req: NextRequest) {
       systemHealth: {
         supabaseConnected: true,
         latencyMs,
-        telegramConfigured: !!process.env.TELEGRAM_BOT_TOKEN,
+        telegramConfigured: Boolean(readServerEnv("TELEGRAM_BOT_TOKEN")),
         adminCount: getAdminEmails().length,
         timestamp: new Date().toISOString(),
       },

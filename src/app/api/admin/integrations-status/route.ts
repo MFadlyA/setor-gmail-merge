@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin, getSupabaseAdminConfig } from "@/lib/supabase/admin";
+import { supabaseAdmin, getSupabaseAdminConfig, readServerEnv } from "@/lib/supabase/admin";
 import { requireAdminAuth } from "@/lib/security/auth-guard";
 
 export const dynamic = "force-dynamic";
@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
   // 2. Check Telegram Bot
   const checkTelegram = async () => {
     const t0 = Date.now();
-    const token = process.env.TELEGRAM_BOT_TOKEN;
+    const token = readServerEnv("TELEGRAM_BOT_TOKEN");
     if (!token) {
       return {
         status: "Offline",

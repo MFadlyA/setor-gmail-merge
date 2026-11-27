@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Mail,
   Search,
@@ -54,7 +54,7 @@ export default function DepositsPage() {
   const [isUpdatingDeposit, setIsUpdatingDeposit] = useState(false);
 
   // Fetch Gmail deposits
-  const fetchDeposits = async () => {
+  const fetchDeposits = useCallback(async () => {
     setIsLoadingDeposits(true);
     try {
       const params = new URLSearchParams();
@@ -74,14 +74,14 @@ export default function DepositsPage() {
     } finally {
       setIsLoadingDeposits(false);
     }
-  };
+  }, [depositCategoryFilter, depositStatusFilter, depositSearch]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
       fetchDeposits();
     }, 300);
     return () => clearTimeout(timer);
-  }, [depositCategoryFilter, depositStatusFilter, depositSearch]);
+  }, [fetchDeposits]);
 
   const handleUpdateDepositStatus = async (item: any, newStatus: string, customNote?: string) => {
     setIsUpdatingDeposit(true);

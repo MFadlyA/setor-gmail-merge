@@ -6,11 +6,8 @@ import {
   Camera,
   LogOut,
   User,
-  Copy,
-  Check,
   Mail,
   Calendar,
-  KeyRound,
   Wallet,
   Smartphone,
   BanknoteArrowDown,
@@ -151,40 +148,6 @@ function TransactionRow({ record, index }: { record: UnifiedTransaction; index: 
 }
 
 /* ------------------------------------------------------------------ */
-/* Copy UID Helper                                                    */
-/* ------------------------------------------------------------------ */
-
-function CopyValue({ value }: { value: string }) {
-  const [copied, setCopied] = React.useState(false);
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(value);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1800);
-      toast.success("UID tersalin ke clipboard");
-    } catch {
-      toast.error("Gagal menyalin");
-    }
-  };
-
-  return (
-    <button
-      type="button"
-      onClick={handleCopy}
-      aria-label={`Salin ${value}`}
-      className="flex size-7 shrink-0 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-sky-500/10 hover:text-sky-400 active:scale-90 cursor-pointer"
-    >
-      {copied ? (
-        <Check className="size-3.5 text-emerald-400" aria-hidden="true" />
-      ) : (
-        <Copy className="size-3.5" aria-hidden="true" />
-      )}
-    </button>
-  );
-}
-
-/* ------------------------------------------------------------------ */
 /* Main ProfilView                                                    */
 /* ------------------------------------------------------------------ */
 
@@ -215,18 +178,12 @@ export function ProfilView() {
   const [isWithdrawModalOpen, setIsWithdrawModalOpen] = React.useState(false);
 
   const availableMethods = React.useMemo<EWalletMethod[]>(() => {
-    const allMethods: { key: EWalletMethod; active: boolean }[] = [
-      { key: "DANA", active: siteConfig?.is_dana_active !== false },
-      { key: "GOPAY", active: siteConfig?.is_gopay_active !== false },
-      { key: "OVO", active: siteConfig?.is_ovo_active !== false },
-      { key: "SHOPEEPAY", active: siteConfig?.is_shopeepay_active !== false },
-    ];
-    return allMethods.filter((m) => m.active).map((m) => m.key);
+    return siteConfig?.is_dana_active === false ? [] : ["DANA"];
   }, [siteConfig]);
 
   React.useEffect(() => {
     if (availableMethods.length > 0 && !availableMethods.includes(selectedMethod)) {
-      setSelectedMethod(availableMethods[0]);
+      setSelectedMethod("DANA");
     }
   }, [availableMethods, selectedMethod]);
 
@@ -234,8 +191,9 @@ export function ProfilView() {
   const unifiedTransactions: UnifiedTransaction[] = React.useMemo(() => {
     const list: UnifiedTransaction[] = [];
 
-    // Tambahkan transaksi biasa (deposit, bonus, dll)
+    // Tambahkan transaksi biasa (deposit, bonus, dll) — hindari duplikasi baris withdrawal yang sudah ada di tabel withdrawals
     for (const t of transactions) {
+      if (t.type === "withdrawal" && withdrawals.length > 0) continue;
       list.push({
         id: t.id,
         type: t.type,
@@ -246,15 +204,16 @@ export function ProfilView() {
       });
     }
 
-    // Tambahkan penarikan
+    // Tambahkan penarikan lengkap dengan nama pemilik DANA hasil Account Inquiry
     for (const w of withdrawals) {
       const config = EWALLET_CONFIGS[(w.method || "DANA").toUpperCase() as EWalletMethod] || EWALLET_CONFIGS.DANA;
+      const ownerPart = w.accountName ? ` a/n ${w.accountName}` : "";
       list.push({
         id: `wd-${w.id}`,
         type: "withdrawal",
         amount: w.amount,
         title: `Penarikan ${config.name}`,
-        description: `${w.accountNumber || "-"} · Status: ${w.status}`,
+        description: `${w.accountNumber || "-"}${ownerPart}`,
         createdAt: w.createdAt,
         status: w.status,
         method: w.method,

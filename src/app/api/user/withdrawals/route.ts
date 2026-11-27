@@ -11,6 +11,14 @@ import {
   MAX_WITHDRAWALS_PER_DAY,
   MAX_INSTANT_WITHDRAWAL,
 } from "@/lib/security";
+import { isDanaConfigured } from "@/lib/dana/client";
+import {
+  AUTO_DISBURSE_MAX_AMOUNT,
+  checkMdaBalance,
+  disburseToDana,
+  generatePartnerReferenceNo,
+  inquireDanaAccount,
+} from "@/lib/dana/disbursement";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +32,30 @@ function extractBearerOrCookieToken(req: NextRequest): string | null {
     req.cookies.get("sb-auth-token")?.value ||
     null
   );
+}
+
+/**
+ * Helper to update `withdrawals` safely with automatic fallback if DANA tracking columns
+ * have not yet been migrated in Supabase SQL Editor.
+ */
+async function safeUpdateWithdrawal(
+  id: string,
+  payload: Record<string, unknown>
+): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from("withdrawals")
+    .update(payload)
+    .eq("id", id);
+
+  if (error && /dana_/i.test(error.message || "")) {
+    const fallbackPayload = { ...payload };
+    delete fallbackPayload.dana_partner_reference_no;
+    delete fallbackPayload.dana_reference_no;
+    delete fallbackPayload.dana_response_code;
+    delete fallbackPayload.dana_response_message;
+    delete fallbackPayload.dana_checked_at;
+    await supabaseAdmin.from("withdrawals").update(fallbackPayload).eq("id", id);
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -75,7 +107,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 4. Parse & validate input
+    // 4. Parse & validate input — Strictly DANA only
     const body = await req.json().catch(() => null);
     if (!body || typeof body !== "object") {
       return NextResponse.json(
@@ -84,11 +116,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const validMethods = ["DANA", "GOPAY", "OVO", "SHOPEEPAY"];
     const cleanMethod = sanitizeInputText(body.method, 20).toUpperCase();
-    if (!validMethods.includes(cleanMethod)) {
+    if (cleanMethod !== "DANA") {
       return NextResponse.json(
-        { success: false, error: "Metode pembayaran e-wallet tidak valid." },
+        { success: false, error: "Saat ini penarikan saldo hanya mendukung metode DANA." },
         { status: 400 }
       );
     }
@@ -96,7 +127,7 @@ export async function POST(req: NextRequest) {
     const phoneCheck = validateEWalletNumber(body.accountNumber);
     if (!phoneCheck.valid) {
       return NextResponse.json(
-        { success: false, error: phoneCheck.error || "Nomor e-wallet tidak valid." },
+        { success: false, error: phoneCheck.error || "Nomor DANA tidak valid." },
         { status: 400 }
       );
     }
@@ -122,23 +153,10 @@ export async function POST(req: NextRequest) {
             { status: 503 }
           );
         }
-        if (parsed?.is_withdrawal_active === false) {
+        if (parsed?.is_withdrawal_active === false || parsed?.is_dana_active === false) {
           return NextResponse.json(
-            { success: false, error: "Layanan penarikan saldo sedang dinonaktifkan sementara oleh Admin." },
+            { success: false, error: "Layanan penarikan saldo DANA sedang dinonaktifkan sementara oleh Admin." },
             { status: 403 }
-          );
-        }
-
-        const methodActiveMap: Record<string, boolean> = {
-          DANA: parsed?.is_dana_active !== false,
-          GOPAY: parsed?.is_gopay_active !== false,
-          OVO: parsed?.is_ovo_active !== false,
-          SHOPEEPAY: parsed?.is_shopeepay_active !== false,
-        };
-        if (!methodActiveMap[cleanMethod]) {
-          return NextResponse.json(
-            { success: false, error: `Metode penarikan ${cleanMethod} sedang tidak aktif.` },
-            { status: 400 }
           );
         }
 
@@ -157,18 +175,13 @@ export async function POST(req: NextRequest) {
           );
         }
 
-        const taxMap: Record<string, number> = {
-          DANA: parsed?.tax_dana_active === false ? 0 : Math.max(0, Math.floor(Number(parsed?.tax_dana) || 0)),
-          GOPAY: parsed?.tax_gopay_active === false ? 0 : Math.max(0, Math.floor(Number(parsed?.tax_gopay) ?? 1000)),
-          OVO: parsed?.tax_ovo_active === false ? 0 : Math.max(0, Math.floor(Number(parsed?.tax_ovo) ?? 1000)),
-          SHOPEEPAY: parsed?.tax_shopeepay_active === false ? 0 : Math.max(0, Math.floor(Number(parsed?.tax_shopeepay) || 0)),
-        };
-        authoritativeTax = taxMap[cleanMethod] ?? 0;
+        authoritativeTax =
+          parsed?.tax_dana_active === false
+            ? 0
+            : Math.max(0, Math.floor(Number(parsed?.tax_dana) || 0));
       } catch {
         // fallback defaults
       }
-    } else if (cleanMethod === "GOPAY" || cleanMethod === "OVO") {
-      authoritativeTax = 1000;
     }
 
     // 6. Enforce daily withdrawal frequency cap (WIB / UTC+7 calendar day, excluding rejected)
@@ -254,18 +267,61 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const cleanNet = Math.max(0, requestedAmount - authoritativeTax);
+
+    // 8. Verify DANA Account Inquiry BEFORE debiting user's wallet
+    if (!isDanaConfigured()) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Integrasi pencairan DANA belum aktif di server. Silakan coba beberapa saat lagi.",
+        },
+        { status: 503 }
+      );
+    }
+
+    const inquiry = await inquireDanaAccount({
+      phoneNumber: phoneCheck.cleaned,
+      amountIdr: cleanNet,
+    });
+
+    if (!inquiry.ok) {
+      return NextResponse.json(
+        {
+          success: false,
+          code: inquiry.responseCode,
+          error: inquiry.friendlyError || "Nomor DANA tidak ditemukan atau tidak aktif.",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (inquiry.maxAmountIdr > 0 && cleanNet > inquiry.maxAmountIdr) {
+      return NextResponse.json(
+        {
+          success: false,
+          code: "EXCEEDS_MAX_AMOUNT",
+          error: `Nominal penarikan melebihi sisa batas saldo akun DANA tujuan (maksimal Rp${inquiry.maxAmountIdr.toLocaleString("id-ID")}).`,
+        },
+        { status: 400 }
+      );
+    }
+
+    const verifiedCustomerName = sanitizeInputText(inquiry.customerName || "Pengguna DANA", 120);
+    const isAutoDisburseEligible = requestedAmount <= AUTO_DISBURSE_MAX_AMOUNT;
+
     const currentWithdrawn = Number(currentWallet.total_withdrawn) || 0;
     const newBalance = currentBalance - requestedAmount;
     const newTotalWithdrawn = currentWithdrawn + requestedAmount;
-    const cleanNet = Math.max(0, requestedAmount - authoritativeTax);
+    const nowIso = new Date().toISOString();
 
-    // 8. Atomic conditional balance deduction (prevents double-spend race condition)
+    // 9. Atomic conditional balance deduction (prevents double-spend race condition)
     const { data: updatedWallet, error: updateErr } = await supabaseAdmin
       .from("wallets")
       .update({
         balance: newBalance,
         total_withdrawn: newTotalWithdrawn,
-        updated_at: new Date().toISOString(),
+        updated_at: nowIso,
       })
       .eq("user_id", user.id)
       .eq("balance", currentBalance)
@@ -282,20 +338,47 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 9. Insert withdrawal record with server-computed tax & net_amount
-    const { data: withdrawalData, error: withdrawalErr } = await supabaseAdmin
+    // 10. Insert withdrawal record (`status: 'diproses'`) with verified `account_name`
+    const initialInsertPayload: Record<string, unknown> = {
+      user_id: user.id,
+      amount: requestedAmount,
+      tax_fee: authoritativeTax,
+      net_amount: cleanNet,
+      method: "DANA",
+      account_number: phoneCheck.cleaned,
+      account_name: verifiedCustomerName,
+      status: "diproses",
+      dana_response_code: isAutoDisburseEligible ? "INQUIRY_OK" : "WAIT_ADMIN_APPROVAL",
+      dana_response_message: isAutoDisburseEligible
+        ? "Memproses pencairan otomatis DANA"
+        : `Nominal di atas Rp${AUTO_DISBURSE_MAX_AMOUNT.toLocaleString("id-ID")} menunggu persetujuan Admin`,
+    };
+
+    let { data: withdrawalData, error: withdrawalErr } = await supabaseAdmin
       .from("withdrawals")
-      .insert({
+      .insert(initialInsertPayload)
+      .select("id")
+      .single();
+
+    if (withdrawalErr && /dana_/i.test(withdrawalErr.message || "")) {
+      const legacyPayload = {
         user_id: user.id,
         amount: requestedAmount,
         tax_fee: authoritativeTax,
         net_amount: cleanNet,
-        method: cleanMethod,
+        method: "DANA",
         account_number: phoneCheck.cleaned,
+        account_name: verifiedCustomerName,
         status: "diproses",
-      })
-      .select("id")
-      .single();
+      };
+      const retry = await supabaseAdmin
+        .from("withdrawals")
+        .insert(legacyPayload)
+        .select("id")
+        .single();
+      withdrawalData = retry.data;
+      withdrawalErr = retry.error;
+    }
 
     if (withdrawalErr || !withdrawalData) {
       // Rollback deducted balance safely
@@ -314,41 +397,257 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 10. Record ledger transaction entry
-    await supabaseAdmin.from("transactions").insert({
-      user_id: user.id,
-      type: "withdrawal",
-      amount: requestedAmount,
-      title: "Penarikan Saldo",
-      description: `${cleanMethod} ${phoneCheck.cleaned}`,
-      status: "pending",
-      reference_id: withdrawalData.id,
-    });
+    const wdId = withdrawalData.id;
 
-    await logAuditEvent({
-      event: "WITHDRAWAL_STATUS_CHANGE",
-      severity: "INFO",
-      actorId: user.id,
-      actorEmail: user.email,
-      targetId: withdrawalData.id,
-      ip: clientIp,
-      country,
-      userAgent,
-      details: {
-        action: "USER_REQUEST_WITHDRAWAL",
+    // 11. Branch A: Nominal > Rp20.000 -> Queue for Admin Approval
+    if (!isAutoDisburseEligible) {
+      await supabaseAdmin.from("transactions").insert({
+        user_id: user.id,
+        type: "withdrawal",
         amount: requestedAmount,
-        taxFee: authoritativeTax,
+        title: "Penarikan Saldo DANA",
+        description: `DANA ${phoneCheck.cleaned} a/n ${verifiedCustomerName} (Menunggu Persetujuan Admin)`,
+        status: "pending",
+        reference_id: wdId,
+      });
+
+      await logAuditEvent({
+        event: "WITHDRAWAL_STATUS_CHANGE",
+        severity: "INFO",
+        actorId: user.id,
+        actorEmail: user.email,
+        targetId: wdId,
+        ip: clientIp,
+        country,
+        userAgent,
+        details: {
+          action: "USER_REQUEST_WITHDRAWAL_QUEUE_ADMIN",
+          amount: requestedAmount,
+          netAmount: cleanNet,
+          accountNumber: phoneCheck.cleaned,
+          customerName: verifiedCustomerName,
+        },
+      });
+
+      return NextResponse.json({
+        success: true,
+        id: wdId,
+        status: "diproses",
+        autoDisbursed: false,
+        requiresAdminApproval: true,
+        customerName: verifiedCustomerName,
         netAmount: cleanNet,
-        method: cleanMethod,
-      },
+        taxFee: authoritativeTax,
+      });
+    }
+
+    // 12. Branch B: Nominal <= Rp20.000 -> Instant Auto-Disburse to DANA Balance!
+    // Pre-check MDA balance if DANA_MERCHANT_ID is configured
+    const mdaCheck = await checkMdaBalance();
+    if (mdaCheck.ok && typeof mdaCheck.balanceIdr === "number" && mdaCheck.balanceIdr < cleanNet) {
+      await safeUpdateWithdrawal(wdId, {
+        dana_response_code: "MDA_INSUFFICIENT",
+        dana_response_message: "Saldo MDA di bawah nominal penarikan; dialihkan ke antrean Admin",
+        updated_at: new Date().toISOString(),
+      });
+
+      await supabaseAdmin.from("transactions").insert({
+        user_id: user.id,
+        type: "withdrawal",
+        amount: requestedAmount,
+        title: "Penarikan Saldo DANA",
+        description: `DANA ${phoneCheck.cleaned} a/n ${verifiedCustomerName}`,
+        status: "pending",
+        reference_id: wdId,
+      });
+
+      return NextResponse.json({
+        success: true,
+        id: wdId,
+        status: "diproses",
+        autoDisbursed: false,
+        requiresAdminApproval: true,
+        customerName: verifiedCustomerName,
+        netAmount: cleanNet,
+        taxFee: authoritativeTax,
+      });
+    }
+
+    // Write-ahead idempotency key BEFORE calling `transferToDana`
+    const partnerRefNo = generatePartnerReferenceNo("WD", wdId);
+    await safeUpdateWithdrawal(wdId, {
+      dana_partner_reference_no: partnerRefNo,
+      dana_response_code: "DISBURSING",
+      updated_at: new Date().toISOString(),
     });
 
-    return NextResponse.json({
-      success: true,
-      id: withdrawalData.id,
-      netAmount: cleanNet,
-      taxFee: authoritativeTax,
+    const disburseRes = await disburseToDana({
+      partnerReferenceNo: partnerRefNo,
+      phoneNumber: phoneCheck.cleaned,
+      amountIdr: cleanNet,
+      sessionId: inquiry.sessionId,
+      notes: `WD Setor Gmail #${wdId.slice(0, 8)}`,
     });
+
+    const finishIso = new Date().toISOString();
+
+    if (disburseRes.outcome === "SUCCESS") {
+      await safeUpdateWithdrawal(wdId, {
+        status: "berhasil",
+        processed_at: finishIso,
+        updated_at: finishIso,
+        dana_partner_reference_no: partnerRefNo,
+        dana_reference_no: disburseRes.referenceNo || null,
+        dana_response_code: disburseRes.responseCode,
+        dana_response_message: disburseRes.responseMessage,
+        dana_checked_at: finishIso,
+        admin_note: disburseRes.inconsistentFlag
+          ? "Cair otomatis (4043818 Inconsistent Request — verifikasi di portal DANA)"
+          : "Cair otomatis via DANA Disbursement",
+      });
+
+      await supabaseAdmin.from("transactions").insert({
+        user_id: user.id,
+        type: "withdrawal",
+        amount: requestedAmount,
+        title: "Penarikan Saldo DANA",
+        description: `DANA ${phoneCheck.cleaned} a/n ${verifiedCustomerName} (Cair Otomatis)`,
+        status: "success",
+        reference_id: wdId,
+      });
+
+      await logAuditEvent({
+        event: "WITHDRAWAL_STATUS_CHANGE",
+        severity: "INFO",
+        actorId: user.id,
+        actorEmail: user.email,
+        targetId: wdId,
+        ip: clientIp,
+        country,
+        userAgent,
+        details: {
+          action: "AUTO_DISBURSE_SUCCESS",
+          amount: requestedAmount,
+          netAmount: cleanNet,
+          partnerReferenceNo: partnerRefNo,
+          referenceNo: disburseRes.referenceNo,
+          responseCode: disburseRes.responseCode,
+          customerName: verifiedCustomerName,
+        },
+      });
+
+      return NextResponse.json({
+        success: true,
+        id: wdId,
+        status: "berhasil",
+        autoDisbursed: true,
+        customerName: verifiedCustomerName,
+        referenceNo: disburseRes.referenceNo,
+        netAmount: cleanNet,
+        taxFee: authoritativeTax,
+      });
+    }
+
+    if (disburseRes.outcome === "MDA_INSUFFICIENT") {
+      // 4033814: No funds left MDA; clear partnerRefNo so Admin approval can retry cleanly after MDA top-up
+      await safeUpdateWithdrawal(wdId, {
+        dana_partner_reference_no: null,
+        dana_response_code: disburseRes.responseCode,
+        dana_response_message: "Menunggu pengisian saldo MDA / persetujuan Admin",
+        updated_at: finishIso,
+      });
+
+      await supabaseAdmin.from("transactions").insert({
+        user_id: user.id,
+        type: "withdrawal",
+        amount: requestedAmount,
+        title: "Penarikan Saldo DANA",
+        description: `DANA ${phoneCheck.cleaned} a/n ${verifiedCustomerName}`,
+        status: "pending",
+        reference_id: wdId,
+      });
+
+      return NextResponse.json({
+        success: true,
+        id: wdId,
+        status: "diproses",
+        autoDisbursed: false,
+        customerName: verifiedCustomerName,
+        netAmount: cleanNet,
+        taxFee: authoritativeTax,
+      });
+    }
+
+    if (disburseRes.outcome === "PENDING_RECONCILE") {
+      // Uncertain outcome (5003801 / 4293800 / timeout): MUST hold funds in `diproses` and keep partnerRefNo!
+      await safeUpdateWithdrawal(wdId, {
+        dana_partner_reference_no: partnerRefNo,
+        dana_response_code: disburseRes.responseCode,
+        dana_response_message: disburseRes.responseMessage,
+        dana_checked_at: finishIso,
+        updated_at: finishIso,
+      });
+
+      await supabaseAdmin.from("transactions").insert({
+        user_id: user.id,
+        type: "withdrawal",
+        amount: requestedAmount,
+        title: "Penarikan Saldo DANA",
+        description: `DANA ${phoneCheck.cleaned} a/n ${verifiedCustomerName} (Verifikasi Status DANA)`,
+        status: "pending",
+        reference_id: wdId,
+      });
+
+      return NextResponse.json({
+        success: true,
+        id: wdId,
+        status: "diproses",
+        autoDisbursed: false,
+        pendingDanaConfirm: true,
+        customerName: verifiedCustomerName,
+        netAmount: cleanNet,
+        taxFee: authoritativeTax,
+      });
+    }
+
+    // Definitive failure (`DEF_FAILED`) -> Mark `ditolak` & atomically refund user's wallet
+    await safeUpdateWithdrawal(wdId, {
+      status: "ditolak",
+      updated_at: finishIso,
+      dana_partner_reference_no: partnerRefNo,
+      dana_response_code: disburseRes.responseCode,
+      dana_response_message: disburseRes.responseMessage,
+      dana_checked_at: finishIso,
+      admin_note: `Gagal cair otomatis DANA (${disburseRes.responseCode})`,
+    });
+
+    const { data: latestWallet } = await supabaseAdmin
+      .from("wallets")
+      .select("balance, total_withdrawn")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (latestWallet) {
+      await supabaseAdmin
+        .from("wallets")
+        .update({
+          balance: Number(latestWallet.balance) + requestedAmount,
+          total_withdrawn: Math.max(0, Number(latestWallet.total_withdrawn) - requestedAmount),
+          updated_at: finishIso,
+        })
+        .eq("user_id", user.id);
+    }
+
+    return NextResponse.json(
+      {
+        success: false,
+        code: disburseRes.responseCode,
+        error:
+          disburseRes.friendlyError ||
+          "Pencairan otomatis ke DANA ditolak oleh sistem DANA. Saldo Anda telah dikembalikan utuh.",
+      },
+      { status: 400 }
+    );
   } catch (err) {
     return NextResponse.json(
       { success: false, error: sanitizeErrorMessage(err, "Gagal memproses penarikan saldo.") },

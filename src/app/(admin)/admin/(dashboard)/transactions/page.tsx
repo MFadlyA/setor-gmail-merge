@@ -1,22 +1,15 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ArrowLeftRight,
   Search,
-  Filter,
   CheckCircle,
   XCircle,
   RefreshCw,
-  Wallet,
   ArrowDownLeft,
   ArrowUpRight,
-  FileText,
   Clock,
-  ExternalLink,
-  AlertTriangle,
-  ChevronRight,
-  ShieldCheck,
 } from "lucide-react";
 import { StatusBadge } from "@/components/admin/ui/badge";
 import { Button } from "@/components/admin/ui/button";
@@ -27,7 +20,6 @@ import { adminFetch } from "@/lib/api-client";
 export default function TransactionsPage() {
   // Transactions State
   const [transactions, setTransactions] = useState<any[]>([]);
-  const [users, setUsers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
@@ -38,9 +30,39 @@ export default function TransactionsPage() {
   const [selectedTx, setSelectedTx] = useState<any>(null);
   const [adminNote, setAdminNote] = useState("");
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [mdaInfo, setMdaInfo] = useState<{
+    loading: boolean;
+    reconciling: boolean;
+    env?: string;
+    isConfigured?: boolean;
+    balanceIdr?: number | null;
+    pendingReconcileCount?: number;
+  }>({ loading: false, reconciling: false });
+
+  const fetchMdaInfo = async () => {
+    setMdaInfo((prev) => ({ ...prev, loading: true }));
+    try {
+      const res = await adminFetch("/api/admin/dana/reconcile");
+      const json = await res.json();
+      if (json.success) {
+        setMdaInfo((prev) => ({
+          ...prev,
+          loading: false,
+          env: json.config?.env,
+          isConfigured: json.config?.isConfigured,
+          balanceIdr: json.mda?.balanceIdr ?? null,
+          pendingReconcileCount: json.pendingReconcileCount || 0,
+        }));
+      } else {
+        setMdaInfo((prev) => ({ ...prev, loading: false }));
+      }
+    } catch {
+      setMdaInfo((prev) => ({ ...prev, loading: false }));
+    }
+  };
 
   // Fetch transactions
-  const fetchTransactions = async () => {
+  const fetchTransactions = useCallback(async () => {
     setIsLoading(true);
     try {
       const params = new URLSearchParams();
@@ -58,22 +80,29 @@ export default function TransactionsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [typeFilter, statusFilter, search]);
 
-  const fetchUsersList = async () => {
+  const handleReconcileDana = async () => {
+    setMdaInfo((prev) => ({ ...prev, reconciling: true }));
     try {
-      const res = await adminFetch("/api/admin/users");
+      const res = await adminFetch("/api/admin/dana/reconcile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
       const json = await res.json();
-      if (json.success) {
-        setUsers(json.users || []);
-      }
-    } catch (e) {
-      console.error(e);
+      alert(json.message || json.error || "Rekonsiliasi selesai");
+      await fetchMdaInfo();
+      await fetchTransactions();
+    } catch (err: any) {
+      alert(err?.message || "Gagal menjalankan rekonsiliasi DANA");
+    } finally {
+      setMdaInfo((prev) => ({ ...prev, reconciling: false }));
     }
   };
 
   useEffect(() => {
-    fetchUsersList();
+    fetchMdaInfo();
   }, []);
 
   useEffect(() => {
@@ -81,7 +110,7 @@ export default function TransactionsPage() {
       fetchTransactions();
     }, 300);
     return () => clearTimeout(timer);
-  }, [typeFilter, statusFilter, search]);
+  }, [fetchTransactions]);
 
   const handleUpdateStatus = async (item: any, newStatus: string, customNote?: string) => {
     setIsUpdatingStatus(true);
@@ -99,12 +128,15 @@ export default function TransactionsPage() {
 
       const json = await res.json();
       if (json.success) {
+        if (json.message) alert(json.message);
         setVerifyModalOpen(false);
         setSelectedTx(null);
         setAdminNote("");
         fetchTransactions();
+        fetchMdaInfo();
       } else {
         alert(json.error || "Gagal mengubah status transaksi");
+        fetchTransactions();
       }
     } catch (err: any) {
       alert(err?.message || "Terjadi kesalahan");
@@ -113,9 +145,10 @@ export default function TransactionsPage() {
     }
   };
 
-  const pendingCount = transactions.filter(
-    (t) => (t.status || "").toLowerCase() === "pending"
-  ).length;
+  const isPendingTx = (s?: string) =>
+    ["pending", "diproses"].includes((s || "").toLowerCase());
+
+  const pendingCount = transactions.filter((t) => isPendingTx(t.status)).length;
 
   return (
     <div className="space-y-6">
@@ -129,15 +162,53 @@ export default function TransactionsPage() {
               Manajemen Transaksi & Saldo
             </h2>
             <p className="text-xs text-zinc-400 mt-1">
-              Verifikasi penarikan saldo pengguna dan pantau mutasi dompet secara real-time.
+              Verifikasi penarikan saldo DANA (&gt; Rp10.000 butuh persetujuan Admin) dan pantau mutasi dompet secara real-time.
             </p>
           </div>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-zinc-900 border border-zinc-800 text-xs">
+              <span
+                className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold uppercase ${
+                  mdaInfo.env === "production"
+                    ? "bg-emerald-500/15 text-emerald-300"
+                    : "bg-amber-500/15 text-amber-300"
+                }`}
+              >
+                {mdaInfo.env || "sandbox"}
+              </span>
+              <span className="text-zinc-400">MDA:</span>
+              <span className="font-mono font-bold text-white">
+                {mdaInfo.loading
+                  ? "..."
+                  : typeof mdaInfo.balanceIdr === "number"
+                    ? `Rp ${mdaInfo.balanceIdr.toLocaleString("id-ID")}`
+                    : mdaInfo.isConfigured === false
+                      ? "Belum Aktif"
+                      : "-"}
+              </span>
+            </div>
+
             <Button
               variant="secondary"
               size="sm"
-              onClick={() => fetchTransactions()}
+              onClick={handleReconcileDana}
+              isLoading={mdaInfo.reconciling}
+              className="flex items-center gap-1.5 border-sky-500/30 text-sky-300"
+            >
+              <span>
+                Rekonsiliasi DANA
+                {mdaInfo.pendingReconcileCount ? ` (${mdaInfo.pendingReconcileCount})` : ""}
+              </span>
+            </Button>
+
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                fetchTransactions();
+                fetchMdaInfo();
+              }}
               isLoading={isLoading}
               className="flex items-center gap-1.5"
             >
@@ -296,20 +367,30 @@ export default function TransactionsPage() {
 
                       <td className="py-3 px-4 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1.5">
-                          {tx.status === "pending" ? (
+                          {isPendingTx(tx.status) && tx.source_table === "withdrawals" ? (
                             <>
                               <Button
                                 variant="success"
                                 size="sm"
-                                onClick={() => handleUpdateStatus(tx, "success")}
+                                disabled={isUpdatingStatus}
+                                onClick={() => {
+                                  if (
+                                    confirm(
+                                      `Setujui & cairkan otomatis Rp ${Number(tx.amount).toLocaleString("id-ID")} ke akun DANA pengguna ini?`
+                                    )
+                                  ) {
+                                    handleUpdateStatus(tx, "success");
+                                  }
+                                }}
                                 className="px-2 py-1 text-[11px] flex items-center gap-1"
                               >
                                 <CheckCircle className="w-3 h-3" />
-                                <span>Setujui</span>
+                                <span>Setujui &amp; Cairkan</span>
                               </Button>
                               <Button
                                 variant="danger"
                                 size="sm"
+                                disabled={isUpdatingStatus}
                                 onClick={() => {
                                   setSelectedTx(tx);
                                   setVerifyModalOpen(true);
@@ -363,21 +444,21 @@ export default function TransactionsPage() {
               >
                 Tutup
               </Button>
-              {selectedTx?.status === "pending" && (
+              {isPendingTx(selectedTx?.status) && selectedTx?.source_table === "withdrawals" && (
                 <>
                   <Button
                     variant="danger"
                     onClick={() => handleUpdateStatus(selectedTx, "failed")}
                     isLoading={isUpdatingStatus}
                   >
-                    Tolak Transaksi
+                    Tolak &amp; Refund
                   </Button>
                   <Button
                     variant="success"
                     onClick={() => handleUpdateStatus(selectedTx, "success")}
                     isLoading={isUpdatingStatus}
                   >
-                    Setujui Transaksi
+                    Setujui &amp; Cairkan DANA
                   </Button>
                 </>
               )}
@@ -407,7 +488,7 @@ export default function TransactionsPage() {
 
           {selectedTx?.details && (
             <div className="p-3 bg-zinc-950 border border-zinc-800 rounded-xl space-y-2">
-              <p className="font-semibold text-zinc-300">Detail Rekening Tujuan:</p>
+              <p className="font-semibold text-zinc-300">Detail Rekening &amp; Referensi DANA:</p>
               <div className="grid grid-cols-2 gap-2 text-zinc-400">
                 <div>
                   <span className="text-zinc-500">Metode:</span>
@@ -418,8 +499,8 @@ export default function TransactionsPage() {
                   <p className="font-mono text-zinc-200">{selectedTx.details.account_number || "-"}</p>
                 </div>
                 <div>
-                  <span className="text-zinc-500">Nama Penerima:</span>
-                  <p className="font-medium text-zinc-200">{selectedTx.details.account_name || "-"}</p>
+                  <span className="text-zinc-500">Nama Pemilik DANA:</span>
+                  <p className="font-medium text-emerald-300">{selectedTx.details.account_name || "-"}</p>
                 </div>
                 <div>
                   <span className="text-zinc-500">Biaya Admin:</span>
@@ -427,11 +508,35 @@ export default function TransactionsPage() {
                     Rp {Number(selectedTx.details.tax_fee || 0).toLocaleString("id-ID")}
                   </p>
                 </div>
+                <div>
+                  <span className="text-zinc-500">Partner Reference No:</span>
+                  <p className="font-mono text-[11px] text-sky-300 break-all">
+                    {selectedTx.details.dana_partner_reference_no || "-"}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-zinc-500">DANA Reference No:</span>
+                  <p className="font-mono text-[11px] text-emerald-300 break-all">
+                    {selectedTx.details.dana_reference_no || "-"}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-zinc-500">Kode Respons DANA:</span>
+                  <p className="font-mono text-zinc-200">
+                    {selectedTx.details.dana_response_code || "-"}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-zinc-500">Pesan DANA:</span>
+                  <p className="text-zinc-300 break-words">
+                    {selectedTx.details.dana_response_message || "-"}
+                  </p>
+                </div>
               </div>
             </div>
           )}
 
-          {selectedTx?.status === "pending" && (
+          {isPendingTx(selectedTx?.status) && selectedTx?.source_table === "withdrawals" && (
             <div>
               <Textarea
                 label="Catatan Admin (Alasan penolakan / bukti transfer)"

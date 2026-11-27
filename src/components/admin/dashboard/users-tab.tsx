@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Search,
   Wallet,
@@ -76,7 +76,7 @@ export const UsersTab = React.memo(function UsersTab({
   const [isUpdatingSaldo, setIsUpdatingSaldo] = useState(false);
   const [actionSuccessMsg, setActionSuccessMsg] = useState<string | null>(null);
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     setIsLoading(true);
     try {
       const params = new URLSearchParams();
@@ -100,14 +100,14 @@ export const UsersTab = React.memo(function UsersTab({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [search, limit, dateFrom, dateTo]);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
       fetchUsers();
     }, 300);
     return () => clearTimeout(timeout);
-  }, [search, limit, dateFrom, dateTo]);
+  }, [fetchUsers]);
 
   useEffect(() => {
     const handleGlobalRefresh = () => {
@@ -115,7 +115,7 @@ export const UsersTab = React.memo(function UsersTab({
     };
     window.addEventListener("admin_refresh_all", handleGlobalRefresh);
     return () => window.removeEventListener("admin_refresh_all", handleGlobalRefresh);
-  }, []);
+  }, [fetchUsers]);
 
   // Open Edit Saldo
   const handleOpenEditSaldo = (u: any) => {

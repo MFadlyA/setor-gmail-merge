@@ -1,6 +1,5 @@
 'use client';
 
-import React from 'react';
 import { Inbox, CheckCircle2, Clock, XCircle, AlertTriangle } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 

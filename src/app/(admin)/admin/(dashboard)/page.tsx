@@ -75,11 +75,68 @@ export default function DashboardOverviewPage() {
   const [copiedSecretId, setCopiedSecretId] = useState<string | null>(null);
   const [copiedContactId, setCopiedContactId] = useState<string | null>(null);
 
-  // Withdrawal processing state
+  // Withdrawal processing & DANA MDA state
   const [isProcessingWd, setIsProcessingWd] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [danaMdaState, setDanaMdaState] = useState<{
+    loading: boolean;
+    reconciling: boolean;
+    env?: string;
+    isConfigured?: boolean;
+    balanceIdr?: number | null;
+    resultMsg?: string;
+    pendingReconcileCount?: number;
+  }>({ loading: false, reconciling: false });
 
-  const fetchStats = async (showLoading = true, tf = timeframe) => {
+  const fetchDanaMdaInfo = useCallback(async () => {
+    setDanaMdaState((prev) => ({ ...prev, loading: true }));
+    try {
+      const res = await adminFetch("/api/admin/dana/reconcile");
+      const json = await res.json();
+      if (json.success) {
+        setDanaMdaState((prev) => ({
+          ...prev,
+          loading: false,
+          env: json.config?.env,
+          isConfigured: json.config?.isConfigured,
+          balanceIdr: json.mda?.balanceIdr ?? null,
+          resultMsg: json.mda?.resultMsg || "",
+          pendingReconcileCount: json.pendingReconcileCount || 0,
+        }));
+      } else {
+        setDanaMdaState((prev) => ({ ...prev, loading: false }));
+      }
+    } catch {
+      setDanaMdaState((prev) => ({ ...prev, loading: false }));
+    }
+  }, []);
+
+  const handleReconcileDana = async () => {
+    setDanaMdaState((prev) => ({ ...prev, reconciling: true }));
+    try {
+      const res = await adminFetch("/api/admin/dana/reconcile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const json = await res.json();
+      alert(json.message || json.error || "Rekonsiliasi selesai");
+      await fetchDanaMdaInfo();
+      await fetchStats(false, timeframe);
+    } catch (err: any) {
+      alert(err?.message || "Gagal menjalankan rekonsiliasi DANA");
+    } finally {
+      setDanaMdaState((prev) => ({ ...prev, reconciling: false }));
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "transactions") {
+      fetchDanaMdaInfo();
+    }
+  }, [activeTab, fetchDanaMdaInfo]);
+
+  const fetchStats = useCallback(async (showLoading = true, tf = timeframe) => {
     if (showLoading) setIsLoading(true);
     else setIsRefreshing(true);
 
@@ -95,7 +152,7 @@ export default function DashboardOverviewPage() {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  };
+  }, [timeframe]);
 
   const handleTimeframeChange = (newTf: string) => {
     setTimeframe(newTf);
@@ -111,10 +168,11 @@ export default function DashboardOverviewPage() {
 
   const handleUserUpdated = useCallback(() => {
     fetchStats(false, timeframe);
-  }, [timeframe]);
+  }, [fetchStats, timeframe]);
 
   useEffect(() => {
     fetchStats(true, "All");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const scrollToTabs = () => {
@@ -137,9 +195,14 @@ export default function DashboardOverviewPage() {
 
       const json = await res.json();
       if (json.success) {
+        if (json.message) {
+          alert(json.message);
+        }
         fetchStats(false);
+        fetchDanaMdaInfo();
       } else {
         alert(json.error || "Gagal memperbarui status penarikan");
+        fetchStats(false);
       }
     } catch (err: any) {
       alert(err?.message || "Terjadi kesalahan");
@@ -605,11 +668,69 @@ export default function DashboardOverviewPage() {
             {/* 1. Tab Transaksi (Gabungan Withdraw & Mutasi Transaksi) */}
             {activeTab === "transactions" && (
               <div className="space-y-5">
+                {/* Panel Status DANA Disbursement (Saldo MDA & Rekonsiliasi) */}
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-sky-500/25 bg-sky-950/20 px-3.5 py-3">
+                  <div className="flex flex-wrap items-center gap-2.5 text-xs">
+                    <span className="font-bold text-sky-300">DANA Disbursement:</span>
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase border ${
+                        danaMdaState.env === "production"
+                          ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30"
+                          : "bg-amber-500/15 text-amber-300 border-amber-500/30"
+                      }`}
+                    >
+                      {danaMdaState.env || "sandbox"}
+                    </span>
+                    <span className="text-zinc-300">
+                      Saldo MDA:{" "}
+                      <b className="font-mono text-white">
+                        {danaMdaState.loading
+                          ? "Memuat..."
+                          : typeof danaMdaState.balanceIdr === "number"
+                            ? isBalanceHidden
+                              ? "Rp ***"
+                              : `Rp ${danaMdaState.balanceIdr.toLocaleString("id-ID")}`
+                            : danaMdaState.isConfigured === false
+                              ? "Belum Dikonfigurasi"
+                              : "Set DANA_MERCHANT_ID"}
+                      </b>
+                    </span>
+                    <span className="text-[11px] text-zinc-400">
+                      • Otomatis cair &le; Rp10.000 | &gt; Rp10.000 butuh ACC Admin
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={danaMdaState.loading}
+                      onClick={() => fetchDanaMdaInfo()}
+                      className="h-8 px-2.5 text-xs"
+                    >
+                      <RefreshCw
+                        className={`w-3.5 h-3.5 mr-1 ${danaMdaState.loading ? "animate-spin" : ""}`}
+                      />
+                      Cek Saldo MDA
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      isLoading={danaMdaState.reconciling}
+                      onClick={handleReconcileDana}
+                      className="h-8 px-3 text-xs bg-sky-600 hover:bg-sky-500 text-white"
+                    >
+                      Rekonsiliasi DANA
+                      {danaMdaState.pendingReconcileCount ? ` (${danaMdaState.pendingReconcileCount})` : ""}
+                    </Button>
+                  </div>
+                </div>
+
                 {/* Antrean Penarikan Saldo Pending (jika ada request WD) */}
                 {data?.pendingWithdrawalsList && data.pendingWithdrawalsList.length > 0 && (
                   <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3.5 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <Wallet className="w-4 h-4 text-amber-400 shrink-0" />
                         <span className="text-xs font-bold text-amber-300 uppercase tracking-wide">
                           Permintaan Penarikan Saldo (Withdraw)
@@ -630,20 +751,29 @@ export default function DashboardOverviewPage() {
                           className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-2 rounded-lg hover:bg-zinc-800/30 transition-colors"
                         >
                           <div className="min-w-0 space-y-1">
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
                               <span className="text-xs font-bold text-white">
                                 {w.userName}
                               </span>
                               <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 font-semibold">
-                                Pending WD
+                                {w.dana_partner_reference_no
+                                  ? "Pending Cek Status DANA"
+                                  : Number(w.amount) > 10000
+                                    ? "WD > Rp10rb (Butuh ACC)"
+                                    : "Pending WD"}
                               </span>
+                              {w.dana_response_code && (
+                                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-700 text-zinc-300">
+                                  {w.dana_response_code}
+                                </span>
+                              )}
                             </div>
                             <div className="flex flex-wrap items-center gap-2.5 text-xs text-zinc-300">
-                              <span className="font-semibold text-emerald-400">
+                              <span className="font-semibold text-sky-400">
                                 {w.method?.toUpperCase()}
                               </span>
                               <span>•</span>
-                              <span>A/N: <b>{w.account_name || "-"}</b></span>
+                              <span>Pemilik DANA: <b className="text-emerald-300">{w.account_name || "-"}</b></span>
                               <span>•</span>
                               <span className="flex items-center gap-1 font-mono text-zinc-200 bg-zinc-800/80 px-2 py-0.5 rounded border border-zinc-700/60">
                                 {w.account_number || "-"}
@@ -661,6 +791,11 @@ export default function DashboardOverviewPage() {
                                 </button>
                               </span>
                             </div>
+                            {w.dana_partner_reference_no && (
+                              <p className="text-[10px] font-mono text-sky-300/90">
+                                Partner Ref: {w.dana_partner_reference_no}
+                              </p>
+                            )}
                             <p className="text-[10px] text-zinc-500">
                               Diajukan: {new Date(w.created_at).toLocaleDateString("id-ID", {
                                 day: "numeric",
@@ -672,7 +807,7 @@ export default function DashboardOverviewPage() {
                             </p>
                           </div>
 
-                          <div className="flex items-center gap-3 self-end sm:self-center shrink-0">
+                          <div className="flex flex-wrap items-center gap-2.5 self-end sm:self-center shrink-0">
                             <span className="text-sm font-bold font-mono text-amber-400 sm:text-right mr-1">
                               Rp {Number(w.amount).toLocaleString("id-ID")}
                             </span>
@@ -682,7 +817,7 @@ export default function DashboardOverviewPage() {
                               variant="danger"
                               disabled={isProcessingWd === w.id}
                               onClick={() => {
-                                if (confirm(`Yakin tolak penarikan Rp ${Number(w.amount).toLocaleString("id-ID")} untuk ${w.userName}?`)) {
+                                if (confirm(`Yakin tolak penarikan Rp ${Number(w.amount).toLocaleString("id-ID")} untuk ${w.userName}? Saldo pengguna akan dikembalikan otomatis.`)) {
                                   handleUpdateWithdrawal(w.id, "rejected");
                                 }
                               }}
@@ -697,14 +832,14 @@ export default function DashboardOverviewPage() {
                               variant="primary"
                               isLoading={isProcessingWd === w.id}
                               onClick={() => {
-                                if (confirm(`Setujui dan konfirmasi transfer penarikan Rp ${Number(w.amount).toLocaleString("id-ID")} ke ${w.account_name} (${w.account_number})?`)) {
+                                if (confirm(`Setujui & cairkan otomatis Rp ${Number(w.amount).toLocaleString("id-ID")} ke saldo DANA ${w.account_name || "-"} (${w.account_number})?`)) {
                                   handleUpdateWithdrawal(w.id, "success");
                                 }
                               }}
                               className="h-8 px-3 text-xs bg-emerald-600 hover:bg-emerald-500 text-white"
                             >
                               <Check className="w-3.5 h-3.5 mr-1" />
-                              Setujui
+                              Setujui &amp; Cairkan
                             </Button>
                           </div>
                         </div>

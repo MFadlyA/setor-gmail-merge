@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAdminAuth } from "@/context/admin-auth-context";
 import { ShieldAlert, LogOut, Loader2 } from "lucide-react";
@@ -10,7 +10,6 @@ import { Button } from "@/components/admin/ui/button";
 export function AdminGuard({ children }: { children: React.ReactNode }) {
   const { user, isAdmin, isLoading, signOut } = useAdminAuth();
   const router = useRouter();
-  const pathname = usePathname();
 
   useEffect(() => {
     // If not loading and not authenticated at all, redirect to /login

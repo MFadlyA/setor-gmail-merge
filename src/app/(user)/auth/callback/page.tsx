@@ -131,7 +131,7 @@ function CallbackHandler() {
 
         // 4. Listen for auth change
         const { data: listener } = supabase.auth.onAuthStateChange(
-          async (event, session) => {
+          async (_event, session) => {
             if (session?.user) {
               listener.subscription.unsubscribe();
               await resolveAndRedirect(session.user, session.access_token);
