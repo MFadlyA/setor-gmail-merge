@@ -2030,29 +2030,51 @@ export default function CmsPage() {
                 {/* =================================================== */}
                 {activeTab === "contacts" && (
                   <div className="p-4 flex flex-col items-center justify-center flex-1">
-                    <div className="w-full max-w-[260px] flex flex-col items-center">
-                      <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-400/30 bg-sky-500/10 px-3 py-1 text-[9px] font-extrabold uppercase tracking-wider text-sky-300 mb-3">
+                    <div className="w-full max-w-[420px] flex flex-col items-center">
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-400/30 bg-sky-500/10 px-3 py-1 text-[9px] font-extrabold uppercase tracking-wider text-sky-300 mb-3.5">
                         <Sparkles className="size-3 text-sky-400" />
                         Layanan Bantuan Resmi
                       </span>
 
-                      <div className="relative w-full aspect-[716/968] max-h-[270px] flex items-center justify-center mb-3.5 drop-shadow-[0_14px_30px_rgba(56,189,248,0.18)]">
-                        <img
-                          src="/telegram-qr-card.png"
-                          alt={`Telegram QR @${config.telegram_admin_username.replace("@", "")}`}
-                          className="h-full w-auto object-contain rounded-2xl"
-                        />
-                      </div>
+                      <div className="grid grid-cols-2 gap-3 w-full">
+                        <div className="flex flex-col items-center gap-2">
+                          <div className="relative w-full aspect-[876/1024] overflow-hidden rounded-2xl drop-shadow-[0_14px_30px_rgba(56,189,248,0.18)]">
+                            <img
+                              src="/qr-telegram.jpg"
+                              alt={`Telegram QR @${config.telegram_admin_username.replace("@", "")}`}
+                              className="size-full object-cover"
+                            />
+                          </div>
+                          <a
+                            href={`https://t.me/${config.telegram_admin_username.replace("@", "")}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-[#0284c7] to-[#38bdf8] px-3 py-2 text-[10px] font-extrabold text-white shadow-md"
+                          >
+                            <Send className="size-3 shrink-0" />
+                            <span className="truncate">Telegram (@{config.telegram_admin_username.replace("@", "")})</span>
+                          </a>
+                        </div>
 
-                      <a
-                        href={`https://t.me/${config.telegram_admin_username.replace("@", "")}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#8b5cf6] via-[#6366f1] to-[#38bdf8] px-4 py-2.5 text-xs font-extrabold text-white shadow-lg shadow-indigo-500/25"
-                      >
-                        <Send className="size-3.5" />
-                        <span>Chat via Telegram (@{config.telegram_admin_username.replace("@", "")})</span>
-                      </a>
+                        <div className="flex flex-col items-center gap-2">
+                          <div className="relative w-full aspect-[877/1024] overflow-hidden rounded-2xl drop-shadow-[0_14px_30px_rgba(34,197,94,0.18)]">
+                            <img
+                              src="/qr-whatsapp.png"
+                              alt="WhatsApp QR Resmi"
+                              className="size-full object-cover"
+                            />
+                          </div>
+                          <a
+                            href="https://chat.whatsapp.com/Kbey1hvCUO7JzH2FBEZsAy?s=cl&p=i&iam=2"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-[#16a34a] to-[#22c55e] px-3 py-2 text-[10px] font-extrabold text-white shadow-md"
+                          >
+                            <MessageCircle className="size-3 shrink-0" />
+                            <span className="truncate">WhatsApp Resmi</span>
+                          </a>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )}
