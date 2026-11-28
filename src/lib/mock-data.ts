@@ -201,7 +201,7 @@ export type WithdrawalRecord = {
 
 export type TransactionRecord = {
   id: string;
-  type: "deposit" | "withdrawal" | "bonus";
+  type: "deposit" | "withdrawal" | "bonus" | "refund" | "adjustment";
   amount: number;
   title: string;
   description: string;

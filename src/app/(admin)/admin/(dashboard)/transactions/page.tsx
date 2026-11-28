@@ -35,6 +35,7 @@ export default function TransactionsPage() {
     reconciling: boolean;
     env?: string;
     isConfigured?: boolean;
+    schemaMigrated?: boolean;
     balanceIdr?: number | null;
     pendingReconcileCount?: number;
   }>({ loading: false, reconciling: false });
@@ -50,6 +51,7 @@ export default function TransactionsPage() {
           loading: false,
           env: json.config?.env,
           isConfigured: json.config?.isConfigured,
+          schemaMigrated: json.config?.schemaMigrated,
           balanceIdr: json.mda?.balanceIdr ?? null,
           pendingReconcileCount: json.pendingReconcileCount || 0,
         }));
@@ -217,6 +219,17 @@ export default function TransactionsPage() {
             </Button>
           </div>
         </div>
+
+        {mdaInfo.schemaMigrated === false && (
+          <div className="rounded-xl border border-amber-500/35 bg-amber-950/35 px-4 py-3 text-xs text-amber-200">
+            <span className="font-bold text-amber-300">Migrasi SQL DANA belum dijalankan di Supabase:</span>{" "}
+            Kolom <code className="font-mono text-amber-100">dana_reference_no</code> &amp;{" "}
+            <code className="font-mono text-amber-100">dana_response_code</code> belum ditemukan pada tabel{" "}
+            <code className="font-mono text-amber-100">withdrawals</code>. Jalankan file migrasi{" "}
+            <code className="font-mono text-amber-100">supabase/migrations/20261128_atomic_refund_and_dana_verify.sql</code>{" "}
+            di Supabase SQL Editor agar tracking referensi DANA &amp; refund atomik aktif penuh.
+          </div>
+        )}
 
         {/* Filter and Tab Pills */}
         <div className="flex flex-col md:flex-row gap-3 items-center justify-between">

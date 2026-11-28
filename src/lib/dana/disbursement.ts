@@ -136,38 +136,67 @@ function parseDanaSdkError(err: unknown): {
 }
 
 /**
- * Maps DANA response code into a clear Indonesian user/admin message.
+ * Maps DANA SNAP response codes into clean Indonesian user/admin messages.
+ * NEVER exposes raw English DANA `responseMessage` (e.g. "Do Not Honor") as the primary message.
  */
-export function getFriendlyDanaErrorMessage(code: string, fallback?: string): string {
+export function getFriendlyDanaErrorMessage(code: string): string {
   switch (code) {
-    case "4033718":
-    case "4033818":
-      return "Akun DANA tujuan tidak aktif atau dibekukan.";
-    case "4043811":
-    case "4043711":
-      return "Nomor DANA tidak ditemukan atau belum terdaftar di DANA.";
-    case "4033702":
-    case "4033802":
-      return "Nominal melebihi batas limit saldo/bulanan akun DANA penerima.";
-    case "4033714":
-    case "4033814":
-      return "Saldo Merchant DANA sedang dalam proses pengisian ulang. Silakan coba sesaat lagi.";
-    case "4033720":
-    case "4033820":
-      return "Limit transaksi harian merchant DANA telah tercapai.";
-    case "4033803":
-      return "Transaksi ditolak oleh sistem keamanan DANA (Suspected Fraud).";
+    case "4003700":
+    case "4003701":
+    case "4003702":
+    case "4003800":
+    case "4003801":
+    case "4003802":
+      return "Format nomor atau nominal penarikan DANA tidak sesuai. Periksa kembali nomor tujuan Anda.";
+    case "4013700":
+    case "4013701":
+    case "4013800":
+    case "4013801":
+      return "Layanan verifikasi DANA sedang mengalami gangguan koneksi. Silakan coba beberapa saat lagi.";
+    case "4033701":
+    case "4033801":
+    case "4033715":
     case "4033815":
       return "Transaksi tidak diizinkan untuk akun DANA tujuan ini.";
+    case "4033702":
+    case "4033802":
+    case "4033704":
+    case "4033804":
+      return "Nominal melebihi batas limit saldo atau transaksi bulanan akun DANA penerima.";
+    case "4033703":
+    case "4033803":
+      return "Transaksi ditolak oleh sistem keamanan DANA.";
+    case "4033705":
+    case "4033805":
+      // SNAP "Do Not Honor" (4033705 on Account Inquiry / 4033805 on Customer Top Up)
+      return "Nomor DANA tujuan ditolak oleh sistem DANA. Pastikan nomor terdaftar aktif di DANA dan dapat menerima saldo.";
+    case "4033718":
+    case "4033818":
+      return "Akun DANA tujuan tidak aktif atau sedang dibekukan.";
+    case "4043711":
+    case "4043712":
+    case "4043811":
+    case "4043812":
+      return "Nomor DANA tidak ditemukan atau belum terdaftar di aplikasi DANA.";
+    case "4033714":
+    case "4033814":
+      return "Saldo sistem pencairan DANA sedang dalam pengisian ulang. Silakan coba beberapa saat lagi.";
+    case "4033720":
+    case "4033820":
+      return "Batas kuota transaksi harian sistem DANA telah tercapai. Silakan coba kembali nanti.";
     case "4293700":
     case "4293800":
       return "Terlalu banyak permintaan ke server DANA. Silakan tunggu sebentar.";
-    default: {
-      if (getDanaConfig().env === "sandbox" && (code.startsWith("500") || code === "HTTP_500")) {
-        return "Di mode Sandbox DANA, gunakan nomor uji resmi DANA (0811742234 / 0817345544 / 0817345545).";
-      }
-      return fallback || "Gagal memverifikasi akun DANA tujuan.";
-    }
+    case "5003700":
+    case "5003701":
+    case "5003800":
+    case "5003801":
+    case "5043700":
+    case "5043800":
+    case "NETWORK_TIMEOUT":
+      return "Server DANA sedang sibuk atau mengalami gangguan sementara. Silakan coba beberapa saat lagi.";
+    default:
+      return "Permintaan ke akun DANA tujuan belum dapat diproses saat ini. Pastikan nomor DANA aktif atau coba beberapa saat lagi.";
   }
 }
 
@@ -330,12 +359,19 @@ export async function inquireDanaAccount(params: {
 
     const code = String(res.responseCode || "");
     const ok = code === DANA_INQUIRY_SUCCESS_CODE;
+    if (!ok) {
+      console.warn("[DANA_INQUIRY_REJECTED]", {
+        partnerReferenceNo: partnerRef,
+        responseCode: code,
+        responseMessage: res.responseMessage || "",
+      });
+    }
 
     return {
       ok,
       responseCode: code,
       responseMessage: res.responseMessage || "",
-      friendlyError: ok ? undefined : getFriendlyDanaErrorMessage(code, res.responseMessage),
+      friendlyError: ok ? undefined : getFriendlyDanaErrorMessage(code),
       partnerReferenceNo: res.partnerReferenceNo || partnerRef,
       referenceNo: res.referenceNo,
       sessionId: res.sessionId,
@@ -348,11 +384,17 @@ export async function inquireDanaAccount(params: {
     };
   } catch (err) {
     const parsed = parseDanaSdkError(err);
+    console.warn("[DANA_INQUIRY_ERROR]", {
+      partnerReferenceNo: partnerRef,
+      responseCode: parsed.responseCode,
+      responseMessage: parsed.responseMessage,
+      httpStatus: parsed.httpStatus,
+    });
     return {
       ok: false,
       responseCode: parsed.responseCode,
       responseMessage: parsed.responseMessage,
-      friendlyError: getFriendlyDanaErrorMessage(parsed.responseCode, parsed.responseMessage),
+      friendlyError: getFriendlyDanaErrorMessage(parsed.responseCode),
       partnerReferenceNo: partnerRef,
       customerNumber,
       customerName: "",
@@ -454,11 +496,16 @@ export async function disburseToDana(params: {
       }
 
       if (code === "4033814") {
+        console.warn("[DANA_TOPUP_MDA_INSUFFICIENT]", {
+          partnerReferenceNo: params.partnerReferenceNo,
+          responseCode: code,
+          responseMessage: lastMessage,
+        });
         return {
           outcome: "MDA_INSUFFICIENT",
           responseCode: code,
           responseMessage: lastMessage,
-          friendlyError: getFriendlyDanaErrorMessage(code, lastMessage),
+          friendlyError: getFriendlyDanaErrorMessage(code),
           partnerReferenceNo: params.partnerReferenceNo,
         };
       }
@@ -472,11 +519,16 @@ export async function disburseToDana(params: {
       }
 
       // Definitive failure
+      console.warn("[DANA_TOPUP_REJECTED]", {
+        partnerReferenceNo: params.partnerReferenceNo,
+        responseCode: code,
+        responseMessage: lastMessage,
+      });
       return {
         outcome: "DEF_FAILED",
         responseCode: code,
         responseMessage: lastMessage,
-        friendlyError: getFriendlyDanaErrorMessage(code, lastMessage),
+        friendlyError: getFriendlyDanaErrorMessage(code),
         partnerReferenceNo: params.partnerReferenceNo,
       };
     } catch (err) {
@@ -495,11 +547,16 @@ export async function disburseToDana(params: {
       }
 
       if (parsed.responseCode === "4033814") {
+        console.warn("[DANA_TOPUP_MDA_INSUFFICIENT]", {
+          partnerReferenceNo: params.partnerReferenceNo,
+          responseCode: parsed.responseCode,
+          responseMessage: parsed.responseMessage,
+        });
         return {
           outcome: "MDA_INSUFFICIENT",
           responseCode: parsed.responseCode,
           responseMessage: parsed.responseMessage,
-          friendlyError: getFriendlyDanaErrorMessage(parsed.responseCode, parsed.responseMessage),
+          friendlyError: getFriendlyDanaErrorMessage(parsed.responseCode),
           partnerReferenceNo: params.partnerReferenceNo,
         };
       }
@@ -516,11 +573,17 @@ export async function disburseToDana(params: {
       }
 
       // Definitive 4xx / 5003800 failure
+      console.warn("[DANA_TOPUP_ERROR]", {
+        partnerReferenceNo: params.partnerReferenceNo,
+        responseCode: parsed.responseCode,
+        responseMessage: parsed.responseMessage,
+        httpStatus: parsed.httpStatus,
+      });
       return {
         outcome: "DEF_FAILED",
         responseCode: parsed.responseCode,
         responseMessage: parsed.responseMessage,
-        friendlyError: getFriendlyDanaErrorMessage(parsed.responseCode, parsed.responseMessage),
+        friendlyError: getFriendlyDanaErrorMessage(parsed.responseCode),
         partnerReferenceNo: params.partnerReferenceNo,
       };
     }

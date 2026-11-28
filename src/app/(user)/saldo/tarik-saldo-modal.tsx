@@ -10,8 +10,6 @@ import {
   AlertCircle,
   CheckCircle2,
   ShieldCheck,
-  Zap,
-  Clock,
 } from "lucide-react";
 import { Modal, ModalCloseButton } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
@@ -35,7 +33,6 @@ import {
 import { useUserProfile } from "@/context/user-profile-context";
 
 const PHONE_MAX_LENGTH = 13;
-const AUTO_DISBURSE_LIMIT = 10_000;
 
 interface TarikSaldoModalProps {
   open: boolean;
@@ -126,7 +123,6 @@ export function TarikSaldoModal({
   const hasStartedTyping = currentNumber.length > 0;
   const isPrefixInvalid = hasStartedTyping && !currentNumber.startsWith("08");
   const isTooShort = hasStartedTyping && currentNumber.startsWith("08") && currentNumber.length < 10;
-  const isAutoInstant = withdrawAmount > 0 && withdrawAmount <= AUTO_DISBURSE_LIMIT;
 
   const presets = React.useMemo(() => {
     if (balance <= 25000) return [5000, 10000];
@@ -220,12 +216,11 @@ export function TarikSaldoModal({
     }
   };
 
-  // Step 2: Konfirmasi & Cairkan ke DANA
+  // Step 2: Ajukan Penarikan ke DANA
   const handleWithdraw = (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateInputsBeforeCall()) return;
 
-    // Jika belum verifikasi nama pemilik DANA, jalankan Cek Akun DANA terlebih dahulu
     if (!verifiedInquiry) {
       void handleCheckDanaAccount();
       return;
@@ -273,11 +268,7 @@ export function TarikSaldoModal({
         const ownerLabel = res.customerName || verifiedInquiry.customerName || currentNumber;
         if (res.autoDisbursed) {
           toast.success("Saldo Berhasil Cair ke DANA!", {
-            description: `${formatIDR(netAmount)} telah dikirim otomatis ke DANA ${currentNumber} a/n ${ownerLabel}.`,
-          });
-        } else if (res.requiresAdminApproval) {
-          toast.success("Menunggu Persetujuan Admin", {
-            description: `Penarikan ${formatIDR(withdrawAmount)} (> Rp10.000) ke DANA a/n ${ownerLabel} sedang menunggu persetujuan Admin.`,
+            description: `${formatIDR(netAmount)} telah dikirim ke DANA ${currentNumber} a/n ${ownerLabel}.`,
           });
         } else {
           toast.success("Permintaan Penarikan Diproses", {
@@ -298,28 +289,22 @@ export function TarikSaldoModal({
   return (
     <Modal open={open} onClose={onClose} labelledBy="tarik-saldo-title">
       {/* Header */}
-      <div className="relative shrink-0 overflow-hidden bg-gradient-to-br from-sky-500 via-sky-600 to-indigo-700 px-5 py-5 md:px-6">
+      <div className="relative shrink-0 overflow-hidden bg-gradient-to-br from-sky-500 via-sky-600 to-indigo-700 px-5 py-4 md:px-6">
         <div
           aria-hidden="true"
           className="pointer-events-none absolute -top-12 -right-10 size-32 rounded-full bg-white/15 blur-2xl"
         />
-        <div className="relative flex items-start gap-3.5">
-          <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-white/20 text-white shadow-sm">
+        <div className="relative flex items-center gap-3.5">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-white/20 text-white shadow-sm">
             <Banknote className="size-5" strokeWidth={2.2} aria-hidden="true" />
           </span>
           <div className="min-w-0 flex-1">
-            <span className="inline-flex items-center rounded-full bg-white/20 px-2.5 py-0.5 text-[0.62rem] font-bold tracking-wider text-white uppercase">
-              Pencairan Saldo DANA
-            </span>
             <h2
               id="tarik-saldo-title"
-              className="mt-1 text-lg font-bold tracking-tight text-white"
+              className="text-lg font-bold tracking-tight text-white"
             >
               Penarikan ke Saldo DANA
             </h2>
-            <p className="mt-0.5 text-[0.76rem] leading-relaxed text-white/85">
-              Otomatis langsung cair untuk penarikan hingga Rp10.000.
-            </p>
           </div>
           <ModalCloseButton onClick={onClose} label="Tutup Tarik Saldo" />
         </div>
@@ -451,34 +436,6 @@ export function TarikSaldoModal({
           )}
         </div>
 
-        {/* Metode Pencairan Tunggal: DANA */}
-        <div className="flex items-center justify-between rounded-xl border border-sky-500/35 bg-sky-500/10 px-3.5 py-2.5 text-xs">
-          <div className="flex items-center gap-2">
-            <span className="font-extrabold text-sky-300">Metode Pencairan: DANA</span>
-            <CheckCircle2 className="size-3.5 text-sky-400" />
-          </div>
-          <span
-            className={cn(
-              "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold border",
-              isAutoInstant || withdrawAmount === 0
-                ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30"
-                : "bg-amber-500/15 text-amber-300 border-amber-500/30"
-            )}
-          >
-            {isAutoInstant || withdrawAmount === 0 ? (
-              <>
-                <Zap className="size-3" />
-                <span>Instan Otomatis</span>
-              </>
-            ) : (
-              <>
-                <Clock className="size-3" />
-                <span>&gt; Rp10rb ACC Admin</span>
-              </>
-            )}
-          </span>
-        </div>
-
         {/* Input Nomor DANA */}
         <div>
           <label
@@ -544,11 +501,6 @@ export function TarikSaldoModal({
                 <ShieldCheck className="size-4 text-emerald-400 shrink-0" />
                 Akun DANA Terverifikasi
               </span>
-              {verifiedInquiry.env === "sandbox" && (
-                <span className="rounded bg-amber-500/20 border border-amber-500/30 px-1.5 py-0.5 text-[10px] font-mono font-bold text-amber-300">
-                  SANDBOX
-                </span>
-              )}
             </div>
             <div className="flex items-center justify-between border-t border-emerald-500/20 pt-2">
               <span className="text-zinc-300">Nama Pemilik DANA</span>
@@ -560,46 +512,8 @@ export function TarikSaldoModal({
               <span>Nomor Tujuan</span>
               <span className="font-mono font-semibold text-emerald-300">{currentNumber}</span>
             </div>
-            <p className="text-[11px] text-zinc-300/90 pt-0.5 leading-relaxed">
-              {withdrawAmount <= AUTO_DISBURSE_LIMIT
-                ? "Pastikan nama pemilik akun DANA di atas sudah sesuai. Saldo akan langsung cair otomatis setelah Anda klik Konfirmasi."
-                : "Nominal penarikan di atas Rp10.000 akan diverifikasi oleh Admin terlebih dahulu sebelum dicairkan ke akun DANA di atas."}
-            </p>
           </div>
         )}
-
-        {/* Rincian Penarikan */}
-        <div className="rounded-2xl border border-white/10 bg-black/40 p-3.5 space-y-2 text-xs">
-          <p className="font-bold text-white border-b border-white/10 pb-1.5">
-            Rincian Penarikan
-          </p>
-          <div className="flex justify-between text-zinc-400">
-            <span>Metode Penarikan</span>
-            <span className="font-bold" style={{ color: config.brandColor }}>
-              {config.name}
-            </span>
-          </div>
-          <div className="flex justify-between text-zinc-400">
-            <span>Saldo Ditarik</span>
-            <span className="font-semibold text-white tabular-nums">
-              {formatIDR(withdrawAmount)}
-            </span>
-          </div>
-          {taxFee > 0 && (
-            <div className="flex justify-between text-zinc-400">
-              <span>Biaya Admin</span>
-              <span className="font-semibold text-amber-400 tabular-nums">
-                -{formatIDR(taxFee)}
-              </span>
-            </div>
-          )}
-          <div className="flex justify-between text-white font-bold border-t border-white/10 pt-2 text-[0.84rem]">
-            <span>Estimasi Diterima</span>
-            <span className="text-emerald-400 font-black tabular-nums">
-              {formatIDR(netAmount)}
-            </span>
-          </div>
-        </div>
 
         {/* Footer Buttons */}
         <div className="flex items-center justify-end gap-2.5 pt-2">
@@ -658,11 +572,7 @@ export function TarikSaldoModal({
                   : "bg-white/5 border border-white/10 text-zinc-500 cursor-not-allowed shadow-none"
               )}
             >
-              {isLoading
-                ? "Memproses..."
-                : withdrawAmount <= AUTO_DISBURSE_LIMIT
-                  ? "Konfirmasi & Cairkan Sekarang"
-                  : "Ajukan Penarikan (> Rp10rb)"}
+              {isLoading ? "Memproses..." : "Ajukan Penarikan"}
             </Button>
           )}
         </div>

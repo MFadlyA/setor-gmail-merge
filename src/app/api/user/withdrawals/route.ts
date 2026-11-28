@@ -19,6 +19,7 @@ import {
   generatePartnerReferenceNo,
   inquireDanaAccount,
 } from "@/lib/dana/disbursement";
+import { atomicRefundWithdrawal } from "@/lib/dana/refund";
 
 export const dynamic = "force-dynamic";
 
@@ -40,22 +41,36 @@ function extractBearerOrCookieToken(req: NextRequest): string | null {
  */
 async function safeUpdateWithdrawal(
   id: string,
-  payload: Record<string, unknown>
-): Promise<void> {
-  const { error } = await supabaseAdmin
-    .from("withdrawals")
-    .update(payload)
-    .eq("id", id);
+  payload: Record<string, unknown>,
+  expectedPrevStatus?: string
+): Promise<boolean> {
+  let q = supabaseAdmin.from("withdrawals").update(payload).eq("id", id);
+  if (expectedPrevStatus !== undefined) {
+    q = q.eq("status", expectedPrevStatus);
+  }
+  let { data, error } = await q.select("id");
 
   if (error && /dana_/i.test(error.message || "")) {
+    console.warn(
+      "[SUPABASE_MIGRATION_MISSING] Kolom dana_* belum ada di tabel withdrawals. Jalankan migrasi SQL DANA di Supabase."
+    );
     const fallbackPayload = { ...payload };
     delete fallbackPayload.dana_partner_reference_no;
     delete fallbackPayload.dana_reference_no;
     delete fallbackPayload.dana_response_code;
     delete fallbackPayload.dana_response_message;
     delete fallbackPayload.dana_checked_at;
-    await supabaseAdmin.from("withdrawals").update(fallbackPayload).eq("id", id);
+
+    let retryQ = supabaseAdmin.from("withdrawals").update(fallbackPayload).eq("id", id);
+    if (expectedPrevStatus !== undefined) {
+      retryQ = retryQ.eq("status", expectedPrevStatus);
+    }
+    const retry = await retryQ.select("id");
+    data = retry.data;
+    error = retry.error;
   }
+
+  return Boolean(!error && data && data.length > 0);
 }
 
 export async function POST(req: NextRequest) {
@@ -399,14 +414,14 @@ export async function POST(req: NextRequest) {
 
     const wdId = withdrawalData.id;
 
-    // 11. Branch A: Nominal > Rp20.000 -> Queue for Admin Approval
+    // 11. Branch A: Nominal > Rp10.000 -> Queue for Admin Approval
     if (!isAutoDisburseEligible) {
       await supabaseAdmin.from("transactions").insert({
         user_id: user.id,
         type: "withdrawal",
         amount: requestedAmount,
         title: "Penarikan Saldo DANA",
-        description: `DANA ${phoneCheck.cleaned} a/n ${verifiedCustomerName} (Menunggu Persetujuan Admin)`,
+        description: `DANA ${phoneCheck.cleaned} a/n ${verifiedCustomerName}`,
         status: "pending",
         reference_id: wdId,
       });
@@ -441,7 +456,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 12. Branch B: Nominal <= Rp20.000 -> Instant Auto-Disburse to DANA Balance!
+    // 12. Branch B: Nominal <= Rp10.000 -> Instant Auto-Disburse to DANA Balance!
     // Pre-check MDA balance if DANA_MERCHANT_ID is configured
     const mdaCheck = await checkMdaBalance();
     if (mdaCheck.ok && typeof mdaCheck.balanceIdr === "number" && mdaCheck.balanceIdr < cleanNet) {
@@ -511,7 +526,7 @@ export async function POST(req: NextRequest) {
         type: "withdrawal",
         amount: requestedAmount,
         title: "Penarikan Saldo DANA",
-        description: `DANA ${phoneCheck.cleaned} a/n ${verifiedCustomerName} (Cair Otomatis)`,
+        description: `DANA ${phoneCheck.cleaned} a/n ${verifiedCustomerName}`,
         status: "success",
         reference_id: wdId,
       });
@@ -593,7 +608,7 @@ export async function POST(req: NextRequest) {
         type: "withdrawal",
         amount: requestedAmount,
         title: "Penarikan Saldo DANA",
-        description: `DANA ${phoneCheck.cleaned} a/n ${verifiedCustomerName} (Verifikasi Status DANA)`,
+        description: `DANA ${phoneCheck.cleaned} a/n ${verifiedCustomerName}`,
         status: "pending",
         reference_id: wdId,
       });
@@ -610,32 +625,27 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Definitive failure (`DEF_FAILED`) -> Mark `ditolak` & atomically refund user's wallet
-    await safeUpdateWithdrawal(wdId, {
-      status: "ditolak",
-      updated_at: finishIso,
-      dana_partner_reference_no: partnerRefNo,
-      dana_response_code: disburseRes.responseCode,
-      dana_response_message: disburseRes.responseMessage,
-      dana_checked_at: finishIso,
-      admin_note: `Gagal cair otomatis DANA (${disburseRes.responseCode})`,
-    });
+    // Definitive failure (`DEF_FAILED`) -> Mark `ditolak` conditionally & atomically refund user's wallet
+    const transitioned = await safeUpdateWithdrawal(
+      wdId,
+      {
+        status: "ditolak",
+        updated_at: finishIso,
+        dana_partner_reference_no: partnerRefNo,
+        dana_response_code: disburseRes.responseCode,
+        dana_response_message: disburseRes.responseMessage,
+        dana_checked_at: finishIso,
+        admin_note: `Gagal cair otomatis DANA (${disburseRes.responseCode})`,
+      },
+      "diproses"
+    );
 
-    const { data: latestWallet } = await supabaseAdmin
-      .from("wallets")
-      .select("balance, total_withdrawn")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    if (latestWallet) {
-      await supabaseAdmin
-        .from("wallets")
-        .update({
-          balance: Number(latestWallet.balance) + requestedAmount,
-          total_withdrawn: Math.max(0, Number(latestWallet.total_withdrawn) - requestedAmount),
-          updated_at: finishIso,
-        })
-        .eq("user_id", user.id);
+    if (transitioned) {
+      await atomicRefundWithdrawal({
+        withdrawalId: wdId,
+        userId: user.id,
+        amount: requestedAmount,
+      });
     }
 
     return NextResponse.json(
@@ -644,7 +654,7 @@ export async function POST(req: NextRequest) {
         code: disburseRes.responseCode,
         error:
           disburseRes.friendlyError ||
-          "Pencairan otomatis ke DANA ditolak oleh sistem DANA. Saldo Anda telah dikembalikan utuh.",
+          "Pencairan ke DANA ditolak oleh sistem DANA. Saldo Anda telah dikembalikan utuh.",
       },
       { status: 400 }
     );

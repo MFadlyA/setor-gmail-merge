@@ -10,6 +10,7 @@ import {
   generatePartnerReferenceNo,
   queryTopUpStatus,
 } from "@/lib/dana/disbursement";
+import { atomicRefundWithdrawal } from "@/lib/dana/refund";
 
 async function safeUpdateWdRow(
   id: string,
@@ -23,6 +24,9 @@ async function safeUpdateWdRow(
   let { data, error } = await q.select("id");
 
   if (error && /dana_/i.test(error.message || "")) {
+    console.warn(
+      "[SUPABASE_MIGRATION_MISSING] Kolom dana_* belum ada di tabel withdrawals. Jalankan migrasi SQL DANA di Supabase."
+    );
     const cleanPayload = { ...payload };
     delete cleanPayload.dana_partner_reference_no;
     delete cleanPayload.dana_reference_no;
@@ -42,36 +46,12 @@ async function safeUpdateWdRow(
   return { updated: Boolean(data && data.length > 0), error };
 }
 
-async function refundUserWithdrawalBalance(
-  wd: any,
-  reasonText: string,
-  nowIso: string
-) {
-  const { data: wallet } = await supabaseAdmin
-    .from("wallets")
-    .select("balance, total_withdrawn")
-    .eq("user_id", wd.user_id)
-    .maybeSingle();
-
-  if (wallet) {
-    await supabaseAdmin
-      .from("wallets")
-      .update({
-        balance: Number(wallet.balance) + Number(wd.amount),
-        total_withdrawn: Math.max(0, Number(wallet.total_withdrawn) - Number(wd.amount)),
-        updated_at: nowIso,
-      })
-      .eq("user_id", wd.user_id);
-
-    await supabaseAdmin.from("transactions").insert({
-      user_id: wd.user_id,
-      type: "refund",
-      amount: wd.amount,
-      title: "Pengembalian Dana Penarikan",
-      description: `Refund penarikan #${String(wd.id).slice(0, 8)} (${reasonText})`,
-      status: "success",
-    });
-  }
+async function refundUserWithdrawalBalance(wd: { id: string; user_id: string; amount: number }) {
+  await atomicRefundWithdrawal({
+    withdrawalId: String(wd.id),
+    userId: String(wd.user_id),
+    amount: Number(wd.amount) || 0,
+  });
 }
 
 export async function GET(req: NextRequest) {
@@ -323,7 +303,8 @@ export async function PATCH(req: NextRequest) {
             await supabaseAdmin
               .from("transactions")
               .update({ status: "success" })
-              .eq("reference_id", id);
+              .eq("reference_id", id)
+              .eq("type", "withdrawal");
           }
 
           if (mapped.wd === "ditolak") {
@@ -437,7 +418,8 @@ export async function PATCH(req: NextRequest) {
           await supabaseAdmin
             .from("transactions")
             .update({ status: "success" })
-            .eq("reference_id", id);
+            .eq("reference_id", id)
+            .eq("type", "withdrawal");
 
           await logAuditEvent({
             event: "WITHDRAWAL_STATUS_CHANGE",
@@ -518,21 +500,18 @@ export async function PATCH(req: NextRequest) {
           await supabaseAdmin
             .from("transactions")
             .update({ status: "failed" })
-            .eq("reference_id", id);
+            .eq("reference_id", id)
+            .eq("type", "withdrawal");
 
-          await refundUserWithdrawalBalance(
-            wd,
-            `Gagal pencairan DANA (${disburseRes.responseCode})`,
-            doneIso
-          );
+          await refundUserWithdrawalBalance(wd);
         }
 
         return NextResponse.json(
           {
             success: false,
-            error: `Pencairan ditolak oleh DANA (${disburseRes.responseCode}): ${
-              disburseRes.friendlyError || disburseRes.responseMessage
-            }. Saldo pengguna telah dikembalikan otomatis.`,
+            error: `${
+              disburseRes.friendlyError || "Pencairan ditolak oleh sistem DANA."
+            } (Kode: ${disburseRes.responseCode}). Saldo pengguna telah dikembalikan otomatis.`,
           },
           { status: 400 }
         );
@@ -560,14 +539,11 @@ export async function PATCH(req: NextRequest) {
       await supabaseAdmin
         .from("transactions")
         .update({ status: mapped.tx })
-        .eq("reference_id", id);
+        .eq("reference_id", id)
+        .eq("type", "withdrawal");
 
       if (mapped.wd === "ditolak" && wasPending) {
-        await refundUserWithdrawalBalance(
-          wd,
-          adminNote || "Penarikan ditolak oleh Admin",
-          nowIso
-        );
+        await refundUserWithdrawalBalance(wd);
       }
 
       await logAuditEvent({
