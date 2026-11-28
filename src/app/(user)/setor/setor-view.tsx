@@ -1173,11 +1173,13 @@ export function SetorView() {
                       </button>
                     ))}
 
-                    <div className="flex items-center gap-1 ml-0.5">
+                    <div className="flex items-center gap-1 ml-1">
+                      <span className="text-[0.68rem] text-zinc-400 font-medium">Custom:</span>
                       <input
                         type="number"
                         min={1}
                         max={5}
+                        aria-label="Jumlah akun custom"
                         value={customCountInput}
                         onChange={(e) => {
                           const val = parseInt(e.target.value, 10);
@@ -1781,6 +1783,7 @@ export function SetorView() {
           </form>
         </Reveal>
       </div>
+      <div className="pb-12" aria-hidden="true" />
     </PageShell>
   );
 }

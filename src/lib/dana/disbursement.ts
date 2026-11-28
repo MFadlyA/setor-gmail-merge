@@ -268,13 +268,18 @@ export async function checkMdaBalance(): Promise<MdaBalanceResult> {
 
   try {
     const { merchantManagementApi } = getDanaClients();
-    const res = await merchantManagementApi.queryMerchantResource({
-      requestMerchantId: cfg.merchantId,
-      merchantResourceInfoList: [
-        "MERCHANT_DEPOSIT_BALANCE",
-        "MERCHANT_AVAILABLE_BALANCE",
-      ],
-    });
+    const res = await Promise.race([
+      merchantManagementApi.queryMerchantResource({
+        requestMerchantId: cfg.merchantId,
+        merchantResourceInfoList: [
+          "MERCHANT_DEPOSIT_BALANCE",
+          "MERCHANT_AVAILABLE_BALANCE",
+        ],
+      }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Timeout saat memeriksa saldo MDA DANA")), 10_000)
+      ),
+    ]);
 
     const body = res?.response?.body;
     const resultInfo = body?.resultInfo;

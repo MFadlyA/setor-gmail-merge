@@ -231,21 +231,30 @@ export async function GET(req: NextRequest) {
       acceptedDeposits.map((d) => d.user_id)
     ).size;
 
-    // Hitung Jumlah User Aktif (User yang melakukan setor, transaksi, withdraw, atau baru mendaftar di periode terpilih)
+    // Hitung Jumlah User Aktif (subset dari total pengguna: aktif pada periode terpilih, atau 30 hari terakhir untuk mode All)
+    const activeCutoff = cutoffDate ?? new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const activeUserIds = new Set<string>();
-    filteredDeposits.forEach((d) => { if (d.user_id) activeUserIds.add(d.user_id); });
-    filteredWithdrawals.forEach((w) => { if (w.user_id) activeUserIds.add(w.user_id); });
-    filteredTransactions.forEach((t) => { if (t.user_id) activeUserIds.add(t.user_id); });
+    allDepositsRaw.forEach((d) => {
+      if (d.user_id && new Date(d.created_at) >= activeCutoff) {
+        activeUserIds.add(d.user_id);
+      }
+    });
+    allWithdrawalsRaw.forEach((w) => {
+      if (w.user_id && new Date(w.created_at) >= activeCutoff) {
+        activeUserIds.add(w.user_id);
+      }
+    });
+    allTransactionsRaw.forEach((t) => {
+      if (t.user_id && new Date(t.created_at) >= activeCutoff) {
+        activeUserIds.add(t.user_id);
+      }
+    });
     (profiles || []).forEach((p) => {
-      if (!cutoffDate || new Date(p.created_at) >= cutoffDate) {
+      if (p.id && new Date(p.created_at) >= activeCutoff) {
         activeUserIds.add(p.id);
       }
     });
-    // Fallback: jika tidak ada aktivitas baru di jendela waktu tertentu (misal dev/pre-launch),
-    // gunakan user yang memegang saldo atau pernah setor agar metrik realistis
-    const activeUsersCount = activeUserIds.size > 0
-      ? activeUserIds.size
-      : Math.max(usersWithBalance, usersWithGmailSuccess, 1);
+    const activeUsersCount = Math.min(activeUserIds.size, totalUsers);
 
     let pendingWithdrawals = 0;
     let pendingWithdrawalsAmount = 0;

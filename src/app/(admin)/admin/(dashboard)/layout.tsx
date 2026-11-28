@@ -11,12 +11,12 @@ export default function DashboardLayout({
 }) {
   return (
     <AdminGuard>
-      <div className="min-h-screen w-full max-w-[100vw] overflow-x-hidden bg-zinc-950 flex flex-col">
+      <div className="min-h-screen w-full max-w-[100vw] overflow-x-clip bg-zinc-950 flex flex-col">
         {/* Top Header with Status Integrasi & Tautan Cepat */}
         <Header />
 
         {/* Content area */}
-        <main className="flex-1 p-2.5 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto pb-10 min-w-0 overflow-x-hidden">
+        <main className="flex-1 p-2.5 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto pb-10 min-w-0 overflow-x-clip">
           {children}
         </main>
       </div>

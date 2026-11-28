@@ -14,9 +14,16 @@ import {
   KeyRound,
   AlertTriangle,
   RotateCcw,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { Button } from "@/components/admin/ui/button";
 import { AdminLiveOtpCell } from "@/components/admin/ui/live-otp-cell";
+import {
+  MaskedPasswordCell,
+  logAdminCredentialAction,
+  maskContactValue,
+} from "@/components/admin/ui/masked-secret-cell";
 import { Modal } from "@/components/admin/ui/modal";
 import { Textarea } from "@/components/admin/ui/input";
 import { adminFetch } from "@/lib/api-client";
@@ -52,6 +59,20 @@ export default function DepositsPage() {
   const [selectedDeposit, setSelectedDeposit] = useState<any>(null);
   const [depositAdminNote, setDepositAdminNote] = useState("");
   const [isUpdatingDeposit, setIsUpdatingDeposit] = useState(false);
+  const [showModalPassword, setShowModalPassword] = useState(false);
+  const [showModalSecret, setShowModalSecret] = useState(false);
+  const [showModalOtp, setShowModalOtp] = useState(false);
+  const [showModalContact, setShowModalContact] = useState(false);
+
+  const openDepositModal = (dep: any) => {
+    setShowModalPassword(false);
+    setShowModalSecret(false);
+    setShowModalOtp(false);
+    setShowModalContact(false);
+    setSelectedDeposit(dep);
+    setDepositAdminNote(dep.note !== "-" ? dep.note : "");
+    setDepositModalOpen(true);
+  };
 
   // Fetch Gmail deposits
   const fetchDeposits = useCallback(async () => {
@@ -120,25 +141,28 @@ export default function DepositsPage() {
     }
   };
 
-  const handleCopyPassword = (text: string, id: string) => {
+  const handleCopyPassword = (text: string, id: string, gmail?: string) => {
     if (navigator?.clipboard && text && text !== "-") {
       navigator.clipboard.writeText(text);
+      logAdminCredentialAction("COPY_PASSWORD", id, gmail);
       setCopiedPasswordId(id);
       setTimeout(() => setCopiedPasswordId(null), 2000);
     }
   };
 
-  const handleCopySecret = (text: string, id: string) => {
+  const handleCopySecret = (text: string, id: string, gmail?: string) => {
     if (navigator?.clipboard && text && text !== "-") {
       navigator.clipboard.writeText(text);
+      logAdminCredentialAction("COPY_SECRET", id, gmail);
       setCopiedSecretId(id);
       setTimeout(() => setCopiedSecretId(null), 2000);
     }
   };
 
-  const handleCopyContact = (text: string, id: string) => {
+  const handleCopyContact = (text: string, id: string, gmail?: string) => {
     if (navigator?.clipboard && text && text !== "-") {
       navigator.clipboard.writeText(text);
+      logAdminCredentialAction("COPY_CONTACT", id, gmail);
       setCopiedContactId(id);
       setTimeout(() => setCopiedContactId(null), 2000);
     }
@@ -373,26 +397,15 @@ export default function DepositsPage() {
                     </td>
 
                     <td className="py-3 px-4 font-mono whitespace-nowrap">
-                      {dep.password && dep.password !== "-" ? (
-                        <div className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-950/90 px-2.5 py-1 text-xs text-sky-300">
-                          <KeyRound className="w-3 h-3 text-sky-400 shrink-0" />
-                          <span className="font-semibold select-all">{dep.password}</span>
-                          <button
-                            type="button"
-                            onClick={() => handleCopyPassword(dep.password, dep.id)}
-                            title="Salin Password"
-                            className="text-zinc-500 hover:text-white transition-colors p-0.5 rounded hover:bg-zinc-800 cursor-pointer"
-                          >
-                            {copiedPasswordId === dep.id ? (
-                              <Check className="w-3 h-3 text-emerald-400" />
-                            ) : (
-                              <Copy className="w-3 h-3" />
-                            )}
-                          </button>
-                        </div>
-                      ) : (
-                        <span className="text-zinc-500">-</span>
-                      )}
+                      <div className="inline-flex items-center gap-1.5">
+                        <KeyRound className="w-3 h-3 text-sky-400 shrink-0" />
+                        <MaskedPasswordCell
+                          password={dep.password}
+                          depositId={dep.id}
+                          gmail={dep.gmail}
+                          toneClass="text-sky-300"
+                        />
+                      </div>
                     </td>
 
                     <td className="py-3 px-4">
@@ -404,37 +417,48 @@ export default function DepositsPage() {
 
                     <td className="py-3 px-4 font-mono whitespace-nowrap">
                       {dep.totp_secret && dep.totp_secret !== "-" ? (
-                        <div className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-500/25 bg-zinc-950/90 px-2.5 py-1 text-xs text-indigo-300">
-                          <span className="font-semibold select-all max-w-[140px] truncate">{dep.totp_secret}</span>
-                          <button
-                            type="button"
-                            onClick={() => handleCopySecret(dep.totp_secret, dep.id)}
-                            title="Salin Secret Code"
-                            className="text-zinc-500 hover:text-white transition-colors p-0.5 rounded hover:bg-zinc-800 cursor-pointer"
-                          >
-                            {copiedSecretId === dep.id ? (
-                              <Check className="w-3 h-3 text-emerald-400" />
-                            ) : (
-                              <Copy className="w-3 h-3" />
-                            )}
-                          </button>
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => openDepositModal(dep)}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-500/25 bg-zinc-950/90 hover:bg-zinc-900 px-2.5 py-1 text-xs text-indigo-300 cursor-pointer"
+                          title="Secret Code disembunyikan. Klik untuk buka detail."
+                        >
+                          <span className="tracking-widest">••••••••</span>
+                        </button>
                       ) : (
                         <span className="text-zinc-500">-</span>
                       )}
                     </td>
 
                     <td className="py-3 px-4 whitespace-nowrap">
-                      <AdminLiveOtpCell secret={dep.totp_secret} />
+                      {dep.totp_secret && dep.totp_secret !== "-" ? (
+                        <button
+                          type="button"
+                          onClick={() => openDepositModal(dep)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-amber-500/30 bg-amber-950/30 hover:bg-amber-950/50 px-2.5 py-1 text-[11px] font-semibold text-amber-300 cursor-pointer transition-colors"
+                          title="Buka detail untuk melihat OTP 2FA"
+                        >
+                          <span>2FA • Buka Detail</span>
+                        </button>
+                      ) : (
+                        <span className="text-zinc-500">-</span>
+                      )}
                     </td>
 
                     <td className="py-3 px-4 whitespace-nowrap">
                       {dep.contact_info && dep.contact_info !== "-" ? (
                         <div className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-500/25 bg-cyan-500/10 px-2.5 py-1 text-xs text-cyan-300 font-mono">
-                          <span className="font-semibold select-all max-w-[140px] truncate">{dep.contact_info}</span>
                           <button
                             type="button"
-                            onClick={() => handleCopyContact(dep.contact_info, dep.id)}
+                            onClick={() => openDepositModal(dep)}
+                            className="font-semibold hover:text-cyan-200 cursor-pointer"
+                            title="Klik Detail untuk melihat kontak penuh"
+                          >
+                            {maskContactValue(dep.contact_info)}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleCopyContact(dep.contact_info, dep.id, dep.gmail)}
                             title="Salin Kontak Telegram / WA"
                             className="text-zinc-400 hover:text-white transition-colors p-0.5 rounded hover:bg-zinc-800 cursor-pointer"
                           >
@@ -488,6 +512,14 @@ export default function DepositsPage() {
                         {isPendingStatus(dep.status) || isProblematicStatus(dep.status) ? (
                           <>
                             <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => openDepositModal(dep)}
+                              className="px-2 py-1 text-[11px] text-zinc-300"
+                            >
+                              Detail
+                            </Button>
+                            <Button
                               variant="success"
                               size="sm"
                               disabled={isUpdatingDeposit}
@@ -501,11 +533,7 @@ export default function DepositsPage() {
                               variant="danger"
                               size="sm"
                               disabled={isUpdatingDeposit}
-                              onClick={() => {
-                                setSelectedDeposit(dep);
-                                setDepositAdminNote(dep.note !== "-" ? dep.note : "");
-                                setDepositModalOpen(true);
-                              }}
+                              onClick={() => openDepositModal(dep)}
                               className="px-2 py-1 text-[11px] flex items-center gap-1"
                             >
                               <XCircle className="w-3 h-3" />
@@ -535,11 +563,7 @@ export default function DepositsPage() {
                           <Button
                             variant="secondary"
                             size="sm"
-                            onClick={() => {
-                              setSelectedDeposit(dep);
-                              setDepositAdminNote(dep.note !== "-" ? dep.note : "");
-                              setDepositModalOpen(true);
-                            }}
+                            onClick={() => openDepositModal(dep)}
                             className="px-2 py-1 text-[11px] text-zinc-400 hover:text-zinc-200"
                           >
                             Detail
@@ -646,15 +670,33 @@ export default function DepositsPage() {
             </div>
             <div className="flex items-center justify-between gap-2">
               <span className="text-zinc-500">Password Akun:</span>
-              <div className="flex items-center gap-1.5">
-                <span className="font-mono font-bold text-sky-300 text-sm select-all">
-                  {selectedDeposit?.password || "-"}
-                </span>
-                {selectedDeposit?.password && selectedDeposit.password !== "-" && (
+              {selectedDeposit?.password && selectedDeposit.password !== "-" ? (
+                <div className="flex items-center gap-1.5">
+                  <span
+                    className={`font-mono font-bold text-sm ${
+                      showModalPassword ? "text-sky-300 select-all" : "text-zinc-400 tracking-widest"
+                    }`}
+                  >
+                    {showModalPassword ? selectedDeposit.password : "••••••••"}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = !showModalPassword;
+                      setShowModalPassword(next);
+                      if (next && selectedDeposit?.id) {
+                        logAdminCredentialAction("REVEAL_PASSWORD", selectedDeposit.id, selectedDeposit.gmail);
+                      }
+                    }}
+                    className="p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-white cursor-pointer"
+                    title={showModalPassword ? "Sembunyikan Password" : "Tampilkan Password"}
+                  >
+                    {showModalPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
                   <button
                     type="button"
                     onClick={() =>
-                      handleCopyPassword(selectedDeposit.password, `modal-${selectedDeposit.id}`)
+                      handleCopyPassword(selectedDeposit.password, `modal-${selectedDeposit.id}`, selectedDeposit.gmail)
                     }
                     className="p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-white cursor-pointer"
                     title="Salin Password"
@@ -665,20 +707,40 @@ export default function DepositsPage() {
                       <Copy className="w-3.5 h-3.5" />
                     )}
                   </button>
-                )}
-              </div>
+                </div>
+              ) : (
+                <span className="text-zinc-500">-</span>
+              )}
             </div>
             <div className="flex items-center justify-between gap-2">
               <span className="text-zinc-500">Secret Code Google:</span>
-              <div className="flex items-center gap-1.5">
-                <span className="font-mono font-bold text-indigo-300 text-xs select-all">
-                  {selectedDeposit?.totp_secret || "-"}
-                </span>
-                {selectedDeposit?.totp_secret && selectedDeposit.totp_secret !== "-" && (
+              {selectedDeposit?.totp_secret && selectedDeposit.totp_secret !== "-" ? (
+                <div className="flex items-center gap-1.5">
+                  <span
+                    className={`font-mono font-bold text-xs ${
+                      showModalSecret ? "text-indigo-300 select-all" : "text-zinc-400 tracking-widest"
+                    }`}
+                  >
+                    {showModalSecret ? selectedDeposit.totp_secret : "••••••••••••"}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = !showModalSecret;
+                      setShowModalSecret(next);
+                      if (next && selectedDeposit?.id) {
+                        logAdminCredentialAction("REVEAL_SECRET", selectedDeposit.id, selectedDeposit.gmail);
+                      }
+                    }}
+                    className="p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-white cursor-pointer"
+                    title={showModalSecret ? "Sembunyikan Secret Code" : "Tampilkan Secret Code"}
+                  >
+                    {showModalSecret ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
                   <button
                     type="button"
                     onClick={() =>
-                      handleCopySecret(selectedDeposit.totp_secret, `modal-${selectedDeposit.id}`)
+                      handleCopySecret(selectedDeposit.totp_secret, `modal-${selectedDeposit.id}`, selectedDeposit.gmail)
                     }
                     className="p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-white cursor-pointer"
                     title="Salin Secret Code"
@@ -689,24 +751,73 @@ export default function DepositsPage() {
                       <Copy className="w-3.5 h-3.5" />
                     )}
                   </button>
-                )}
-              </div>
+                </div>
+              ) : (
+                <span className="text-zinc-500">-</span>
+              )}
             </div>
             <div className="flex items-center justify-between gap-2">
               <span className="text-zinc-500">OTP 2FA Live:</span>
-              <AdminLiveOtpCell secret={selectedDeposit?.totp_secret} />
+              {selectedDeposit?.totp_secret && selectedDeposit.totp_secret !== "-" ? (
+                showModalOtp ? (
+                  <AdminLiveOtpCell
+                    secret={selectedDeposit.totp_secret}
+                    onCopy={() => {
+                      if (selectedDeposit?.id) {
+                        logAdminCredentialAction("COPY_OTP", selectedDeposit.id, selectedDeposit.gmail);
+                      }
+                    }}
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowModalOtp(true);
+                      if (selectedDeposit?.id) {
+                        logAdminCredentialAction("REVEAL_OTP", selectedDeposit.id, selectedDeposit.gmail);
+                      }
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/35 bg-amber-950/40 hover:bg-amber-950/70 px-2.5 py-1 text-[11px] font-bold text-amber-300 cursor-pointer"
+                  >
+                    <Eye className="w-3 h-3" />
+                    <span>Tampilkan OTP Live</span>
+                  </button>
+                )
+              ) : (
+                <span className="text-zinc-500">-</span>
+              )}
             </div>
             <div className="flex items-center justify-between gap-2">
               <span className="text-zinc-500">Kontak Telegram / WA:</span>
-              <div className="flex items-center gap-1.5">
-                <span className="font-mono font-bold text-cyan-300 text-xs select-all">
-                  {selectedDeposit?.contact_info || "-"}
-                </span>
-                {selectedDeposit?.contact_info && selectedDeposit.contact_info !== "-" && (
+              {selectedDeposit?.contact_info && selectedDeposit.contact_info !== "-" ? (
+                <div className="flex items-center gap-1.5">
+                  <span
+                    className={`font-mono font-bold text-xs ${
+                      showModalContact ? "text-cyan-300 select-all" : "text-zinc-300"
+                    }`}
+                  >
+                    {showModalContact
+                      ? selectedDeposit.contact_info
+                      : maskContactValue(selectedDeposit.contact_info)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = !showModalContact;
+                      setShowModalContact(next);
+                      if (next && selectedDeposit?.id) {
+                        logAdminCredentialAction("REVEAL_CONTACT", selectedDeposit.id, selectedDeposit.gmail);
+                      }
+                    }}
+                    className="p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-white cursor-pointer"
+                    title={showModalContact ? "Sembunyikan Kontak" : "Tampilkan Kontak"}
+                  >
+                    {showModalContact ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
                   <button
                     type="button"
                     onClick={() =>
-                      handleCopyContact(selectedDeposit.contact_info, `modal-${selectedDeposit.id}`)
+                      handleCopyContact(selectedDeposit.contact_info, `modal-${selectedDeposit.id}`, selectedDeposit.gmail)
                     }
                     className="p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-white cursor-pointer"
                     title="Salin Kontak"
@@ -717,8 +828,10 @@ export default function DepositsPage() {
                       <Copy className="w-3.5 h-3.5" />
                     )}
                   </button>
-                )}
-              </div>
+                </div>
+              ) : (
+                <span className="text-zinc-500">-</span>
+              )}
             </div>
             <div className="flex items-center justify-between">
               <span className="text-zinc-500">Penyetor (Member):</span>

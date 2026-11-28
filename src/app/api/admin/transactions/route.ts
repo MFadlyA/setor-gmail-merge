@@ -167,7 +167,6 @@ export async function GET(req: NextRequest) {
           tax_fee: w.tax_fee,
           net_amount: w.net_amount,
           admin_note: w.admin_note,
-          proof_url: w.proof_url,
           dana_partner_reference_no: w.dana_partner_reference_no || null,
           dana_reference_no: w.dana_reference_no || null,
           dana_response_code: w.dana_response_code || null,

@@ -13,7 +13,8 @@ export interface AuditLogEntry {
     | "DEPOSIT_STATUS_CHANGE"
     | "WITHDRAWAL_STATUS_CHANGE"
     | "DANA_WEBHOOK_NOTIFY"
-    | "CMS_CONFIG_UPDATE";
+    | "CMS_CONFIG_UPDATE"
+    | "ADMIN_CREDENTIAL_ACCESS";
   severity?: "CRITICAL" | "WARNING" | "INFO";
   actorId?: string | null;
   actorEmail?: string | null;

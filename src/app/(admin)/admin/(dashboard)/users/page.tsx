@@ -19,36 +19,6 @@ import { Modal } from "@/components/admin/ui/modal";
 import { Input, Textarea } from "@/components/admin/ui/input";
 import { adminFetch } from "@/lib/api-client";
 
-// Branded color mapper for e-wallets
-function getEwalletBadgeStyle(method: string) {
-  const m = (method || "").toUpperCase();
-  if (m === "DANA") {
-    return "bg-sky-500/15 text-sky-400 border-sky-500/30";
-  }
-  if (m === "GOPAY") {
-    return "bg-teal-500/15 text-teal-400 border-teal-500/30";
-  }
-  if (m === "OVO") {
-    return "bg-purple-500/15 text-purple-400 border-purple-500/30";
-  }
-  if (m === "SHOPEEPAY") {
-    return "bg-orange-500/15 text-orange-400 border-orange-500/30";
-  }
-  if (m === "LINKAJA") {
-    return "bg-rose-500/15 text-rose-400 border-rose-500/30";
-  }
-  if (
-    m.includes("BCA") ||
-    m.includes("BRI") ||
-    m.includes("BNI") ||
-    m.includes("MANDIRI") ||
-    m.includes("BANK")
-  ) {
-    return "bg-blue-600/15 text-blue-400 border-blue-500/30";
-  }
-  return "bg-zinc-800 text-zinc-300 border-zinc-700";
-}
-
 export default function UserManagementPage() {
   const [users, setUsers] = useState<any[]>([]);
   const [totalUsers, setTotalUsers] = useState<number>(0);
@@ -306,7 +276,6 @@ export default function UserManagementPage() {
                 <th className="py-3 px-4 border-b border-zinc-800 whitespace-nowrap">Role</th>
                 <th className="py-3 px-4 border-b border-zinc-800 whitespace-nowrap">UID</th>
                 <th className="py-3 px-4 border-b border-zinc-800 whitespace-nowrap">Gmail Disetor</th>
-                <th className="py-3 px-4 border-b border-zinc-800 whitespace-nowrap">E-Wallet Pengguna</th>
                 <th className="py-3 px-4 border-b border-zinc-800 whitespace-nowrap">Saldo Dompet</th>
                 <th className="py-3 px-4 border-b border-zinc-800 whitespace-nowrap">Status Akun</th>
                 <th className="py-3 px-4 border-b border-zinc-800 whitespace-nowrap">Bergabung</th>
@@ -316,7 +285,7 @@ export default function UserManagementPage() {
             <tbody className="text-zinc-200">
               {isLoading ? (
                 <tr>
-                  <td colSpan={9} className="py-12 text-center text-zinc-500 border-b border-zinc-800/80">
+                  <td colSpan={8} className="py-12 text-center text-zinc-500 border-b border-zinc-800/80">
                     <div className="flex flex-col items-center gap-2">
                       <RefreshCw className="w-5 h-5 animate-spin text-emerald-400" />
                       <span>Memuat data pengguna dari Supabase...</span>
@@ -325,7 +294,7 @@ export default function UserManagementPage() {
                 </tr>
               ) : users.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-12 text-center text-zinc-500 border-b border-zinc-800/80">
+                  <td colSpan={8} className="py-12 text-center text-zinc-500 border-b border-zinc-800/80">
                     Tidak ditemukan data pengguna yang cocok.
                   </td>
                 </tr>
@@ -459,35 +428,6 @@ export default function UserManagementPage() {
                       </div>
                     </td>
 
-
-                    {/* E-Wallet Pengguna */}
-                    <td className="py-3.5 px-4 border-b border-zinc-800/80">
-                      {!u.ewallets || u.ewallets.length === 0 ? (
-                        <span className="text-zinc-600 text-[11px] italic">Belum diatur</span>
-                      ) : (
-                        <div className="space-y-1.5">
-                          {u.ewallets.map((ew: any, idx: number) => (
-                            <div key={`${ew.id || idx}`} className="flex items-center gap-1.5 flex-wrap">
-                              <span
-                                className={`px-1.5 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider ${getEwalletBadgeStyle(
-                                  ew.method
-                                )}`}
-                              >
-                                {ew.method || "E-WALLET"}
-                              </span>
-                              <span className="font-mono text-zinc-200 font-medium text-xs">
-                                {ew.account_number}
-                              </span>
-                              {ew.account_name && (
-                                <span className="text-[10px] text-zinc-500 truncate max-w-[100px]">
-                                  ({ew.account_name})
-                                </span>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </td>
 
                     {/* Saldo Dompet */}
                     <td className="py-3.5 px-4 border-b border-zinc-800/80 whitespace-nowrap">

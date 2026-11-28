@@ -25,25 +25,6 @@ import { adminFetch } from "@/lib/api-client";
 type SortField = "created_at" | "balance" | "gmail";
 type SortOrder = "asc" | "desc";
 
-function getEwalletBadgeStyle(method: string) {
-  const m = (method || "").toUpperCase();
-  if (m === "DANA") return "bg-sky-500/15 text-sky-400 border-sky-500/30";
-  if (m === "GOPAY") return "bg-teal-500/15 text-teal-400 border-teal-500/30";
-  if (m === "OVO") return "bg-purple-500/15 text-purple-400 border-purple-500/30";
-  if (m === "SHOPEEPAY") return "bg-orange-500/15 text-orange-400 border-orange-500/30";
-  if (m === "LINKAJA") return "bg-rose-500/15 text-rose-400 border-rose-500/30";
-  if (
-    m.includes("BCA") ||
-    m.includes("BRI") ||
-    m.includes("BNI") ||
-    m.includes("MANDIRI") ||
-    m.includes("BANK")
-  ) {
-    return "bg-blue-600/15 text-blue-400 border-blue-500/30";
-  }
-  return "bg-zinc-800 text-zinc-300 border-zinc-700";
-}
-
 export const UsersTab = React.memo(function UsersTab({
   onUserUpdated,
 }: {
@@ -762,30 +743,6 @@ export const UsersTab = React.memo(function UsersTab({
                   </span>
                 </div>
               </div>
-            </div>
-
-            {/* E-Wallet Pengguna */}
-            <div className="p-3.5 bg-zinc-950/60 rounded-xl border border-zinc-800/80 space-y-2">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">E-Wallet / Rekening Tersimpan</span>
-              {!detailUser.ewallets || detailUser.ewallets.length === 0 ? (
-                <p className="text-zinc-500 text-xs italic">Pengguna belum mengatur akun e-wallet / rekening bank.</p>
-              ) : (
-                <div className="space-y-1.5">
-                  {detailUser.ewallets.map((ew: any, idx: number) => (
-                    <div key={`${ew.id || idx}`} className="flex items-center justify-between p-2.5 rounded-lg bg-zinc-900/60 border border-zinc-800 text-xs">
-                      <div className="flex items-center gap-2">
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider ${getEwalletBadgeStyle(ew.method)}`}>
-                          {ew.method || "E-WALLET"}
-                        </span>
-                        <span className="font-mono text-white font-semibold">{ew.account_number}</span>
-                      </div>
-                      {ew.account_name && (
-                        <span className="text-zinc-400 text-[11px]">a.n. {ew.account_name}</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
 
             {/* Aksi Admin */}

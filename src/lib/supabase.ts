@@ -6,7 +6,6 @@ import {
   type TransactionRecord,
   type ReportTicket,
 } from "./mock-data";
-import { getStoredEWalletData } from "./generated-storage";
 import {
   sanitizeInputText,
   sanitizeExternalUrl,
@@ -66,7 +65,6 @@ const defaultEmptyProfile: UserProfile = {
   role: "User",
   danaNumber: "-",
   joinedAt: "-",
-  passwordChangedAt: "Belum pernah",
   whatsappChannelUrl: "https://whatsapp.com/channel/0029VbEImqX7j6gFzKU9Qy1Y",
 };
 
@@ -127,9 +125,6 @@ export async function fetchUserProfile(userId?: string): Promise<{
             year: "numeric",
           })
         : "-",
-      passwordChangedAt: profileData?.password_changed_at
-        ? new Date(profileData.password_changed_at).toLocaleDateString("id-ID")
-        : "Belum pernah",
     };
 
     return { profile, isFallback: false };
@@ -259,105 +254,6 @@ export async function fetchUserWallet(userId?: string): Promise<{
       danaNumber: "",
       isFallback: true,
     };
-  }
-}
-
-export async function fetchSavedEWallets(userId?: string): Promise<{
-  accounts: Record<string, string>;
-  defaultMethod: string;
-  isFallback: boolean;
-}> {
-  const local = getStoredEWalletData();
-  if (!isSupabaseConfigured) {
-    return { accounts: local.accounts, defaultMethod: local.defaultMethod, isFallback: true };
-  }
-
-  try {
-    const user = await getCurrentAuthUser();
-    if (!user) {
-      return { accounts: local.accounts, defaultMethod: local.defaultMethod, isFallback: true };
-    }
-
-    // A01/A07: Verify ownership
-    if (userId && userId !== user.id) {
-      console.warn(`[SECURITY] IDOR blocked: user ${user.id} attempted to fetch e-wallets ${userId}`);
-      return { accounts: local.accounts, defaultMethod: local.defaultMethod, isFallback: true };
-    }
-
-    const targetUid = user.id;
-
-    const { data, error } = await supabase
-      .from("saved_ewallets")
-      .select("method, account_number, is_default")
-      .eq("user_id", targetUid);
-
-    if (error || !data || data.length === 0) {
-      return { accounts: local.accounts, defaultMethod: "DANA", isFallback: true };
-    }
-
-    const accounts: Record<string, string> = { ...local.accounts };
-
-    data.forEach((row) => {
-      const num = typeof row.account_number === "string" ? row.account_number.trim() : "";
-      if (num && num !== "081234567890" && num !== "08123456789") {
-        accounts[row.method] = num;
-      }
-    });
-
-    return { accounts, defaultMethod: "DANA", isFallback: false };
-  } catch (err) {
-    console.error("[E-WALLET FETCH ERROR]", err);
-    return { accounts: local.accounts, defaultMethod: "DANA", isFallback: true };
-  }
-}
-
-export async function saveEWalletAccount(
-  userId: string,
-  method: string,
-  accountNumber: string,
-  isDefault = false
-): Promise<{ success: boolean; error?: string }> {
-  if (!isSupabaseConfigured) return { success: true };
-  try {
-    const user = await getCurrentAuthUser();
-    // A01/A07: Verify user authentication and ID ownership
-    if (!user || user.id !== userId) {
-      return { success: false, error: "Akses ditolak: Sesi tidak sah." };
-    }
-
-    // A03: Strict E-Wallet Validation (DANA-only)
-    const cleanMethod = sanitizeInputText(method, 20).toUpperCase();
-    if (cleanMethod !== "DANA") {
-      return { success: false, error: "Saat ini hanya metode DANA yang didukung." };
-    }
-
-    const phoneCheck = validateEWalletNumber(accountNumber);
-    if (!phoneCheck.valid) {
-      return { success: false, error: phoneCheck.error };
-    }
-
-    if (isDefault) {
-      await supabase
-        .from("saved_ewallets")
-        .update({ is_default: false })
-        .eq("user_id", user.id);
-    }
-
-    const { error } = await supabase.from("saved_ewallets").upsert(
-      {
-        user_id: user.id,
-        method: cleanMethod,
-        account_number: phoneCheck.cleaned,
-        is_default: Boolean(isDefault),
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id,method" }
-    );
-
-    if (error) return { success: false, error: sanitizeErrorMessage(error) };
-    return { success: true };
-  } catch (err: unknown) {
-    return { success: false, error: sanitizeErrorMessage(err) };
   }
 }
 

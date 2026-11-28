@@ -18,15 +18,10 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   avatar_url text,
   whatsapp_channel_url text DEFAULT 'https://www.whatsapp.com/channel/0029VbEImqX7j6gFzKU9Qy1Y'::text,
   dana_number character varying,
-  referral_code character varying UNIQUE,
-  referred_by_code character varying,
-  referred_by_id uuid,
-  password_changed_at timestamp with time zone,
   created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
   updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
   CONSTRAINT profiles_pkey PRIMARY KEY (id),
-  CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE,
-  CONSTRAINT profiles_referred_by_id_fkey FOREIGN KEY (referred_by_id) REFERENCES public.profiles(id) ON DELETE SET NULL
+  CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE
 );
 
 -- ------------------------------------------------------------------------------
@@ -46,24 +41,7 @@ CREATE TABLE IF NOT EXISTS public.wallets (
 );
 
 -- ------------------------------------------------------------------------------
--- 4. TABEL: SAVED EWALLETS
--- ------------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS public.saved_ewallets (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  user_id uuid NOT NULL,
-  method character varying NOT NULL CHECK (method::text = ANY (ARRAY['DANA'::character varying, 'OVO'::character varying, 'GOPAY'::character varying, 'SHOPEEPAY'::character varying]::text[])),
-  account_number character varying NOT NULL,
-  account_name character varying,
-  is_default boolean NOT NULL DEFAULT false,
-  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
-  updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
-  CONSTRAINT saved_ewallets_pkey PRIMARY KEY (id),
-  CONSTRAINT saved_ewallets_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE,
-  CONSTRAINT saved_ewallets_user_method_unique UNIQUE (user_id, method)
-);
-
--- ------------------------------------------------------------------------------
--- 5. TABEL: SETOR CATEGORIES
+-- 4. TABEL: SETOR CATEGORIES
 -- ------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.setor_categories (
   id character varying NOT NULL,
@@ -136,7 +114,6 @@ CREATE TABLE IF NOT EXISTS public.withdrawals (
   dana_response_message text,
   dana_checked_at timestamp with time zone,
   admin_note text,
-  proof_url text,
   processed_at timestamp with time zone,
   created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
   updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
@@ -231,7 +208,6 @@ CREATE INDEX IF NOT EXISTS idx_deposits_user_created ON public.deposits(user_id,
 CREATE INDEX IF NOT EXISTS idx_deposits_normalized_gmail ON public.deposits(normalized_gmail);
 CREATE INDEX IF NOT EXISTS idx_withdrawals_user_created ON public.withdrawals(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_transactions_user_created ON public.transactions(user_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_saved_ewallets_user ON public.saved_ewallets(user_id);
 
 -- ==============================================================================
 -- 14. TRIGGER: AUTO CREATE PROFILE & WALLET SAAT REGISTER
@@ -240,7 +216,6 @@ CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger AS $$
 DECLARE
   v_name text;
-  v_ref_code text;
 BEGIN
   v_name := COALESCE(
     new.raw_user_meta_data->>'full_name',
@@ -249,10 +224,8 @@ BEGIN
     'Pengguna'
   );
 
-  v_ref_code := 'WTR-' || UPPER(SUBSTRING(MD5(new.id::text || clock_timestamp()::text) FROM 1 FOR 6));
-
-  INSERT INTO public.profiles (id, name, email, referral_code)
-  VALUES (new.id, v_name, new.email, v_ref_code)
+  INSERT INTO public.profiles (id, name, email)
+  VALUES (new.id, v_name, new.email)
   ON CONFLICT (id) DO NOTHING;
 
   INSERT INTO public.wallets (user_id, balance, minimum_withdrawal)
@@ -340,7 +313,6 @@ CREATE TRIGGER trg_protect_profile_privileged_fields
 
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.wallets ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.saved_ewallets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.deposits ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.deposit_batches ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.withdrawals ENABLE ROW LEVEL SECURITY;
@@ -369,10 +341,6 @@ CREATE POLICY "wallets_select_own" ON public.wallets FOR SELECT USING (auth.uid(
 DROP POLICY IF EXISTS "wallets_update_own" ON public.wallets;
 DROP POLICY IF EXISTS "wallets_admin_all" ON public.wallets;
 CREATE POLICY "wallets_admin_all" ON public.wallets FOR ALL USING (public.is_admin()) WITH CHECK (public.is_admin());
-
--- Saved E-Wallets
-DROP POLICY IF EXISTS "ewallets_all_own" ON public.saved_ewallets;
-CREATE POLICY "ewallets_all_own" ON public.saved_ewallets FOR ALL USING (auth.uid() = user_id OR public.is_admin()) WITH CHECK (auth.uid() = user_id OR public.is_admin());
 
 -- Deposits (Mutations strictly via /api/user/deposits server route or Admin)
 DROP POLICY IF EXISTS "deposits_select_own" ON public.deposits;

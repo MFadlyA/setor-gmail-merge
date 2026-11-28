@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import {
   CalendarDays,
   Mail,
@@ -184,7 +185,7 @@ function DepositRow({ record, index }: { record: DepositRecord; index: number })
 
 export function RiwayatView() {
   const { deposits, isDepositsLoading } = useUserProfile();
-  const [range, setRange] = React.useState<TimeRange>("today");
+  const [range, setRange] = React.useState<TimeRange>("all");
 
   const filtered = React.useMemo(() => {
     return deposits
@@ -336,6 +337,14 @@ export function RiwayatView() {
                 icon={<Mail className="size-6 text-sky-400" aria-hidden="true" />}
                 title="Tidak ada setoran"
                 description="Belum ada setoran pada periode ini."
+                action={
+                  <Link
+                    href="/setor"
+                    className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-sky-400 via-sky-500 to-blue-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-sky-500/25 hover:from-sky-300 hover:to-blue-500 transition-all active:scale-95"
+                  >
+                    Setor Sekarang
+                  </Link>
+                }
               />
             )}
           </Reveal>

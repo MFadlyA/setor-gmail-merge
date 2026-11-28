@@ -7,7 +7,6 @@ export type UserProfile = {
   whatsappChannelUrl?: string;
   danaNumber?: string;
   joinedAt?: string;
-  passwordChangedAt?: string;
 };
 
 export const mockUser: UserProfile = {
@@ -17,7 +16,6 @@ export const mockUser: UserProfile = {
   role: "User",
   danaNumber: "-",
   joinedAt: "-",
-  passwordChangedAt: "Belum pernah",
   whatsappChannelUrl: "https://whatsapp.com/channel/0029VbEImqX7j6gFzKU9Qy1Y",
 };
 

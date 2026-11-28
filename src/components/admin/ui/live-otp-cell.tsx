@@ -4,7 +4,13 @@ import * as React from "react";
 import { Copy, Check } from "lucide-react";
 import { computeTotpCode, formatOtpCode, isValidBase32Secret } from "@/lib/totp";
 
-export function AdminLiveOtpCell({ secret }: { secret?: string | null }) {
+export function AdminLiveOtpCell({
+  secret,
+  onCopy,
+}: {
+  secret?: string | null;
+  onCopy?: () => void;
+}) {
   const [code, setCode] = React.useState("------");
   const [remaining, setRemaining] = React.useState(30);
   const [copied, setCopied] = React.useState(false);
@@ -45,6 +51,7 @@ export function AdminLiveOtpCell({ secret }: { secret?: string | null }) {
   const handleCopy = () => {
     if (!code || code === "------" || !navigator?.clipboard) return;
     navigator.clipboard.writeText(code);
+    onCopy?.();
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };

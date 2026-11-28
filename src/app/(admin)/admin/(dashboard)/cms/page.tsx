@@ -282,6 +282,21 @@ export default function CmsPage() {
     features: "https://setorgmail.com",
   };
 
+  // Keyboard shortcut Ctrl+S / Cmd+S to save CMS config
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        if (!saving) {
+          void handleSave();
+        }
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config, saving]);
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh] text-zinc-400 gap-3">
@@ -292,10 +307,10 @@ export default function CmsPage() {
   }
 
   return (
-    <div className="space-y-4">
-      {/* Top CMS Toolbar: Sticky Status & Quick Save */}
+    <div className="flex flex-col gap-4">
+      {/* Top CMS Status Header (honest status indicator only — primary Save & Reset live in the solid bottom bar) */}
       <div
-        className={`sticky top-16 z-30 flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3 backdrop-blur-xl transition-colors shadow-lg ${
+        className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3 backdrop-blur-xl transition-colors shadow-lg ${
           hasUnsavedChanges
             ? "border-amber-500/40 bg-zinc-900/90 shadow-amber-950/20"
             : "border-zinc-800/90 bg-zinc-900/85"
@@ -310,7 +325,12 @@ export default function CmsPage() {
               <h1 className="text-sm sm:text-base font-extrabold text-white tracking-tight">
                 CMS Editor &amp; Live Preview
               </h1>
-              {hasUnsavedChanges ? (
+              {saving ? (
+                <span className="inline-flex items-center gap-1 rounded-full border border-sky-500/35 bg-sky-500/15 px-2 py-0.5 text-[10px] font-bold text-sky-300">
+                  <RefreshCw className="size-3 animate-spin" />
+                  Menyimpan...
+                </span>
+              ) : hasUnsavedChanges ? (
                 <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/35 bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-300">
                   <span className="size-1.5 rounded-full bg-amber-400 animate-pulse" />
                   Belum disimpan
@@ -334,31 +354,9 @@ export default function CmsPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={handleReset}
-            disabled={saving}
-            className="text-xs text-zinc-400 hover:text-white h-9 px-3"
-          >
-            <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
-            Reset
-          </Button>
-          <Button
-            type="button"
-            onClick={() => handleSave()}
-            disabled={saving}
-            className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-4 h-9 rounded-xl shadow-lg shadow-emerald-950/40 cursor-pointer"
-          >
-            {saving ? (
-              <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-            ) : (
-              <Save className="w-3.5 h-3.5 mr-1.5" />
-            )}
-            Simpan Perubahan
-          </Button>
-        </div>
+        <span className="hidden sm:inline-flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-950/80 px-2.5 py-1 text-[10px] font-mono text-zinc-400">
+          Shortcut: <kbd className="text-zinc-200 font-semibold">Ctrl+S</kbd>
+        </span>
       </div>
 
       {/* Toast Notifications */}
@@ -376,12 +374,13 @@ export default function CmsPage() {
         </div>
       )}
 
-      {/* Main Split Screen: Sisi Kiri (Form Controls) & Sisi Kanan (Sticky Interactive Live Preview) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start min-w-0">
+      {/* Main Split Screen: Independent scroll on desktop (Editor kiri + Preview kanan) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch min-w-0 lg:h-[calc(100dvh-10.5rem)] lg:min-h-[540px] lg:overflow-hidden">
         {/* ========================================================= */}
-        {/* SISI KIRI: FORM CONTROL CMS                               */}
+        {/* SISI KIRI: FORM CONTROL CMS (Scroll Independen + Solid Bottom Bar) */}
         {/* ========================================================= */}
-        <div className="lg:col-span-6 xl:col-span-6 space-y-4 min-w-0">
+        <div className="lg:col-span-6 xl:col-span-6 lg:h-full lg:flex lg:flex-col min-w-0 min-h-0">
+          <div className="flex-1 min-h-0 lg:overflow-y-auto lg:pr-2 space-y-4 pb-28">
           {/* Form Tabs Navigation - Always 1 Clean Horizontal Row */}
           <div className="grid grid-cols-5 gap-1.5 p-1.5 bg-zinc-900/85 border border-zinc-800/90 rounded-2xl shadow-sm">
             {[
@@ -1284,57 +1283,53 @@ export default function CmsPage() {
               </div>
             )}
 
-            {/* In-Form Footer Bar: Terakhir Disimpan, Reset, Simpan Perubahan */}
-            <div className="p-4 rounded-2xl bg-zinc-900/80 border border-zinc-800/80 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-lg">
-              <div className="text-[11px] text-zinc-400">
-                {updatedAt ? (
-                  <span>
-                    Terakhir disimpan:{" "}
-                    <strong className="text-zinc-200 font-mono">
-                      {new Date(updatedAt).toLocaleTimeString("id-ID", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        second: "2-digit",
-                      })}
-                    </strong>
-                  </span>
-                ) : (
-                  <span>Konfigurasi aktif di sistem</span>
-                )}
-              </div>
-
-              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={handleReset}
-                  disabled={saving}
-                  className="text-xs text-zinc-400 hover:text-white"
-                >
-                  <RotateCcw className="w-3.5 h-3.5 mr-1" />
-                  Reset
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={saving}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm px-5 py-2 rounded-xl shadow-lg shadow-emerald-950/40"
-                >
-                  {saving ? (
-                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                  ) : (
-                    <Save className="w-4 h-4 mr-2" />
-                  )}
-                  Simpan Perubahan
-                </Button>
-              </div>
-            </div>
           </form>
+          </div>
+
+          {/* Solid Opaque Bottom Action Bar (Reset terpisah di kiri, Simpan Perubahan utama di kanan, z-50 agar tidak tertiban) */}
+          <div className="sticky bottom-0 z-50 mt-2 rounded-2xl bg-zinc-950 border border-zinc-800 px-4 py-3 flex flex-wrap items-center justify-between gap-3 shadow-[0_-10px_30px_rgba(0,0,0,0.75)]">
+            <div className="flex items-center gap-3 min-w-0">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={handleReset}
+                disabled={saving}
+                className="text-xs text-zinc-400 hover:text-white border border-zinc-800 bg-zinc-900/70 px-3 h-9 rounded-xl cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
+                Reset
+              </Button>
+              <span className="text-[11px] text-zinc-400 truncate hidden sm:inline">
+                {updatedAt
+                  ? `Disimpan ${new Date(updatedAt).toLocaleTimeString("id-ID", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      second: "2-digit",
+                    })}`
+                  : "Konfigurasi aktif di sistem"}
+              </span>
+            </div>
+
+            <Button
+              type="button"
+              onClick={() => handleSave()}
+              disabled={saving}
+              className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm px-5 h-9.5 rounded-xl shadow-lg shadow-emerald-950/40 cursor-pointer ml-auto"
+            >
+              {saving ? (
+                <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Save className="w-4 h-4 mr-2" />
+              )}
+              {saving ? "Menyimpan..." : "Simpan Perubahan"}
+            </Button>
+          </div>
         </div>
 
         {/* ========================================================= */}
-        {/* SISI KANAN: INTERACTIVE LIVE PREVIEW (IDENTIK WEB USER)   */}
+        {/* SISI KANAN: INTERACTIVE LIVE PREVIEW (Scroll Independen)  */}
         {/* ========================================================= */}
-        <div className="lg:col-span-6 xl:col-span-6 lg:sticky lg:top-32 space-y-3 min-w-0 overflow-x-hidden">
+        <div className="lg:col-span-6 xl:col-span-6 lg:h-full lg:overflow-y-auto lg:pl-1 space-y-3 min-w-0 pb-6 overflow-x-hidden">
           {/* Preview Control Header */}
           <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl px-3.5 py-2.5 backdrop-blur-md shadow-xl flex items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
@@ -1389,7 +1384,7 @@ export default function CmsPage() {
           <div
             className={`transition-all duration-300 mx-auto ${
               previewDevice === "mobile"
-                ? "max-w-[360px] rounded-[38px] border-[6px] border-zinc-800 bg-[#07080d] shadow-2xl p-2 overflow-hidden"
+                ? "max-w-[390px] rounded-[38px] border-[6px] border-zinc-800 bg-[#07080d] shadow-2xl p-2 overflow-hidden"
                 : "w-full rounded-2xl border border-zinc-800 bg-[#07080d] shadow-2xl overflow-hidden"
             }`}
           >
@@ -1571,22 +1566,34 @@ export default function CmsPage() {
                               "Setor akun Gmail dan dapatkan saldo\nPencairan instan via E-wallet dan Bank"}
                           </p>
 
-                          {/* CTA Buttons persis web user: Daftar Gratis, Masuk, Cara Kerja */}
+                          {/* CTA Buttons persis web user: Daftar Gratis, Masuk, Cara Kerja (non-interaktif di preview) */}
                           <div
                             className={`flex flex-wrap items-center gap-2 ${
                               previewDevice === "desktop" ? "justify-start" : "justify-center"
                             }`}
                           >
-                            <span className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-sky-400 via-sky-500 to-blue-600 px-4 py-2 text-[11px] font-extrabold text-white shadow-lg shadow-sky-500/35">
+                            <span
+                              title="Preview saja"
+                              aria-disabled="true"
+                              className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-sky-400 via-sky-500 to-blue-600 px-4 py-2 text-[11px] font-extrabold text-white shadow-lg shadow-sky-500/35 cursor-default opacity-95"
+                            >
                               <UserPlus className="size-3.5" />
                               <span>Daftar Gratis</span>
                               <ArrowRight className="size-3" />
                             </span>
-                            <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.06] px-3.5 py-2 text-[11px] font-bold text-white">
+                            <span
+                              title="Preview saja"
+                              aria-disabled="true"
+                              className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.06] px-3.5 py-2 text-[11px] font-bold text-white cursor-default"
+                            >
                               <LogIn className="size-3.5 text-sky-400" />
                               <span>Masuk</span>
                             </span>
-                            <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.03] px-3 py-2 text-[10px] font-semibold text-zinc-300">
+                            <span
+                              title="Preview saja"
+                              aria-disabled="true"
+                              className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.03] px-3 py-2 text-[10px] font-semibold text-zinc-300 cursor-default"
+                            >
                               <PlayCircle className="size-3.5 text-sky-400" />
                               <span>Cara Kerja</span>
                             </span>

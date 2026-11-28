@@ -19,11 +19,10 @@ export async function GET(req: NextRequest) {
     const search = searchParams.get("search")?.toLowerCase().trim() || "";
     const roleFilter = searchParams.get("role") || "";
 
-    // Parallel fetch all pages: profiles, wallets, saved_ewallets, deposits, authUsers
+    // Parallel fetch all pages: profiles, wallets, deposits, authUsers
     const [
       { data: profiles, error: pErr },
       { data: wallets },
-      { data: ewallets },
       { data: deposits },
       authUsersList,
     ] = await Promise.all([
@@ -48,13 +47,6 @@ export async function GET(req: NextRequest) {
       ),
       fetchAllRows((from, to) =>
         supabaseAdmin
-          .from("saved_ewallets")
-          .select("id, user_id, method, account_number, account_name, is_default")
-          .order("id", { ascending: true })
-          .range(from, to)
-      ),
-      fetchAllRows((from, to) =>
-        supabaseAdmin
           .from("deposits")
           .select("user_id, status")
           .order("id", { ascending: true })
@@ -71,12 +63,6 @@ export async function GET(req: NextRequest) {
     const walletMap: Record<string, any> = {};
     (wallets || []).forEach((w) => {
       walletMap[w.user_id] = w;
-    });
-
-    const ewalletMap: Record<string, any[]> = {};
-    (ewallets || []).forEach((ew) => {
-      if (!ewalletMap[ew.user_id]) ewalletMap[ew.user_id] = [];
-      ewalletMap[ew.user_id].push(ew);
     });
 
     const authUserMap: Record<string, any> = {};
@@ -115,7 +101,7 @@ export async function GET(req: NextRequest) {
       }
     });
 
-    // 6. Merge profiles, wallets, ewallets, avatars, and deposits
+    // 6. Merge profiles, wallets, avatars, and deposits
     let users = (profiles || []).map((p) => {
       const w = walletMap[p.id];
       const authUser = authUserMap[p.id];
@@ -126,19 +112,6 @@ export async function GET(req: NextRequest) {
         authUser?.user_metadata?.avatar_url ||
         authUser?.user_metadata?.picture ||
         null;
-
-      // E-wallets list
-      const userEwallets = ewalletMap[p.id] ? [...ewalletMap[p.id]] : [];
-      if (p.dana_number && !userEwallets.some((ew) => ew.account_number === p.dana_number)) {
-        userEwallets.unshift({
-          id: `profile-${p.id}`,
-          user_id: p.id,
-          method: "DANA",
-          account_number: p.dana_number,
-          account_name: p.name || null,
-          is_default: userEwallets.length === 0,
-        });
-      }
 
       const userDeposits = depositStatsMap[p.id] || {
         total: 0,
@@ -156,7 +129,6 @@ export async function GET(req: NextRequest) {
         avatar_url: avatarUrl,
         dana_number: p.dana_number,
         whatsapp_channel_url: p.whatsapp_channel_url,
-        ewallets: userEwallets,
         created_at: p.created_at,
         balance: Number(w?.balance || 0),
         total_withdrawn: Number(w?.total_withdrawn || 0),
@@ -175,13 +147,7 @@ export async function GET(req: NextRequest) {
           (u.id && u.id.toLowerCase().includes(search)) ||
           (u.dana_number && u.dana_number.includes(search));
 
-        const matchesEwallet = u.ewallets.some(
-          (ew: any) =>
-            ew.account_number?.includes(search) ||
-            ew.method?.toLowerCase().includes(search)
-        );
-
-        return matchesBasic || matchesEwallet;
+        return matchesBasic;
       });
     }
 

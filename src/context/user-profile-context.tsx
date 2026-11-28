@@ -21,7 +21,6 @@ import {
   updateUserProfile,
   fetchUserDeposits,
   fetchUserWallet,
-  fetchSavedEWallets,
   fetchUserWithdrawals,
   fetchUserTransactions,
   fetchUserTickets,
@@ -52,7 +51,6 @@ const defaultProfile: UserProfile = {
   role: "User",
   danaNumber: "-",
   joinedAt: "-",
-  passwordChangedAt: "Belum pernah",
 };
 
 const defaultStats: UserStats = {
@@ -114,7 +112,6 @@ export interface GlobalDataContextValue {
   refreshProfile: () => Promise<void>;
   refreshDeposits: () => Promise<void>;
   refreshWallet: () => Promise<void>;
-  refreshEWallets: () => Promise<void>;
   refreshHistory: () => Promise<void>;
   refreshTickets: () => Promise<void>;
   saveEWalletAccountLocally: (method: EWalletMethod, number: string) => void;
@@ -310,11 +307,10 @@ export function UserProfileProvider({ children }: { children: React.ReactNode })
 
       setUserId(user.id);
 
-      const [pRes, dRes, wRes, ewRes, wdRes, txRes, tkRes] = await Promise.all([
+      const [pRes, dRes, wRes, wdRes, txRes, tkRes] = await Promise.all([
         fetchUserProfile(user.id),
         fetchUserDeposits(user.id),
         fetchUserWallet(user.id),
-        fetchSavedEWallets(user.id),
         fetchUserWithdrawals(user.id),
         fetchUserTransactions(user.id),
         fetchUserTickets(user.id),
@@ -359,20 +355,6 @@ export function UserProfileProvider({ children }: { children: React.ReactNode })
         setWallet(newWallet);
         try {
           localStorage.setItem(CACHE_WALLET_KEY, JSON.stringify(newWallet));
-        } catch {}
-      }
-
-      if (!ewRes.isFallback && ewRes.accounts) {
-        const cleanAccounts: Record<EWalletMethod, string> = { ...defaultEWallets };
-        for (const [k, v] of Object.entries(ewRes.accounts)) {
-          const str = typeof v === "string" ? v.trim() : "";
-          if (str && str !== "081234567890" && str !== "08123456789") {
-            cleanAccounts[k as EWalletMethod] = str;
-          }
-        }
-        setPersistedAccounts(cleanAccounts);
-        try {
-          localStorage.setItem(CACHE_EWALLETS_KEY, JSON.stringify(cleanAccounts));
         } catch {}
       }
 
@@ -510,31 +492,6 @@ export function UserProfileProvider({ children }: { children: React.ReactNode })
     }
   }, []);
 
-  const refreshEWallets = React.useCallback(async () => {
-    try {
-      const user = await getCurrentAuthUser();
-      if (!user) return;
-      const ewRes = await fetchSavedEWallets(user.id);
-      if (!ewRes.isFallback && ewRes.accounts) {
-        const cleanAccounts: Record<EWalletMethod, string> = { ...defaultEWallets };
-        for (const [k, v] of Object.entries(ewRes.accounts)) {
-          const str = typeof v === "string" ? v.trim() : "";
-          if (str && str !== "081234567890" && str !== "08123456789") {
-            cleanAccounts[k as EWalletMethod] = str;
-          }
-        }
-        setPersistedAccounts(cleanAccounts);
-        try {
-          localStorage.setItem(CACHE_EWALLETS_KEY, JSON.stringify(cleanAccounts));
-        } catch {}
-      }
-    } catch (err) {
-      console.warn("[GlobalDataContext] refreshEWallets error:", err);
-    } finally {
-      setIsEWalletLoading(false);
-    }
-  }, []);
-
   const refreshHistory = React.useCallback(async () => {
     try {
       const user = await getCurrentAuthUser();
@@ -662,7 +619,6 @@ export function UserProfileProvider({ children }: { children: React.ReactNode })
       refreshProfile,
       refreshDeposits,
       refreshWallet,
-      refreshEWallets,
       refreshHistory,
       refreshTickets,
       saveEWalletAccountLocally,
@@ -695,7 +651,6 @@ export function UserProfileProvider({ children }: { children: React.ReactNode })
       refreshProfile,
       refreshDeposits,
       refreshWallet,
-      refreshEWallets,
       refreshHistory,
       refreshTickets,
       saveEWalletAccountLocally,

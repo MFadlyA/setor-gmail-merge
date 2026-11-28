@@ -19,11 +19,19 @@ import {
   ArrowUp,
   ArrowDown,
   RotateCcw,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { StatusBadge } from "@/components/admin/ui/badge";
 import { AdminLiveOtpCell } from "@/components/admin/ui/live-otp-cell";
+import {
+  MaskedPasswordCell,
+  logAdminCredentialAction,
+  maskContactValue,
+} from "@/components/admin/ui/masked-secret-cell";
 import { adminFetch } from "@/lib/api-client";
 import { Button } from "@/components/admin/ui/button";
+import { Modal } from "@/components/admin/ui/modal";
 import { LineChart9 } from "@/components/admin/ui/demo";
 import { UsersTab } from "@/components/admin/dashboard/users-tab";
 import {
@@ -74,6 +82,11 @@ export default function DashboardOverviewPage() {
   const [copiedPasswordId, setCopiedPasswordId] = useState<string | null>(null);
   const [copiedSecretId, setCopiedSecretId] = useState<string | null>(null);
   const [copiedContactId, setCopiedContactId] = useState<string | null>(null);
+  const [selectedDeposit, setSelectedDeposit] = useState<any>(null);
+  const [showModalPassword, setShowModalPassword] = useState(false);
+  const [showModalSecret, setShowModalSecret] = useState(false);
+  const [showModalOtp, setShowModalOtp] = useState(false);
+  const [showModalContact, setShowModalContact] = useState(false);
 
   // Withdrawal processing & DANA MDA state
   const [isProcessingWd, setIsProcessingWd] = useState<string | null>(null);
@@ -83,31 +96,56 @@ export default function DashboardOverviewPage() {
     reconciling: boolean;
     env?: string;
     isConfigured?: boolean;
+    hasMerchantId?: boolean;
     balanceIdr?: number | null;
     resultMsg?: string;
+    error?: string | null;
     pendingReconcileCount?: number;
   }>({ loading: false, reconciling: false });
 
   const fetchDanaMdaInfo = useCallback(async () => {
-    setDanaMdaState((prev) => ({ ...prev, loading: true }));
+    setDanaMdaState((prev) => ({ ...prev, loading: true, error: null }));
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 12_000);
     try {
-      const res = await adminFetch("/api/admin/dana/reconcile");
-      const json = await res.json();
-      if (json.success) {
+      const res = await adminFetch("/api/admin/dana/reconcile", {
+        signal: controller.signal,
+      });
+      const json = await res.json().catch(() => ({}));
+      if (res.ok && json.success) {
+        const mdaOk = json.mda?.ok !== false;
+        const mdaErr = !mdaOk
+          ? json.mda?.resultCode === "NO_MERCHANT_ID"
+            ? "Set DANA_MERCHANT_ID"
+            : json.mda?.resultMsg || "Gagal memuat saldo MDA"
+          : null;
         setDanaMdaState((prev) => ({
           ...prev,
           loading: false,
           env: json.config?.env,
           isConfigured: json.config?.isConfigured,
+          hasMerchantId: json.config?.hasMerchantId,
           balanceIdr: json.mda?.balanceIdr ?? null,
           resultMsg: json.mda?.resultMsg || "",
+          error: mdaErr,
           pendingReconcileCount: json.pendingReconcileCount || 0,
         }));
       } else {
-        setDanaMdaState((prev) => ({ ...prev, loading: false }));
+        setDanaMdaState((prev) => ({
+          ...prev,
+          loading: false,
+          error: json?.error || "Gagal memuat saldo MDA",
+        }));
       }
-    } catch {
-      setDanaMdaState((prev) => ({ ...prev, loading: false }));
+    } catch (err: unknown) {
+      const isAbort = err instanceof Error && err.name === "AbortError";
+      setDanaMdaState((prev) => ({
+        ...prev,
+        loading: false,
+        error: isAbort ? "Timeout memuat saldo MDA" : "Gagal terhubung ke server",
+      }));
+    } finally {
+      clearTimeout(timer);
     }
   }, []);
 
@@ -260,28 +298,39 @@ export default function DashboardOverviewPage() {
     }
   };
 
-  const copyPassword = (password: string, id: string) => {
+  const copyPassword = (password: string, id: string, gmail?: string) => {
     if (navigator?.clipboard && password && password !== "-") {
       navigator.clipboard.writeText(password);
+      logAdminCredentialAction("COPY_PASSWORD", id, gmail);
       setCopiedPasswordId(id);
       setTimeout(() => setCopiedPasswordId(null), 1500);
     }
   };
 
-  const copySecret = (secret: string, id: string) => {
+  const copySecret = (secret: string, id: string, gmail?: string) => {
     if (navigator?.clipboard && secret && secret !== "-") {
       navigator.clipboard.writeText(secret);
+      logAdminCredentialAction("COPY_SECRET", id, gmail);
       setCopiedSecretId(id);
       setTimeout(() => setCopiedSecretId(null), 1500);
     }
   };
 
-  const copyContact = (contact: string, id: string) => {
+  const copyContact = (contact: string, id: string, gmail?: string) => {
     if (navigator?.clipboard && contact && contact !== "-") {
       navigator.clipboard.writeText(contact);
+      logAdminCredentialAction("COPY_CONTACT", id, gmail);
       setCopiedContactId(id);
       setTimeout(() => setCopiedContactId(null), 1500);
     }
+  };
+
+  const openDepositDetail = (dep: any) => {
+    setShowModalPassword(false);
+    setShowModalSecret(false);
+    setShowModalOtp(false);
+    setShowModalContact(false);
+    setSelectedDeposit(dep);
   };
 
   const stats = data?.stats || {
@@ -440,18 +489,26 @@ export default function DashboardOverviewPage() {
 
         {/* 3 Section Terpadu: Ekosistem & Likuiditas User (Garis Tengah Sejajar) */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 sm:gap-4 py-1">
-          {/* Section 1: Pengguna & Jumlah User Aktif */}
+          {/* Section 1: Total Pengguna & Aktif */}
           <div className="bg-zinc-950/60 border border-zinc-800/80 rounded-xl p-3.5 sm:p-4 flex flex-col hover:border-zinc-700/80 transition-colors min-w-0">
             <div className="min-h-[54px] flex flex-col justify-between gap-2">
               <div className="flex items-center justify-between text-white">
-                <span className="text-[11px] font-semibold uppercase tracking-wider text-white">Jumlah User</span>
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-white">Total Pengguna</span>
                 <Users className="w-4 h-4 text-blue-400 shrink-0" />
               </div>
-              <div className="text-xl sm:text-2xl font-bold text-white font-mono tracking-tight leading-none">
-                {isLoading ? (
-                  <div className="w-20 h-6 bg-zinc-800 animate-pulse rounded" />
-                ) : (
-                  `${stats.totalMembers.toLocaleString("id-ID")} User`
+              <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
+                <div className="text-xl sm:text-2xl font-bold text-white font-mono tracking-tight leading-none">
+                  {isLoading ? (
+                    <div className="w-20 h-6 bg-zinc-800 animate-pulse rounded" />
+                  ) : (
+                    `${(stats.totalUsers || 0).toLocaleString("id-ID")} Pengguna`
+                  )}
+                </div>
+                {!isLoading && (
+                  <span className="text-[11px] text-zinc-400 font-medium">
+                    ({(stats.totalMembers || 0).toLocaleString("id-ID")} User +{" "}
+                    {(stats.totalAdmins || 0).toLocaleString("id-ID")} Admin)
+                  </span>
                 )}
               </div>
             </div>
@@ -460,13 +517,13 @@ export default function DashboardOverviewPage() {
               <div className="flex items-center justify-between gap-2">
                 <span className="flex items-center gap-1.5 text-zinc-300">
                   <UserCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                  Jumlah User Aktif:
+                  Aktif ({timeframe === "All" ? "30 Hari" : timeframe}):
                 </span>
                 <b className="text-emerald-400 font-mono">
                   {isLoading ? (
                     <span className="w-12 h-4 bg-zinc-800 animate-pulse inline-block rounded" />
                   ) : (
-                    `${(stats.activeUsersCount || 0).toLocaleString("id-ID")} User`
+                    `${(stats.activeUsersCount || 0).toLocaleString("id-ID")} Pengguna`
                   )}
                 </b>
               </div>
@@ -684,15 +741,21 @@ export default function DashboardOverviewPage() {
                     <span className="text-zinc-300">
                       Saldo MDA:{" "}
                       <b className="font-mono text-white">
-                        {danaMdaState.loading
-                          ? "Memuat..."
-                          : typeof danaMdaState.balanceIdr === "number"
-                            ? isBalanceHidden
-                              ? "Rp ***"
-                              : `Rp ${danaMdaState.balanceIdr.toLocaleString("id-ID")}`
-                            : danaMdaState.isConfigured === false
-                              ? "Belum Dikonfigurasi"
-                              : "Set DANA_MERCHANT_ID"}
+                        {danaMdaState.loading ? (
+                          "Memuat..."
+                        ) : typeof danaMdaState.balanceIdr === "number" ? (
+                          isBalanceHidden
+                            ? "Rp ***"
+                            : `Rp ${danaMdaState.balanceIdr.toLocaleString("id-ID")}`
+                        ) : danaMdaState.error ? (
+                          <span className="text-rose-400 font-sans font-semibold">
+                            {danaMdaState.error}
+                          </span>
+                        ) : danaMdaState.isConfigured === false ? (
+                          "Belum Dikonfigurasi"
+                        ) : (
+                          "-"
+                        )}
                       </b>
                     </span>
                     <span className="text-[11px] text-zinc-400">
@@ -711,7 +774,7 @@ export default function DashboardOverviewPage() {
                       <RefreshCw
                         className={`w-3.5 h-3.5 mr-1 ${danaMdaState.loading ? "animate-spin" : ""}`}
                       />
-                      Cek Saldo MDA
+                      {danaMdaState.error ? "Coba Lagi" : "Cek Saldo MDA"}
                     </Button>
                     <Button
                       size="sm"
@@ -926,42 +989,51 @@ export default function DashboardOverviewPage() {
                     </div>
                   ) : (
                     <div className="divide-y divide-zinc-800/70">
-                      {filteredTransactionsList.map((tx: any) => (
-                        <div
-                          key={tx.id}
-                          className="py-2.5 flex items-center justify-between gap-3 hover:bg-zinc-800/30 px-2 rounded-lg transition-colors"
-                        >
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-medium text-zinc-200 truncate">
-                                {tx.title}
-                              </span>
-                              <StatusBadge status={tx.status} />
-                            </div>
-                            <p className="text-[10px] text-zinc-500">
-                              {tx.userName} ({tx.userEmail}) •{" "}
-                              {new Date(tx.created_at).toLocaleDateString("id-ID", {
-                                day: "numeric",
-                                month: "short",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
-                            </p>
-                          </div>
+                      {filteredTransactionsList.map((tx: any) => {
+                        const isCredit =
+                          tx.type === "deposit" ||
+                          tx.type === "manual_credit" ||
+                          tx.type === "bonus" ||
+                          tx.type === "refund" ||
+                          tx.type === "adjustment" ||
+                          String(tx.title || "").toLowerCase().includes("pengembalian dana");
 
-                          <div className="text-right shrink-0">
-                            <span
-                              className={`text-xs font-bold font-mono ${tx.type === "deposit" || tx.type === "manual_credit"
-                                ? "text-emerald-400"
-                                : "text-rose-400"
+                        return (
+                          <div
+                            key={tx.id}
+                            className="py-2.5 flex items-center justify-between gap-3 hover:bg-zinc-800/30 px-2 rounded-lg transition-colors"
+                          >
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-medium text-zinc-200 truncate">
+                                  {tx.title}
+                                </span>
+                                <StatusBadge status={tx.status} />
+                              </div>
+                              <p className="text-[10px] text-zinc-500">
+                                {tx.userName} ({tx.userEmail}) •{" "}
+                                {new Date(tx.created_at).toLocaleDateString("id-ID", {
+                                  day: "numeric",
+                                  month: "short",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </p>
+                            </div>
+
+                            <div className="text-right shrink-0">
+                              <span
+                                className={`text-xs font-bold font-mono ${
+                                  isCredit ? "text-emerald-400" : "text-rose-400"
                                 }`}
-                            >
-                              {tx.type === "deposit" || tx.type === "manual_credit" ? "+" : "-"}
-                              Rp {Number(tx.amount).toLocaleString("id-ID")}
-                            </span>
+                              >
+                                {isCredit ? "+" : "-"}
+                                Rp {Number(tx.amount).toLocaleString("id-ID")}
+                              </span>
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -1171,13 +1243,22 @@ export default function DashboardOverviewPage() {
                           const totpSecret = d.totp_secret || "-";
                           const contactInfo = d.contact_info || "-";
                           return (
-                            <tr key={d.id} className="hover:bg-zinc-800/30 transition-colors">
+                            <tr
+                              key={d.id}
+                              onClick={() => openDepositDetail(d)}
+                              className="hover:bg-zinc-800/30 transition-colors cursor-pointer"
+                            >
                               {/* Gmail Disetor */}
-                              <td className="py-2.5 px-3">
+                              <td className="py-2.5 px-3" onClick={(e) => e.stopPropagation()}>
                                 <div className="flex items-center gap-1.5">
-                                  <span className="font-mono text-zinc-100 font-medium text-xs select-all">
+                                  <button
+                                    type="button"
+                                    onClick={() => openDepositDetail(d)}
+                                    className="font-mono text-zinc-100 hover:text-sky-300 font-medium text-xs text-left cursor-pointer"
+                                    title="Klik untuk buka detail akun"
+                                  >
                                     {d.gmail}
-                                  </span>
+                                  </button>
                                   <button
                                     type="button"
                                     onClick={() => copyGmail(d.gmail, d.id)}
@@ -1193,27 +1274,13 @@ export default function DashboardOverviewPage() {
                                 </div>
                               </td>
 
-                              {/* Password Email */}
-                              <td className="py-2.5 px-3">
-                                <div className="flex items-center gap-1.5">
-                                  <span className="font-mono text-emerald-300 font-medium text-xs select-all bg-zinc-900/80 border border-zinc-800 px-2 py-0.5 rounded-md">
-                                    {emailPass}
-                                  </span>
-                                  {emailPass !== "-" && (
-                                    <button
-                                      type="button"
-                                      onClick={() => copyPassword(emailPass, d.id)}
-                                      className="p-1 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition-colors cursor-pointer"
-                                      title="Salin Password"
-                                    >
-                                      {copiedPasswordId === d.id ? (
-                                        <Check className="w-3 h-3 text-emerald-400" />
-                                      ) : (
-                                        <Copy className="w-3 h-3" />
-                                      )}
-                                    </button>
-                                  )}
-                                </div>
+                              {/* Password Email (dimasking secara default) */}
+                              <td className="py-2.5 px-3" onClick={(e) => e.stopPropagation()}>
+                                <MaskedPasswordCell
+                                  password={emailPass}
+                                  depositId={d.id}
+                                  gmail={d.gmail}
+                                />
                               </td>
 
                               {/* Siapa yang Menyetor */}
@@ -1228,46 +1295,53 @@ export default function DashboardOverviewPage() {
                                 </div>
                               </td>
 
-                              {/* Secret Code Google */}
-                              <td className="py-2.5 px-3">
+                              {/* Secret Code Google (dimasking; buka di detail) */}
+                              <td className="py-2.5 px-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                                 {totpSecret !== "-" ? (
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="font-mono text-indigo-300 font-medium text-[11px] select-all bg-zinc-900/80 border border-indigo-500/25 px-2 py-0.5 rounded-md max-w-[150px] truncate">
-                                      {totpSecret}
-                                    </span>
-                                    <button
-                                      type="button"
-                                      onClick={() => copySecret(totpSecret, d.id)}
-                                      className="p-1 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition-colors cursor-pointer"
-                                      title="Salin Secret Code"
-                                    >
-                                      {copiedSecretId === d.id ? (
-                                        <Check className="w-3 h-3 text-emerald-400" />
-                                      ) : (
-                                        <Copy className="w-3 h-3" />
-                                      )}
-                                    </button>
-                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => openDepositDetail(d)}
+                                    className="inline-flex items-center gap-1.5 font-mono text-indigo-300/90 hover:text-indigo-200 text-[11px] bg-zinc-900/80 border border-indigo-500/25 px-2 py-0.5 rounded-md cursor-pointer"
+                                    title="Secret Code disembunyikan. Klik untuk buka detail."
+                                  >
+                                    <span className="tracking-widest">••••••••</span>
+                                  </button>
                                 ) : (
                                   <span className="text-zinc-500">-</span>
                                 )}
                               </td>
 
-                              {/* OTP Generator Live */}
-                              <td className="py-2.5 px-3 whitespace-nowrap">
-                                <AdminLiveOtpCell secret={totpSecret} />
+                              {/* OTP Generator Live (disembunyikan dari list; lihat di detail) */}
+                              <td className="py-2.5 px-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                                {totpSecret !== "-" ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => openDepositDetail(d)}
+                                    className="inline-flex items-center gap-1 rounded-md border border-amber-500/30 bg-amber-950/30 hover:bg-amber-950/50 px-2 py-0.5 text-[11px] font-semibold text-amber-300 cursor-pointer transition-colors"
+                                    title="Buka detail untuk melihat OTP 2FA"
+                                  >
+                                    <span>2FA • Buka Detail</span>
+                                  </button>
+                                ) : (
+                                  <span className="text-zinc-500">-</span>
+                                )}
                               </td>
 
-                              {/* Kontak Telegram / WA */}
-                              <td className="py-2.5 px-3 whitespace-nowrap">
+                              {/* Kontak Telegram / WA (dimasking sebagian di tabel) */}
+                              <td className="py-2.5 px-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                                 {contactInfo !== "-" ? (
                                   <div className="inline-flex items-center gap-1.5">
-                                    <span className="font-mono text-cyan-300 font-medium text-[11px] select-all bg-cyan-500/10 border border-cyan-500/25 px-2 py-0.5 rounded-md max-w-[150px] truncate">
-                                      {contactInfo}
-                                    </span>
                                     <button
                                       type="button"
-                                      onClick={() => copyContact(contactInfo, d.id)}
+                                      onClick={() => openDepositDetail(d)}
+                                      className="font-mono text-cyan-300 hover:text-cyan-200 font-medium text-[11px] bg-cyan-500/10 border border-cyan-500/25 px-2 py-0.5 rounded-md cursor-pointer"
+                                      title="Klik detail untuk lihat kontak penuh"
+                                    >
+                                      {maskContactValue(contactInfo)}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => copyContact(contactInfo, d.id, d.gmail)}
                                       className="p-1 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition-colors cursor-pointer"
                                       title="Salin Kontak Telegram / WA"
                                     >
@@ -1320,9 +1394,16 @@ export default function DashboardOverviewPage() {
                               </td>
 
                               {/* Aksi Verifikasi Admin */}
-                              <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                              <td className="py-2.5 px-3 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                                 {isDicek || isMasalah ? (
                                   <div className="inline-flex items-center gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => openDepositDetail(d)}
+                                      className="inline-flex items-center gap-1 rounded-lg border border-zinc-700 bg-zinc-900 hover:bg-zinc-800 px-2 py-1 text-[11px] font-semibold text-zinc-200 transition-colors cursor-pointer"
+                                    >
+                                      Detail
+                                    </button>
                                     <button
                                       type="button"
                                       disabled={isUpdatingDepositId === d.id}
@@ -1357,7 +1438,13 @@ export default function DashboardOverviewPage() {
                                     )}
                                   </div>
                                 ) : (
-                                  <span className="text-[11px] text-zinc-500">Selesai</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => openDepositDetail(d)}
+                                    className="inline-flex items-center gap-1 rounded-lg border border-zinc-800 bg-zinc-900/70 hover:bg-zinc-800 px-2.5 py-1 text-[11px] font-medium text-zinc-300 transition-colors cursor-pointer"
+                                  >
+                                    Detail
+                                  </button>
                                 )}
                               </td>
                             </tr>
@@ -1372,6 +1459,256 @@ export default function DashboardOverviewPage() {
           </div>
         </div>
       </div>
+
+      {/* Modal Detail Akun Setoran (Password / Secret / OTP / Kontak Audit-Logged) */}
+      <Modal
+        isOpen={Boolean(selectedDeposit)}
+        onClose={() => setSelectedDeposit(null)}
+        title="Detail Kredensial & Verifikasi Setoran"
+        subtitle={selectedDeposit?.gmail || ""}
+        footer={
+          <div className="flex flex-wrap items-center justify-between gap-2 w-full">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSelectedDeposit(null)}
+            >
+              Tutup
+            </Button>
+            {selectedDeposit &&
+              (isPendingDepositStatus(selectedDeposit.status) ||
+                isIssueDepositStatus(selectedDeposit.status)) && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    disabled={isUpdatingDepositId === selectedDeposit.id}
+                    onClick={async () => {
+                      await handleUpdateDeposit(selectedDeposit.id, "rejected");
+                      setSelectedDeposit(null);
+                    }}
+                  >
+                    Tolak
+                  </Button>
+                  <Button
+                    variant="success"
+                    size="sm"
+                    disabled={isUpdatingDepositId === selectedDeposit.id}
+                    onClick={async () => {
+                      await handleUpdateDeposit(selectedDeposit.id, "accepted");
+                      setSelectedDeposit(null);
+                    }}
+                  >
+                    Terima &amp; Cairkan
+                  </Button>
+                </div>
+              )}
+          </div>
+        }
+      >
+        {selectedDeposit && (
+          <div className="space-y-3 text-xs">
+            <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-3.5 space-y-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-zinc-500">Gmail Disetor:</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-mono font-bold text-emerald-400 select-all">
+                    {selectedDeposit.gmail}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => copyGmail(selectedDeposit.gmail, selectedDeposit.id)}
+                    className="p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-white cursor-pointer"
+                    title="Salin Gmail"
+                  >
+                    {copiedGmail === selectedDeposit.id ? (
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    ) : (
+                      <Copy className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-zinc-500">Password Akun:</span>
+                {selectedDeposit.password && selectedDeposit.password !== "-" ? (
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className={`font-mono font-bold ${
+                        showModalPassword ? "text-emerald-300 select-all" : "text-zinc-400 tracking-widest"
+                      }`}
+                    >
+                      {showModalPassword ? selectedDeposit.password : "••••••••"}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = !showModalPassword;
+                        setShowModalPassword(next);
+                        if (next) {
+                          logAdminCredentialAction("REVEAL_PASSWORD", selectedDeposit.id, selectedDeposit.gmail);
+                        }
+                      }}
+                      className="p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-white cursor-pointer"
+                      title={showModalPassword ? "Sembunyikan Password" : "Tampilkan Password"}
+                    >
+                      {showModalPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        copyPassword(selectedDeposit.password, `modal-${selectedDeposit.id}`, selectedDeposit.gmail)
+                      }
+                      className="p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-white cursor-pointer"
+                      title="Salin Password"
+                    >
+                      {copiedPasswordId === `modal-${selectedDeposit.id}` ? (
+                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                  </div>
+                ) : (
+                  <span className="text-zinc-500">-</span>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-zinc-500">Secret Code Google:</span>
+                {selectedDeposit.totp_secret && selectedDeposit.totp_secret !== "-" ? (
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className={`font-mono font-bold ${
+                        showModalSecret ? "text-indigo-300 select-all" : "text-zinc-400 tracking-widest"
+                      }`}
+                    >
+                      {showModalSecret ? selectedDeposit.totp_secret : "••••••••••••"}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = !showModalSecret;
+                        setShowModalSecret(next);
+                        if (next) {
+                          logAdminCredentialAction("REVEAL_SECRET", selectedDeposit.id, selectedDeposit.gmail);
+                        }
+                      }}
+                      className="p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-white cursor-pointer"
+                      title={showModalSecret ? "Sembunyikan Secret" : "Tampilkan Secret"}
+                    >
+                      {showModalSecret ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        copySecret(selectedDeposit.totp_secret, `modal-${selectedDeposit.id}`, selectedDeposit.gmail)
+                      }
+                      className="p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-white cursor-pointer"
+                      title="Salin Secret Code"
+                    >
+                      {copiedSecretId === `modal-${selectedDeposit.id}` ? (
+                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                  </div>
+                ) : (
+                  <span className="text-zinc-500">-</span>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-zinc-500">OTP 2FA Live:</span>
+                {selectedDeposit.totp_secret && selectedDeposit.totp_secret !== "-" ? (
+                  showModalOtp ? (
+                    <AdminLiveOtpCell
+                      secret={selectedDeposit.totp_secret}
+                      onCopy={() =>
+                        logAdminCredentialAction("COPY_OTP", selectedDeposit.id, selectedDeposit.gmail)
+                      }
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowModalOtp(true);
+                        logAdminCredentialAction("REVEAL_OTP", selectedDeposit.id, selectedDeposit.gmail);
+                      }}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/35 bg-amber-950/40 hover:bg-amber-950/70 px-2.5 py-1 text-[11px] font-bold text-amber-300 cursor-pointer"
+                    >
+                      <Eye className="w-3 h-3" />
+                      <span>Tampilkan OTP Live</span>
+                    </button>
+                  )
+                ) : (
+                  <span className="text-zinc-500">-</span>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-zinc-500">Kontak TG / WA:</span>
+                {selectedDeposit.contact_info && selectedDeposit.contact_info !== "-" ? (
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className={`font-mono font-bold ${
+                        showModalContact ? "text-cyan-300 select-all" : "text-zinc-300"
+                      }`}
+                    >
+                      {showModalContact
+                        ? selectedDeposit.contact_info
+                        : maskContactValue(selectedDeposit.contact_info)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = !showModalContact;
+                        setShowModalContact(next);
+                        if (next) {
+                          logAdminCredentialAction("REVEAL_CONTACT", selectedDeposit.id, selectedDeposit.gmail);
+                        }
+                      }}
+                      className="p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-white cursor-pointer"
+                      title={showModalContact ? "Sembunyikan Kontak" : "Tampilkan Kontak"}
+                    >
+                      {showModalContact ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        copyContact(selectedDeposit.contact_info, `modal-${selectedDeposit.id}`, selectedDeposit.gmail)
+                      }
+                      className="p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-white cursor-pointer"
+                      title="Salin Kontak"
+                    >
+                      {copiedContactId === `modal-${selectedDeposit.id}` ? (
+                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                  </div>
+                ) : (
+                  <span className="text-zinc-500">-</span>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between gap-2 pt-1 border-t border-zinc-800/80">
+                <span className="text-zinc-500">Penyetor:</span>
+                <span className="text-zinc-200 font-medium">
+                  {selectedDeposit.userName || "Pengguna"} ({selectedDeposit.userEmail || "-"})
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-zinc-500">Catatan:</span>
+                <span className="text-zinc-300">{selectedDeposit.note || "-"}</span>
+              </div>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

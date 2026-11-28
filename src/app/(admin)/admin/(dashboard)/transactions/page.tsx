@@ -37,15 +37,26 @@ export default function TransactionsPage() {
     isConfigured?: boolean;
     schemaMigrated?: boolean;
     balanceIdr?: number | null;
+    error?: string | null;
     pendingReconcileCount?: number;
   }>({ loading: false, reconciling: false });
 
   const fetchMdaInfo = async () => {
-    setMdaInfo((prev) => ({ ...prev, loading: true }));
+    setMdaInfo((prev) => ({ ...prev, loading: true, error: null }));
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 12_000);
     try {
-      const res = await adminFetch("/api/admin/dana/reconcile");
-      const json = await res.json();
-      if (json.success) {
+      const res = await adminFetch("/api/admin/dana/reconcile", {
+        signal: controller.signal,
+      });
+      const json = await res.json().catch(() => ({}));
+      if (res.ok && json.success) {
+        const mdaOk = json.mda?.ok !== false;
+        const mdaErr = !mdaOk
+          ? json.mda?.resultCode === "NO_MERCHANT_ID"
+            ? "Set DANA_MERCHANT_ID"
+            : json.mda?.resultMsg || "Gagal memuat MDA"
+          : null;
         setMdaInfo((prev) => ({
           ...prev,
           loading: false,
@@ -53,13 +64,25 @@ export default function TransactionsPage() {
           isConfigured: json.config?.isConfigured,
           schemaMigrated: json.config?.schemaMigrated,
           balanceIdr: json.mda?.balanceIdr ?? null,
+          error: mdaErr,
           pendingReconcileCount: json.pendingReconcileCount || 0,
         }));
       } else {
-        setMdaInfo((prev) => ({ ...prev, loading: false }));
+        setMdaInfo((prev) => ({
+          ...prev,
+          loading: false,
+          error: json?.error || "Gagal memuat MDA",
+        }));
       }
-    } catch {
-      setMdaInfo((prev) => ({ ...prev, loading: false }));
+    } catch (err: unknown) {
+      const isAbort = err instanceof Error && err.name === "AbortError";
+      setMdaInfo((prev) => ({
+        ...prev,
+        loading: false,
+        error: isAbort ? "Timeout memuat MDA" : "Gagal terhubung ke server",
+      }));
+    } finally {
+      clearTimeout(timer);
     }
   };
 
@@ -181,13 +204,24 @@ export default function TransactionsPage() {
               </span>
               <span className="text-zinc-400">MDA:</span>
               <span className="font-mono font-bold text-white">
-                {mdaInfo.loading
-                  ? "..."
-                  : typeof mdaInfo.balanceIdr === "number"
-                    ? `Rp ${mdaInfo.balanceIdr.toLocaleString("id-ID")}`
-                    : mdaInfo.isConfigured === false
-                      ? "Belum Aktif"
-                      : "-"}
+                {mdaInfo.loading ? (
+                  "Memuat..."
+                ) : typeof mdaInfo.balanceIdr === "number" ? (
+                  `Rp ${mdaInfo.balanceIdr.toLocaleString("id-ID")}`
+                ) : mdaInfo.error ? (
+                  <button
+                    type="button"
+                    onClick={() => fetchMdaInfo()}
+                    className="text-rose-400 hover:text-rose-300 underline decoration-dotted cursor-pointer font-sans font-semibold"
+                    title="Klik untuk memuat ulang saldo MDA"
+                  >
+                    {mdaInfo.error} (Coba Lagi)
+                  </button>
+                ) : mdaInfo.isConfigured === false ? (
+                  "Belum Aktif"
+                ) : (
+                  "-"
+                )}
               </span>
             </div>
 
